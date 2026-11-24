@@ -1,0 +1,108 @@
+# Simplicial's commands: installed with the app as <PAPERBOAT_HOME>/apps/simplicial/commands.toml, the
+# paperboat CLI adds them to its own (paperboat/src/cli/commands.toml has the format) and runs them
+# through `cli` with every word as typed (`paperboat run pendulum` → `bin/simplicial run pendulum`).
+# Wording approved 2026-11-24 (plans/2026-11-24_19-43_launcher_and_tui_on_one_client.md §4); moved here
+# from the platform so the platform names no app.
+cli = "bin/simplicial"
+
+# ── Stations ──
+[[command]]
+id = "station.list"
+name = "station list"
+alias = ["stations"]
+args = "[--source all|example|installed|built-in]"
+desc = "Station projects you can run"
+group = "Stations"
+
+[[command]]
+id = "station.run"
+name = "run"
+args = "<station> [--port <n>] [--no-build] [--clean] [--time <s>] [--var <k>=<v>]"
+desc = "Build if needed, start, and open in Simplicial"
+group = "Stations"
+
+[[command]]
+id = "station.build"
+name = "build"
+args = "<station> [--clean]"
+desc = "Compile a C++ station"
+group = "Stations"
+
+[[command]]
+id = "station.deps"
+name = "deps install"
+args = "<station>"
+desc = "Install a Python or Julia station's dependencies"
+group = "Stations"
+
+[[command]]
+id = "station.check"
+name = "check"
+args = "<station> [--fast]"
+desc = "Verify a station: manifest, catalog, smoke and golden"
+group = "Stations"
+
+[[command]]
+id = "station.pack"
+name = "pack"
+args = "<station>"
+desc = "Write a portable .pst package"
+group = "Stations"
+
+[[command]]
+id = "station.new"
+name = "new"
+args = "<name> --cpp|--python|--julia"
+desc = "Create a station that passes check"
+group = "Stations"
+
+[[command]]
+id = "station.open"
+name = "open"
+args = "<file.pst|file.psf|folder>"
+desc = "Open a station package, a project or a folder"
+group = "Stations"
+
+[[command]]
+id = "station.examples"
+name = "station examples"
+desc = "Fetch the official example stations"
+group = "Stations"
+
+[[command]]
+id = "station.uninstall"
+name = "station uninstall"
+args = "<station>"
+desc = "Remove an installed station"
+group = "Stations"
+
+# ── Toolkits ──
+[[command]]
+id = "toolkit.blocks"
+name = "toolkit blocks"
+args = "<toolkit> [--kind flow|station|board|analysis]"
+desc = "The blocks a toolkit adds"
+group = "Toolkits"
+
+[[command]]
+id = "toolkit.install"
+name = "toolkit install"
+args = "<toolkit>[@<version>]|<git url>|<folder>"
+desc = "Build and install a toolkit as a plugin"
+group = "Toolkits"
+
+[[command]]
+id = "toolkit.update"
+name = "toolkit update"
+args = "<toolkit>|--all"
+desc = "Update one toolkit, or all of them"
+group = "Toolkits"
+
+[[command]]
+id = "toolkit.uninstall"
+name = "toolkit uninstall"
+args = "<toolkit>"
+desc = "Remove a toolkit and its blocks"
+group = "Toolkits"
+
+# ── Runtimes ──
