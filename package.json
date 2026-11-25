@@ -19,7 +19,7 @@
     "test": "node --import ./web/scripts/kit.ts --test web/test/*.test.ts engine/toolkit/src/*/*/web/*.test.ts"
   },
   "devDependencies": {
-    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#7763d6ffe73efca1e90bc08aceef793706e8017a",
+    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#a7433b83f4068cc0bea92ab587251cf33a0c83a6",
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
