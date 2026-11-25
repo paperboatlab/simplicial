@@ -47,6 +47,8 @@ export type Do = {
   search: () => void;
   run: () => void;
   cancel: () => void;
+  /** Choose a station: the page opens on the one picked. */
+  station: () => void;
   report: () => void;
   /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
   undo: () => void;
@@ -74,6 +76,7 @@ export function registry(v: View, a: Do): Command[] {
     later("file.open", "Open…", "file", "open", "Ctrl O"),
     later("file.save", "Save", "file", "save", "Ctrl S"),
     later("file.saveas", "Save as…", "file", "save", "Ctrl Shift S"),
+    { id: "file.station", label: "Choose a station…", menu: "file", group: "station", run: a.station },
     later("file.export", "Export station…", "file", "station"),
     later("file.settings", "Settings…", "file", "settings", "Ctrl ,"),
 

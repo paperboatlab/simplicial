@@ -219,3 +219,16 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .deco-vars .chip:focus-visible { outline: 2px solid var(--focus); }
 /* an instrument no toolkit drew: its raw value */
 .instrument.fallback output { position: absolute; inset: 0; padding: 12px; font: 12.5px var(--font-mono); overflow: hidden; overflow-wrap: anywhere; }
+/* Choose a station: the stations found, one row each (its name, its address in mono), then an address field */
+.stations-window { width: min(520px, 92vw); }
+.stations-list { display: flex; flex-direction: column; gap: 2px; min-height: 64px; max-height: 320px; overflow: auto; padding: 4px; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.stations-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-3); min-height: 34px; padding: 0 10px; border-radius: var(--radius-sm); cursor: pointer; }
+.stations-row:hover { background: var(--surface-raised); }
+.stations-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.stations-row[aria-selected="true"] { box-shadow: inset 0 0 0 1.5px var(--accent-select); }
+.stations-name { font: 500 13px var(--font-sans); }
+.stations-url { margin-left: auto; font: 12px var(--font-mono); color: var(--text-muted); }
+.stations-note { padding: 8px 10px; font-size: 12.5px; color: var(--text-muted); }
+.stations-addr { display: flex; gap: var(--space-2); }
+.stations-addr .well { flex: 1; }
+.dialog-actions .grow { flex: 1; }
