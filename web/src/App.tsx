@@ -21,6 +21,7 @@ import { Board } from "./board/Board.tsx";
 import { loadSaved, save } from "./board/boardLayout.ts";
 import { useBoardWiring } from "./board/boardWiring.ts";
 import { sceneOf, useEngine } from "./engine.ts";
+import { lengthText, parseLength } from "./runLength.ts";
 import { useNews } from "./news.ts";
 import { StationPicker, useStations } from "./StationPicker.tsx";
 import { renameRef } from "./variableEdits.ts";
@@ -79,21 +80,25 @@ const FIT_DOCK: FitViewOptions = { padding: { top: "32px", left: "32px", right: 
 const LOCKED = "A run is in progress: cancel it to edit the flow";
 const fmt = (v: unknown) => (typeof v === "number" ? String(Number(v.toPrecision(4))).replace("-", "−") : String(v));
 
-/** How long and how fast the next run goes, beside Run (legacy RunOptions): the station's defaults until changed; 0 s runs until stopped. */
+/** How long and how fast the next run goes, beside Run (legacy RunOptions): the station's defaults until changed; ∞ (0 s) runs until cancelled. */
 function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; value: RunSettings; onChange: (v: RunSettings) => void }) {
   const duration = value.duration ?? defaults.duration ?? 10, speed = value.speed ?? defaults.speed ?? 1;
-  const [draft, setDraft] = useState(String(duration));
-  useEffect(() => setDraft(String(duration)), [duration]);
+  const [draft, setDraft] = useState(lengthText(duration));
+  useEffect(() => setDraft(lengthText(duration)), [duration]);
+  const finite = useRef(duration || defaults.duration || 10); // what ∞ goes back to
+  if (duration > 0) finite.current = duration;
   const set = (change: RunSettings) => {
     const next = { ...value, ...change };
     for (const k of ["duration", "speed"] as const) if (next[k] === defaults[k]) delete next[k];  // only what changed goes with the run
     onChange(next);
   };
-  const commit = () => { const d = Number(draft); if (draft.trim() && Number.isFinite(d) && d >= 0) set({ duration: d }); else setDraft(String(duration)); };
+  const commit = () => { const d = parseLength(draft); if (d !== undefined) set({ duration: d }); else setDraft(lengthText(duration)); };
   return (
-    <span className="run-options" title="The next run's length and speed (the station's defaults until changed; 0 s runs until stopped)">
+    <span className="run-options" title="The next run's length and speed (the station's defaults until changed; ∞ runs until cancelled)">
       <i className="dock-sep" />for
-      <input aria-label="Run length, s" value={draft} size={4} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />s
+      <input aria-label="Run length, s (∞: until cancelled)" value={draft} size={4} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />s
+      <button type="button" className={`run-forever${duration === 0 ? " on" : ""}`} aria-pressed={duration === 0}
+        title={duration === 0 ? `Back to ${finite.current} s` : "Run until cancelled (∞)"} onClick={() => set({ duration: duration === 0 ? finite.current : 0 })}>∞</button>
       <label>at</label>
       <select aria-label="Speed" value={speed} title="Times real time; during a run, it changes the run at once" onChange={(e) => set({ speed: Number(e.target.value) })}>
         {SPEEDS.map((x) => <option key={x} value={x}>{x === 0 ? "max" : `${x}×`}</option>)}
@@ -259,7 +264,7 @@ export function App() {
     return typeof v === "number" && m.inputs?.length === 1 ? [[k, v, m.sources?.[m.inputs[0]]?.unit] as const] : [];  // one input: one reading
   }).slice(0, 4);
   const duration = Number(runSettings.duration ?? state.runDefaults.duration ?? 0);
-  const elapsed = !state.run ? "" : duration > 0 ? `${(state.run.progress * duration).toFixed(1)} / ${duration} s` : `${(state.run.simTime ?? 0).toFixed(1)} s`;
+  const elapsed = !state.run ? "" : duration > 0 ? `${(state.run.progress * duration).toFixed(1)} / ${duration} s` : `${(state.run.simTime ?? 0).toFixed(1)} s / ∞`;
   const status = state.run?.status;
   const statusText = status === "running" ? <><Spinner size={12} />running {elapsed}</>
     : status === "failed" ? (state.failed.length ? `${state.failed[0]} failed` : "failed")
