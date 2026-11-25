@@ -18,7 +18,7 @@ include(GNUInstallDirs)
 option(PAPERBOAT_STATIC_RUNTIME "Link libstdc++ and libgcc statically, so a release binary needs only glibc" OFF)
 # Shared engine libraries (pb#352): one copy of the registry, the solvers' run defaults and the toolkit
 # code per process, so a toolkit is a plugin the hosts load at runtime and installs without an engine
-# rebuild. On for a standalone build on Linux and macOS; static when a station or the Python module pulls
+# rebuild. On for a standalone build on Linux and macOS; static when a station pulls
 # the engine in, and on Windows (its SDK uses the static MSVC runtime, #222).
 set(_pb_shared_default OFF)
 if(PROJECT_IS_TOP_LEVEL AND NOT WIN32)
@@ -162,8 +162,7 @@ if(PAPERBOAT_INSTALL)
           DESTINATION "${CMAKE_INSTALL_DOCDIR}/pocketfft" COMPONENT runtime)
 endif()
 
-# The host library is a shared object (Julia dlopens it), so the engine's archives it links
-# must be position independent; the Python module already builds them that way.
+# Toolkit plugins are shared objects, so the engine's archives they link must be position independent.
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(PAPERBOAT_SHARED_LIBS)
   set(PAPERBOAT_LIB_TYPE SHARED)
@@ -173,13 +172,12 @@ else()
 endif()
 add_subdirectory(toolkit)
 add_subdirectory(core)
-add_subdirectory(host)
 
 # Apple's libc++ up to the macOS 15 SDK (Xcode 16) still ships <stop_token> and std::jthread as
 # experimental, off unless _LIBCPP_ENABLE_EXPERIMENTAL is defined; from the macOS 26 SDK they are on.
 # Both are header-only there. PUBLIC: core's and the toolkit's own headers use std::stop_token
-# (toolkit's block.hpp is in the run's face), so everything that includes them (tests, the Python
-# module, SDK stations through the exported targets) needs it too.
+# (toolkit's block.hpp is in the run's face), so everything that includes them (tests, SDK
+# stations through the exported targets) needs it too.
 if(APPLE)
   include(CheckCXXSourceCompiles)
   set(_pb_jthread_src "#include <stop_token>\n#include <thread>\nint main() { std::jthread t([](std::stop_token) {}); }")

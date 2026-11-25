@@ -112,27 +112,13 @@ std::string julia_binary() {
   return "julia";
 }
 
-// Julia is isolated per station: its own depot, project and load path (#322). The host
-// library is the checkout's build unless the caller names one.
+// Julia is isolated per station: its own depot, project and load path (#322).
 std::vector<std::pair<std::string, std::string>> isolated_julia_env(const fs::path& dir) {
   std::vector<std::pair<std::string, std::string>> env;
   env.emplace_back("JULIA_PROJECT", dir.string());
   env.emplace_back("JULIA_DEPOT_PATH", (dir / ".julia").string());
   env.emplace_back("JULIA_LOAD_PATH", "@:@stdlib");
   env.emplace_back("JULIA_NUM_THREADS", "1");
-  if (!std::getenv("PAPERBOAT_HOST_LIB")) {
-    const fs::path root = toolkit::find_repo_root(dir);
-    for (const char* name : {"libpaperboat_host.so", "libpaperboat_host.dylib", "paperboat_host.dll"}) {
-      for (const fs::path& base : {root / "engine" / "build" / "host", root / "engine" / "build" / "bundle-install" / "lib"}) {
-        if (base.empty()) continue;
-        const fs::path candidate = base / name;
-        if (fs::is_regular_file(candidate)) {
-          env.emplace_back("PAPERBOAT_HOST_LIB", candidate.string());
-          return env;
-        }
-      }
-    }
-  }
   return env;
 }
 

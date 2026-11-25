@@ -60,12 +60,6 @@ def run(example: Path, expected: dict) -> list[str]:
         env.setdefault("JULIA_DEPOT_PATH", str(example / ".julia"))
         env.setdefault("JULIA_LOAD_PATH", "@:@stdlib")
         env.setdefault("JULIA_NUM_THREADS", "1")
-        if "PAPERBOAT_HOST_LIB" not in env:
-            for name in ("libpaperboat_host.so", "libpaperboat_host.dylib", "paperboat_host.dll"):
-                host = ROOT / "engine" / "build" / "host" / name
-                if host.is_file():
-                    env["PAPERBOAT_HOST_LIB"] = str(host)
-                    break
         cmd = [julia, "--startup-file=no", "--project=" + str(example), str(example / target), "--run"]
         if "duration" in expected:
             cmd += ["--duration", str(expected["duration"])]
