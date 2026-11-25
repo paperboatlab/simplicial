@@ -95,10 +95,10 @@ Usage:
   paperboat <command> [arguments...]
 
 Start and stop (Paperboat and stations):
-  start [station] [options]  Without a target: Paperboat (web UI on port 3047) and,
-                             in a checkout, the scratchpad station (port 8765).
+  start [station] [options]  Without a target: Paperboat (web UI on port 30471) and,
+                             in a checkout, the scratchpad station (port 51301).
                              A station (folder, name or .pst): build it and run it in the foreground.
-                               --port <N>      Listen port (station 8765, web UI 3047)
+                               --port <N>      Listen port (station 51301, web UI 30471)
                                --daemon        Run in the background (Paperboat)
                                --host <H>      The web UI's listen host (default 0.0.0.0)
                              Station only:
@@ -136,7 +136,7 @@ Paperboat Web UI:
   (start --daemon and web start --daemon keep it in the background; stop ends it)
 
 Examples Orchestration:
-  examples start [--dir <P>] Launch all example stations (ports 8765-8773)
+  examples start [--dir <P>] Launch all example stations (ports 51301-51310)
   examples stop              Stop all example stations
   examples status            Show status of example stations
 
@@ -808,13 +808,13 @@ int cmd_stations(const std::vector<std::string_view>& args) {
   };
   const fs::path root = tk::find_repo_root();
   if (!root.empty() && fs::is_directory(root / "engine" / "scratchpad")) {
-    add(root / "engine" / "scratchpad", "builtin", 8765);
+    add(root / "engine" / "scratchpad", "builtin", 51301);
   } else if (const fs::path wb = core::StationManager::scratchpad_binary(root); !wb.empty()) {
     order.push_back("scratchpad");
     found["scratchpad"] = {
         {"name", "scratchpad"},
         {"language", "cpp"},
-        {"port", 8765},
+        {"port", 51301},
         {"dir", wb.string()},
         {"description", "Standard toolkits with no domain (Flow & Board)"},
         {"source", "builtin"},
@@ -823,7 +823,7 @@ int cmd_stations(const std::vector<std::string_view>& args) {
   for (const auto& ex : core::StationManager::get_examples()) add(ex.dir, "example", ex.port);
   std::error_code ec;
   for (const auto& entry : fs::directory_iterator(core::StationManager::user_stations_dir(), ec)) {
-    if (entry.is_directory()) add(entry.path(), "installed", 8765);
+    if (entry.is_directory()) add(entry.path(), "installed", 51301);
   }
 
   if (json_out) {
@@ -853,7 +853,7 @@ std::string first_sentence(std::string text) {
   return text;
 }
 
-constexpr int kWebAppPort = 3047;
+constexpr int kWebAppPort = 30471;
 
 // A Squero app (or library dep) from apps.toml: `target` is the name, or the command that launches it.
 // A path or a ./relative name is never one: that is a station folder.
@@ -1159,7 +1159,7 @@ int cmd_web(const std::vector<std::string_view>& args) {
     return 2;
   }
   auto sub = args[0];
-  int port = 3047;
+  int port = 30471;
   std::string host = "0.0.0.0";
   bool daemon = false;
 
@@ -2105,7 +2105,7 @@ void print_interactive_help() {
  */
 void start_scratchpad() {
   const fs::path root = tk::find_repo_root();
-  if (core::StationManager::is_port_listening(8765)) return;
+  if (core::StationManager::is_port_listening(51301)) return;
   const fs::path wb_dir = (!root.empty() && fs::is_directory(root / "engine" / "scratchpad"))
                               ? (root / "engine" / "scratchpad")
                               : fs::path{};
@@ -2116,21 +2116,21 @@ void start_scratchpad() {
   const fs::path bin = core::StationManager::scratchpad_binary(root);
   if (bin.empty()) return;
   const fs::path cwd = wb_dir.empty() ? bin.parent_path() : wb_dir;
-  const fs::path log_path = platform::shared_tmp_dir() / "station-8765.log";
-  const int pid = core::ProcessRunner::run_detached({bin.string(), "--port", "8765"}, cwd, {}, log_path);
+  const fs::path log_path = platform::shared_tmp_dir() / "station-51301.log";
+  const int pid = core::ProcessRunner::run_detached({bin.string(), "--port", "51301"}, cwd, {}, log_path);
   if (pid <= 0) return;
   core::RunningStation rb;
-  rb.port = 8765;
+  rb.port = 51301;
   rb.pid = pid;
   rb.engine = "scratchpad";
   rb.domain = "scratchpad";
   rb.cwd = cwd;
   rb.station_dir = wb_dir;
   rb.executable = bin.string();
-  rb.ws_url = "ws://localhost:8765";
+  rb.ws_url = "ws://localhost:51301";
   rb.started_at = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   core::StationManager::register_running_station(rb);
-  std::cout << "  \033[32m●\033[0m scratchpad running on ws://localhost:8765 (PID " << pid << ")\n\n";
+  std::cout << "  \033[32m●\033[0m scratchpad running on ws://localhost:51301 (PID " << pid << ")\n\n";
 }
 
 int run_interactive_prompt() {

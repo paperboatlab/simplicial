@@ -91,7 +91,7 @@ async def run_until_finished(ws: ClientConnection, graph: dict, cancel_after: fl
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Paperboat protocol smoke test")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=51301)
     args = parser.parse_args()
 
     async with connect(f"ws://localhost:{args.port}", proxy=None) as ws:

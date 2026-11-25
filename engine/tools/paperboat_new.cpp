@@ -204,7 +204,7 @@ int cmd_new(const std::vector<std::string_view>& args) {
   std::cout << "  paperboat check     verify it: manifest, catalog, protocol smoke test, golden run\n"
                "  paperboat run       serve it on " << url << "\n"
                "  paperboat start     the web app (in another terminal), then open\n"
-               "                      http://localhost:3047/?station=" << url << " and press Run\n"
+               "                      http://localhost:30471/?station=" << url << " and press Run\n"
                "Then make it yours: add blocks in domain/, use them in descriptor.toml's [graph], and update\n"
                "expected.json to what your starter graph should end with.\n";
   return 0;

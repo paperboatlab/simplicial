@@ -1,4 +1,4 @@
-// Finding a station: the ones this page has used, and any on this machine's station ports (8765 up, as
+// Finding a station: the ones this page has used, and any on this machine's station ports (51301 up, as
 // `paperboat examples start` and the examples' station.toml give them). Each is asked for its hello; the
 // ones that answer are listed with the name they give.
 import { readStored, writeStored } from "@paperboatlab/ui";
@@ -6,7 +6,7 @@ import { readStored, writeStored } from "@paperboatlab/ui";
 export type Found = { url: string; name: string; version?: string };
 
 const RECENT = "simplicial.stations";
-const PORTS = Array.from({ length: 11 }, (_, i) => 8765 + i);
+const PORTS = Array.from({ length: 12 }, (_, i) => 51301 + i);
 const isList = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === "string");
 
 /** What was typed as a station's address: a port, host:port, or a ws/http URL. "" when it can't be one. */

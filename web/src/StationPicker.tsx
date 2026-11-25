@@ -45,10 +45,10 @@ export function StationPicker({ current, wait, onClose }: {
           </button>
         ))}
         {looking ? <span className="stations-note">Looking on this machine</span>
-          : !found.length && <span className="stations-note">No station answers on this machine (ports 8765–8775)</span>}
+          : !found.length && <span className="stations-note">No station answers on this machine (ports 51301–51312)</span>}
       </div>
       <form className="stations-addr" onSubmit={(e) => { e.preventDefault(); if (address) openStation(address); }}>
-        <label className="well"><input aria-label="Station address" placeholder="Address: 8766, host:8766, ws://host:8766" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} /></label>
+        <label className="well"><input aria-label="Station address" placeholder="Address: 51302, host:51302, ws://host:51302" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} /></label>
         <Key kind="primary" type="submit" disabled={!address} title={address ? `Open ${address}` : "Give a port, host:port or a ws:// address"}>Open</Key>
       </form>
     </Dialog>

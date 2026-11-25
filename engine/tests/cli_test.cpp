@@ -114,7 +114,7 @@ TEST_CASE("StationManager port inspection and registry") {
 
   // Runtime registry paths
   CHECK(core::StationManager::runtime_dir() == fs::path("/tmp/paperboat-runtime"));
-  CHECK(core::StationManager::runtime_record_path(8765) == fs::path("/tmp/paperboat-runtime/station-8765.json"));
+  CHECK(core::StationManager::runtime_record_path(51301) == fs::path("/tmp/paperboat-runtime/station-51301.json"));
 
   // Register a mock running station
   core::RunningStation mock;
@@ -817,7 +817,7 @@ TEST_CASE("Installed package discovers sibling scratchpad binary when engine/scr
                          [](const auto& r) { return r.value("name", "") == "scratchpad"; });
   REQUIRE(it != rows_after.end());
   CHECK((*it)["source"] == "builtin");
-  CHECK((*it)["port"] == 8765);
+  CHECK((*it)["port"] == 51301);
   CHECK((*it)["dir"] == fs::weakly_canonical(installed_wb).string());
 
   fs::remove_all(prefix, ec);
