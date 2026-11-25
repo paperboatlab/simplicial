@@ -1,29 +1,15 @@
+import { Instrument } from "@paperboatlab/ui/plot";
 import type { InstrumentProps } from "@paperboat/host";
-import { SceneView } from "@paperboat/shared/station";
 
 /**
- * The Board's 3D view: the Station's scene itself (objects, meshes, domain entities), drawn with
- * the same SceneView the Station uses. It has no wire of its own: pick it to keep the 3D stage in
- * view while the Flow and Board are running.
+ * The Board's 3D view: the Station's scene itself, to keep the stage in view while the Flow and Board run.
+ * It has no wire of its own. Until the Station's 3D view is in the page (simplicial#5) it says what it would show.
  */
-export function View3DInstrument({ name, state, params }: InstrumentProps) {
-  const entities = state.entities;
-  const count = Object.keys(entities).length;
-  const grid = params?.grid === undefined ? true : params.grid !== false && params.grid !== 0;
-  const view = state.view.mode === "3d" ? { ...state.view, grid } : { mode: "3d" as const, grid };
+export function View3DInstrument({ name, state }: InstrumentProps) {
+  const count = Object.keys(state.entities).length;
   return (
-    <figure className="instrument view3d">
-      <div className="screen view3d-screen">
-        {count > 0 ? (
-          <SceneView entities={entities} view={view} grid={grid} />
-        ) : (
-          <span className="view3d-empty">Add an object or a mesh on the Station</span>
-        )}
-      </div>
-      <figcaption>
-        <span>{name}</span>
-        <output>{count === 1 ? "1 object" : `${count} objects`}</output>
-      </figcaption>
-    </figure>
+    <Instrument name={name} detail="3D view" value={count === 1 ? "1 object" : `${count} objects`} className="view3d">
+      <span className="view3d-empty">{count ? "The Station's 3D view shows here once the Station page draws it" : "Add an object or a mesh on the Station"}</span>
+    </Instrument>
   );
 }

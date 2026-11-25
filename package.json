@@ -16,10 +16,10 @@
     "build": "node web/scripts/build.ts",
     "dev": "node web/scripts/build.ts --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./web/scripts/kit.ts --test web/test/*.test.ts"
+    "test": "node --import ./web/scripts/kit.ts --test web/test/*.test.ts engine/toolkit/src/*/*/web/*.test.ts"
   },
   "devDependencies": {
-    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#c78e5c51a7fb9082e7e5d3dd84009ef12c547d70",
+    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#82ff61de77e0fb8863d5098fe598e7c8502c7bac",
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

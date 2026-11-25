@@ -1,6 +1,6 @@
-// The lamp block's instrument. The app bundles this file and calls register(host); it names none of it.
+// The lamp block's instrument. The page bundles this file and calls register(host); it names none of it.
 import type { ToolkitWebHost } from "@paperboat/host";
-import { LampInstrument } from "./LampInstrument";
+import { LampInstrument } from "./LampInstrument.tsx";
 import "./lamp.css";
 
 export function register(host: ToolkitWebHost): void {

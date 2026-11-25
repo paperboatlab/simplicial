@@ -55,6 +55,16 @@ come back out of process over `paperboat-runtime/0` (#7).
     hint), `Block.tsx` (plate, card, In and Out pills), `Groups.tsx`, `WireEdge.tsx`, `SelectionDialog.tsx`;
     `flowContexts.ts` is what they share. A run locks the edits (`Lock`). The tests load the kit's TypeScript through
     `web/scripts/kit.ts` (node strips no types under `node_modules`).
+  - `src/board/`: the Board, ported from legacy's `Board.tsx`. `boardLayout.ts` (pure, tested: the grid of equal cells,
+    S/M/L/XL, tabs, decorations, `{block}` values in text, the automatic order), `boardWiring.ts` (the monitor blocks
+    on the Flow are the instruments: kind, what feeds them, + tap), `Board.tsx` (the grid, Arrange: drag or arrow
+    keys, sizes, decorations, tabs), `host.ts` (the instrument registry and `InstrumentProps`, imported by the
+    toolkits as `@paperboat/host`), `toolkits.ts` (calls each toolkit web part's `register(host)`). The user's layout
+    is kept per station in the browser, else the station's (`catalog.board`). Every instrument is drawn in the kit's
+    `Instrument` frame (`@paperboatlab/ui/plot`); the Scope is the kit's.
+  - Toolkit web parts: `engine/toolkit/src/<package>/<block>/web/index.tsx` exports `register(host)`. The build
+    gathers every built-in one into the bundle (`toolkit-web` in `scripts/build.ts`), `tsc` checks them with the page,
+    and their `*.test.ts` run with `npm test`; the page names no instrument kind.
 
 ## 3. Invariants
 
