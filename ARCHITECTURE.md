@@ -46,9 +46,11 @@ come back out of process over `paperboat-runtime/0` (#7).
     hidden panes kept per mode); the Variables card; the run dock; the Console window; the floating
     search and quick add. It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
     kit's `useUndo`) and the open level. `app.css` draws only what the kit doesn't.
-  - The Station page's 3D view and the Board's 3D-view instrument draw with the kit's stage (`@paperboatlab/ui/stage`,
-    `SceneView`); `sceneOf` (`engine.ts`) gives them the scene, at the replay playhead when replaying. The Graph view waits
-    for #5.
+  - `src/station/`: the Station page. `StationPage.tsx`: the 3D view on the kit's stage (`@paperboatlab/ui/stage`; a click
+    picks the object a part belongs to, its properties float over the corner) and the Graph view (objects and joints as the
+    kit's cards on React Flow, in their own provider; a wire from a body fills a link slot). `stationEdits.ts` (pure,
+    tested) is what an edit does; the page sends `station.set` and keeps the result (`engine.ts`). `sceneOf` gives the
+    scene, at the replay playhead when replaying; the Board's view3d instrument draws it too.
   - `src/Variables.tsx`: the Variables card on the kit's `VariableList`: + Variable, an open row edits a variable;
     `variableEdits.ts` (pure, tested) is what an edit does to the list. The page sends the list (`variables.set`) and
     keeps it as the state's (`engine.ts`), since the station doesn't send it back.
