@@ -1,6 +1,7 @@
 // Builds the page into web/dist/: the bundle (esbuild), its fonts, the app mark's frames (AppMark and the
 // splash load them beside the bundle) and index.html. `--watch` rebuilds on change.
 import * as esbuild from "esbuild";
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,10 +40,14 @@ const toolkitWeb: esbuild.Plugin = {
     });
   },
 };
+// The page's version and commit, for About (css.d.ts declares them).
+const version = JSON.parse(fs.readFileSync(path.join(web, "../package.json"), "utf8")).version as string;
+let commit = "";
+try { commit = execSync("git rev-parse --short HEAD", { cwd: web, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { /* not a checkout */ }
 const options: esbuild.BuildOptions = {
   entryPoints: [path.join(web, "src/main.tsx")],
   bundle: true, format: "esm", outdir: dist, jsx: "automatic", target: "es2022", minify: !process.argv.includes("--watch"),
-  sourcemap: true, plugins: [toolkitWeb], alias: { "@paperboat/host": path.join(web, "src/board/host.ts") }, loader: { ".woff2": "file", ".woff": "file", ".ttf": "file" }, assetNames: "fonts/[name]-[hash]", logLevel: "warning",
+  sourcemap: true, define: { __VERSION__: JSON.stringify(version), __COMMIT__: JSON.stringify(commit) }, plugins: [toolkitWeb], alias: { "@paperboat/host": path.join(web, "src/board/host.ts") }, loader: { ".woff2": "file", ".woff": "file", ".ttf": "file" }, assetNames: "fonts/[name]-[hash]", logLevel: "warning",
 };
 if (process.argv.includes("--watch")) { await (await esbuild.context(options)).watch(); console.log("watching web/src/ → web/dist/"); }
 else await esbuild.build(options);

@@ -9,9 +9,9 @@
 // Background news (the station lost and back, a run's fault) comes as toasts (news.ts), kept by the bar's
 // Notifications key.
 import {
-  AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
+  About, AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
   Toasts, isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, useToasts, writeStored,
-  type PaneRect, type SearchItem, type Theme,
+  type Credit, type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
@@ -37,6 +37,16 @@ import type { BoardLayout, RunSettings } from "./protocol.ts";
 const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:8765");
 const ISSUES = "https://github.com/paperboatlab/simplicial/issues/new";
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
+/** What Simplicial ships beyond the kit: the engine's libraries (engine/CMakeLists.txt; licences from their own files). */
+const CREDITS: Credit[] = [
+  ["nlohmann/json", "the station's JSON", "MIT", "https://github.com/nlohmann/json"],
+  ["toml++", "the station's TOML files", "MIT", "https://github.com/marzer/tomlplusplus"],
+  ["IXWebSocket", "the station's socket", "BSD-3-Clause", "https://github.com/machinezone/IXWebSocket"],
+  ["SUNDIALS (CVODE, IDA)", "the implicit solvers", "BSD-3-Clause", "https://github.com/LLNL/sundials"],
+  ["Boost.Math", "special functions and distributions", "BSL-1.0", "https://github.com/boostorg/math"],
+  ["Eigen", "matrix blocks", "MPL-2.0", "https://eigen.tuxfamily.org"],
+  ["pocketfft", "the FFT", "BSD-3-Clause", "https://github.com/mreineck/pocketfft"],
+];
 
 const isTheme = (v: unknown): v is Theme => v === "light" || v === "dark" || v === "system";
 const isMode = (v: unknown): v is Mode => MODES.includes(v as Mode);
@@ -111,6 +121,7 @@ export function App() {
   const [retrying, setRetrying] = useState(false);  // the first try found no station
   useEffect(() => { if (state.connection === "closed") setRetrying(true); }, [state.connection]);
   useEffect(() => { if (state.engine) remember(URL_); }, [state.engine]);
+  const [about, setAbout] = useState(false);
   const [picker, setPicker] = useState(false);   // Choose a station, from File; over the splash while none answers
   const [still, setStill] = useState(true);       // nothing moves at start-up: the saved layout is simply there
   const conKey = useRef<HTMLButtonElement>(null);
@@ -187,7 +198,7 @@ export function App() {
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"),
+      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -369,6 +380,9 @@ export function App() {
       </>}
 
       {(picker || (!booted && retrying)) && <StationPicker current={URL_} wait={!booted} onClose={() => setPicker(false)} />}
+      {about && <About app="simplicial" role="Visual flow, station and block-diagram simulation" version={__VERSION__}
+        info={[state.engine ? `engine ${state.version ?? "?"} · protocol paperboat/0 · station ${state.engine}` : "no station", __COMMIT__ && `commit ${__COMMIT__}`].filter(Boolean).join(" · ")}
+        repo="paperboatlab/simplicial" credits={CREDITS} onClose={() => setAbout(false)} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
