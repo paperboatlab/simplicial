@@ -1,0 +1,3 @@
+# A subsystem's or story's ports as blocks: In and Out. Every catalog has them (descriptor.cpp
+# imports this package without being asked): any flow can group blocks.
+name = "group"

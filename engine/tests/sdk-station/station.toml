@@ -1,0 +1,12 @@
+[station]
+format = 0
+name = "sdk-station"
+version = "0.1.0"
+engine = ">=0.1"
+language = "cpp"
+run = "build/paperboat-sdk-station"
+port = 8781
+descriptor = "descriptor.toml"
+
+[test]
+golden = "expected.json"

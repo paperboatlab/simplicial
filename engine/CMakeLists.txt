@@ -1,0 +1,309 @@
+cmake_minimum_required(VERSION 3.25)
+project(paperboat VERSION 0.1.7 LANGUAGES CXX)  # the one version: --version, packages, and the v<version> release tag
+set(PAPERBOAT_PRERELEASE "")  # "" for a stable release; the tag is v<VERSION>[-<PRERELEASE>] (GUIDELINES §9, Versioning)
+set(PAPERBOAT_VERSION "${PROJECT_VERSION}")
+if(PAPERBOAT_PRERELEASE)
+  string(APPEND PAPERBOAT_VERSION "-${PAPERBOAT_PRERELEASE}")
+endif()
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Off when a station pulls the engine in with add_subdirectory: it only needs the libraries.
+option(PAPERBOAT_BUILD_TESTS "Build the Catch2 tests" ${PROJECT_IS_TOP_LEVEL})
+option(PAPERBOAT_BUILD_TOOLS "Build paperboat-catalog" ${PROJECT_IS_TOP_LEVEL})
+include(GNUInstallDirs)
+option(PAPERBOAT_STATIC_RUNTIME "Link libstdc++ and libgcc statically, so a release binary needs only glibc" OFF)
+# Shared engine libraries (pb#352): one copy of the registry, the solvers' run defaults and the toolkit
+# code per process, so a toolkit is a plugin the hosts load at runtime and installs without an engine
+# rebuild. On for a standalone build on Linux and macOS; static when a station or the Python module pulls
+# the engine in, and on Windows (its SDK uses the static MSVC runtime, #222).
+set(_pb_shared_default OFF)
+if(PROJECT_IS_TOP_LEVEL AND NOT WIN32)
+  set(_pb_shared_default ON)
+endif()
+option(PAPERBOAT_SHARED_LIBS "Build paperboat_core, paperboat_toolkit and paperboat_solvers as shared libraries" ${_pb_shared_default})
+if(PAPERBOAT_SHARED_LIBS AND PAPERBOAT_STATIC_RUNTIME AND NOT MSVC)
+  # A plugin and its host must share one C++ runtime: a statically linked libstdc++ in the binary
+  # would be a second copy beside the one the shared libraries and plugins use.
+  message(STATUS "PAPERBOAT_STATIC_RUNTIME is ignored with PAPERBOAT_SHARED_LIBS: the runtime is shared")
+  set(PAPERBOAT_STATIC_RUNTIME OFF)
+endif()
+if(PAPERBOAT_SHARED_LIBS)
+  # An installed binary and plugin find the engine libraries beside it, wherever the prefix is.
+  if(APPLE)
+    set(CMAKE_INSTALL_RPATH "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  else()
+    set(CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  endif()
+endif()
+# The SDK (pb#177): install paperboat::core, paperboat::toolkit and their headers, so a station can
+# find_package(Paperboat) instead of building the engine from source.
+option(PAPERBOAT_INSTALL "Install the SDK (libraries, headers, CMake config)" ${PROJECT_IS_TOP_LEVEL})
+
+if(PAPERBOAT_INSTALL)
+  # The libraries and their dependencies go to the "dev" component (paperboat-dev); bin/ and share/ name "runtime".
+  set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME dev)
+  set(JSON_Install ON CACHE BOOL "" FORCE)
+endif()
+
+if(MSVC AND PAPERBOAT_STATIC_RUNTIME)  # no vcruntime DLL to install next to the .exe; set before the dependencies are fetched
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
+# Dependencies: use an installed copy if there is one, otherwise fetch a pinned release.
+include(FetchContent)
+FetchContent_Declare(nlohmann_json
+  URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+  FIND_PACKAGE_ARGS 3.11)
+FetchContent_Declare(tomlplusplus
+  URL https://github.com/marzer/tomlplusplus/archive/refs/tags/v3.4.0.tar.gz
+  FIND_PACKAGE_ARGS 3.4)
+FetchContent_MakeAvailable(nlohmann_json tomlplusplus)
+
+add_library(paperboat_warnings INTERFACE)
+add_library(paperboat::warnings ALIAS paperboat_warnings)
+set_target_properties(paperboat_warnings PROPERTIES EXPORT_NAME warnings)
+if(MSVC)
+  target_compile_options(paperboat_warnings INTERFACE /W4 /permissive-)
+else()
+  target_compile_options(paperboat_warnings INTERFACE -Wall -Wextra -Wpedantic -Wshadow -Wconversion)
+endif()
+
+# WebSocket for engine/core's server.
+set(USE_TLS OFF CACHE BOOL "" FORCE)
+set(USE_ZLIB OFF CACHE BOOL "" FORCE)
+set(IXWEBSOCKET_INSTALL ${PAPERBOAT_INSTALL} CACHE BOOL "" FORCE)  # the SDK links it: core uses it privately
+FetchContent_Declare(ixwebsocket SYSTEM  # SYSTEM goes right after the name: CMake 3.25 reads it at the end as a URL
+  URL https://github.com/machinezone/IXWebSocket/archive/refs/tags/v12.1.0.tar.gz)
+FetchContent_MakeAvailable(ixwebsocket)
+
+# Implicit solvers (solve.hpp: "cvode", "ida") from SUNDIALS (BSD-3, LLNL): CVODE and IDA only, static,
+# serial, no MPI, OpenMP, LAPACK or examples. Off: the engine has only its explicit solvers.
+option(PAPERBOAT_WITH_SUNDIALS "The implicit solvers cvode and ida (SUNDIALS)" ON)
+if(PAPERBOAT_WITH_SUNDIALS)
+  block()  # SUNDIALS' own options, set for its build (sundials_option writes them to its cache entries)
+    set(BUILD_STATIC_LIBS ON)
+    set(BUILD_SHARED_LIBS OFF)
+    foreach(package ARKODE CVODES IDAS KINSOL)
+      set(SUNDIALS_ENABLE_${package} OFF)
+    endforeach()
+    set(SUNDIALS_ENABLE_CVODE ON)
+    set(SUNDIALS_ENABLE_IDA ON)
+    foreach(off MPI OPENMP PTHREAD LAPACK KLU FORTRAN PYTHON NVECTOR_MANYVECTOR C_EXAMPLES CXX_EXAMPLES
+                EXAMPLES_INSTALL BENCHMARKS ERROR_CHECKS MONITORING PROFILING DEPRECATED_WARNINGS)
+      set(SUNDIALS_ENABLE_${off} OFF)
+    endforeach()
+    set(SUNDIALS_LOGGING_LEVEL 0)  # failures reach the engine through its error handler, not stderr
+    FetchContent_Declare(SUNDIALS SYSTEM  # its headers: no warnings from them
+      URL https://github.com/LLNL/sundials/releases/download/v7.9.0/sundials-7.9.0.tar.gz
+      URL_HASH SHA256=13f898a27b48fe3449483f9e438a800ed545abf93bc2e2ceec2d1e00ae8db5ef
+      FIND_PACKAGE_ARGS 7 CONFIG COMPONENTS cvode ida)
+    FetchContent_MakeAvailable(SUNDIALS)
+    if(PAPERBOAT_INSTALL)  # its BSD-3 license travels with the binaries; a system package's path isn't portable
+      install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sundials/LICENSE" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sundials/NOTICE"
+              DESTINATION "${CMAKE_INSTALL_DOCDIR}/sundials" COMPONENT runtime)
+    endif()
+  endblock()
+endif()
+
+# Boost.Math (BSL-1.0): the math package's special functions and distributions. Standalone mode
+# needs no other Boost library, and it is header-only, so the blocks compile it in and the SDK
+# does not have to find it.
+FetchContent_Declare(boost_math
+  URL https://github.com/boostorg/math/archive/refs/tags/boost-1.87.0.tar.gz
+  URL_HASH SHA256=33bc8bebff5e0f929397b84b52afbe9d0202d7b4ca68dc6516b08acba5edf023
+  DOWNLOAD_EXTRACT_TIMESTAMP ON)
+block()  # its own test suite would flood the build
+  set(BUILD_TESTING OFF)
+  FetchContent_MakeAvailable(boost_math)
+endblock()
+if(PAPERBOAT_INSTALL)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/boost_math/LICENSE"
+          DESTINATION "${CMAKE_INSTALL_DOCDIR}/boost_math" COMPONENT runtime)
+endif()
+
+# Eigen (MPL-2.0, header-only): the math package's matrix blocks. A private dependency of the
+# toolkit: nothing in the installed headers includes it, so the SDK does not have to find it.
+find_package(Eigen3 3.3 QUIET NO_MODULE)
+if(Eigen3_FOUND)
+  add_library(paperboat_eigen INTERFACE)
+  target_link_libraries(paperboat_eigen INTERFACE Eigen3::Eigen)
+else()
+  FetchContent_Declare(eigen
+    URL https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz
+    URL_HASH SHA256=e9c326dc8c05cd1e044c71f30f1b2e34a6161a3b6ecf445d56b53ff1669e3dec
+    DOWNLOAD_EXTRACT_TIMESTAMP ON
+    SOURCE_SUBDIR "cmake/do-not-build")
+  FetchContent_MakeAvailable(eigen)
+  add_library(paperboat_eigen INTERFACE)
+  target_include_directories(paperboat_eigen INTERFACE "${eigen_SOURCE_DIR}")
+endif()
+
+# pocketfft (BSD-3): the signal package's FFT. A single header; nothing to build or install.
+set(pocketfft_include "${CMAKE_BINARY_DIR}/third_party/pocketfft")
+set(pocketfft_header "${pocketfft_include}/pocketfft_hdronly.h")
+if(NOT EXISTS "${pocketfft_header}")
+  file(DOWNLOAD
+    https://raw.githubusercontent.com/mreineck/pocketfft/4d865cba24359b05b37da4e75aee24498c3b78e7/pocketfft_hdronly.h
+    "${pocketfft_header}"
+    EXPECTED_HASH SHA256=518a95c552aeaee352aa30122137cd9e135d23c91e2863d9272aaa758744c86d
+    STATUS pocketfft_status TLS_VERIFY ON)
+  list(GET pocketfft_status 0 pocketfft_code)
+  if(NOT pocketfft_code EQUAL 0)
+    list(GET pocketfft_status 1 pocketfft_message)
+    message(FATAL_ERROR "pocketfft download failed: ${pocketfft_message}")
+  endif()
+endif()
+if(PAPERBOAT_INSTALL)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/pocketfft/LICENSE.md"
+          DESTINATION "${CMAKE_INSTALL_DOCDIR}/pocketfft" COMPONENT runtime)
+endif()
+
+# The host library is a shared object (Julia dlopens it), so the engine's archives it links
+# must be position independent; the Python module already builds them that way.
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(PAPERBOAT_SHARED_LIBS)
+  set(PAPERBOAT_LIB_TYPE SHARED)
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else()
+  set(PAPERBOAT_LIB_TYPE STATIC)
+endif()
+add_subdirectory(toolkit)
+add_subdirectory(core)
+add_subdirectory(host)
+
+# Apple's libc++ up to the macOS 15 SDK (Xcode 16) still ships <stop_token> and std::jthread as
+# experimental, off unless _LIBCPP_ENABLE_EXPERIMENTAL is defined; from the macOS 26 SDK they are on.
+# Both are header-only there. PUBLIC: core's and the toolkit's own headers use std::stop_token
+# (toolkit's block.hpp is in the run's face), so everything that includes them (tests, the Python
+# module, SDK stations through the exported targets) needs it too.
+if(APPLE)
+  include(CheckCXXSourceCompiles)
+  set(_pb_jthread_src "#include <stop_token>\n#include <thread>\nint main() { std::jthread t([](std::stop_token) {}); }")
+  check_cxx_source_compiles("${_pb_jthread_src}" PAPERBOAT_HAS_JTHREAD)
+  if(NOT PAPERBOAT_HAS_JTHREAD)
+    set(CMAKE_REQUIRED_DEFINITIONS -D_LIBCPP_ENABLE_EXPERIMENTAL)
+    check_cxx_source_compiles("${_pb_jthread_src}" PAPERBOAT_HAS_JTHREAD_EXPERIMENTAL)
+    unset(CMAKE_REQUIRED_DEFINITIONS)
+    if(NOT PAPERBOAT_HAS_JTHREAD_EXPERIMENTAL)
+      message(FATAL_ERROR "This C++ standard library has no std::jthread / <stop_token> (C++20); use Xcode 16 or later")
+    endif()
+    # The toolkit is not linked against core, so it needs the definition on its own target too.
+    target_compile_definitions(paperboat_toolkit PUBLIC _LIBCPP_ENABLE_EXPERIMENTAL)
+    target_compile_definitions(paperboat_core PUBLIC _LIBCPP_ENABLE_EXPERIMENTAL)
+  endif()
+endif()
+
+if(PAPERBOAT_INSTALL)
+  include(CMakePackageConfigHelpers)
+  set(PAPERBOAT_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/Paperboat)
+  # Shared, the libraries are the runtime's (the binary needs them); their link names and archives are the SDK's.
+  install(TARGETS paperboat_core paperboat_toolkit paperboat_solvers paperboat_warnings EXPORT PaperboatTargets
+          ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT dev
+          LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime NAMELINK_COMPONENT dev
+          RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime)
+  install(DIRECTORY core/include/ toolkit/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT dev)
+  install(EXPORT PaperboatTargets NAMESPACE paperboat:: DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT dev)
+  configure_package_config_file(cmake/PaperboatConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfig.cmake
+                                INSTALL_DESTINATION ${PAPERBOAT_CMAKE_DIR})
+  # 0.x: a station built against 0.1 needs a 0.1 engine (SameMinorVersion).
+  write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfigVersion.cmake COMPATIBILITY SameMinorVersion)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/PaperboatConfigVersion.cmake
+          DESTINATION ${PAPERBOAT_CMAKE_DIR} COMPONENT dev)
+  # GPL-3.0-only: the notice travels with every runtime package (tar.gz, zip).
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} COMPONENT runtime)
+endif()
+
+# Optional toolkit packages are self-contained folders with a toolkit.toml and a
+# CMakeLists.txt. The folder decides whether its dependency is available/enabled.
+file(GLOB optional_toolkit_manifests CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/toolkit/*/toolkit.toml")
+foreach(manifest IN LISTS optional_toolkit_manifests)
+  get_filename_component(toolkit_dir "${manifest}" DIRECTORY)
+  if(EXISTS "${toolkit_dir}/CMakeLists.txt")
+    get_filename_component(toolkit_name "${toolkit_dir}" NAME)
+    if(NOT TARGET paperboat_toolkit_${toolkit_name})
+      add_subdirectory("${toolkit_dir}" "toolkit/${toolkit_name}")
+    endif()
+    # Shared libs: the toolkit is also a plugin, <build>/toolkit/<name>/libpaperboat_plugin_<name>, which the
+    # hosts load at runtime (toolkit/plugin.hpp) instead of linking the toolkit in.
+    if(PAPERBOAT_SHARED_LIBS AND TARGET paperboat_toolkit_${toolkit_name} AND NOT TARGET paperboat_plugin_${toolkit_name})
+      set(plugin_cpp "${CMAKE_CURRENT_BINARY_DIR}/toolkit/${toolkit_name}/plugin.cpp")
+      file(WRITE "${plugin_cpp}" "#include <paperboat/toolkit/plugin.hpp>\n#include <paperboat/toolkit/${toolkit_name}.hpp>\n"
+                                 "PAPERBOAT_TOOLKIT_PLUGIN(paperboat::toolkit::${toolkit_name}::register_${toolkit_name})\n")
+      add_library(paperboat_plugin_${toolkit_name} SHARED "${plugin_cpp}")
+      target_link_libraries(paperboat_plugin_${toolkit_name} PRIVATE paperboat_toolkit_${toolkit_name})
+      set_target_properties(paperboat_plugin_${toolkit_name} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/toolkit/${toolkit_name}"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/toolkit/${toolkit_name}")
+    endif()
+  endif()
+endforeach()
+
+# The scratchpad station (base, math, signal, and installed optional toolkits, no domain).
+# Only a standalone engine build serves it; a station that pulls the engine in has its own.
+if(PROJECT_IS_TOP_LEVEL)
+  add_subdirectory(scratchpad)
+endif()
+if(PAPERBOAT_BUILD_TOOLS)
+  add_subdirectory(tools)
+endif()
+# Stations (examples/stations/*-cpp) are projects of their own that use the engine; the
+# engine never builds or reads them.
+
+# Packages (cpack -G TGZ / DEB / RPM / ZIP): CLI-only packages (paperboat + SDK, no GUI launcher).
+if(PROJECT_IS_TOP_LEVEL)
+  set(CPACK_PACKAGE_NAME paperboat)
+  set(CPACK_PACKAGE_VENDOR "PaperboatLab")
+  set(CPACK_PACKAGE_VERSION ${PAPERBOAT_VERSION})
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Paperboat CLI & C++20 engine (scene, node graph, live results)")
+  set(CPACK_PACKAGE_CONTACT "paperboat <noreply@github.com>")
+  set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/paperboatlab/paperboat")
+  set(CPACK_PACKAGE_FILE_NAME "paperboat-${PAPERBOAT_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
+  set(CPACK_GENERATOR TGZ)
+  if(WIN32)
+    set(CPACK_GENERATOR ZIP)
+  endif()
+  # One archive holds both components: the runtime (bin, share, the engine libraries) and the SDK.
+  set(CPACK_COMPONENTS_ALL runtime dev)
+
+  # Debian / RPM sort "~" before the release ("0.1.0~alpha.4" < "0.1.0"), matching SemVer prereleases.
+  string(REPLACE "-" "~" PAPERBOAT_LINUX_PKG_VERSION "${PAPERBOAT_VERSION}")
+  set(CPACK_DEB_COMPONENT_INSTALL ON)
+  set(CPACK_DEBIAN_PACKAGE_VERSION "${PAPERBOAT_LINUX_PKG_VERSION}")
+  set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
+  set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+  set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME paperboat)
+  set(CPACK_DEBIAN_RUNTIME_PACKAGE_SHLIBDEPS ON)
+  set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "git, nodejs, npm")
+  set(CPACK_DEBIAN_DEV_PACKAGE_NAME paperboat-dev)
+  set(CPACK_DEBIAN_DEV_PACKAGE_DEPENDS "paperboat (= ${PAPERBOAT_LINUX_PKG_VERSION}), cmake (>= 3.25), g++ (>= 4:12)")
+  set(CPACK_DEBIAN_DEV_PACKAGE_SHLIBDEPS OFF)
+  set(CPACK_DEBIAN_DEV_PACKAGE_SECTION libdevel)
+
+  set(CPACK_RPM_COMPONENT_INSTALL ON)
+  set(CPACK_RPM_PACKAGE_VERSION "${PAPERBOAT_LINUX_PKG_VERSION}")
+  set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-only")
+  set(CPACK_RPM_PACKAGE_GROUP "Applications/Engineering")
+  set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
+  set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+  set(CPACK_RPM_RUNTIME_PACKAGE_NAME paperboat)
+  set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "git, nodejs, npm")
+  set(CPACK_RPM_DEV_PACKAGE_NAME paperboat-devel)
+  set(CPACK_RPM_DEV_PACKAGE_REQUIRES "paperboat = ${PAPERBOAT_LINUX_PKG_VERSION}, cmake >= 3.25, gcc-c++ >= 12")
+  set(CPACK_RPM_DEV_PACKAGE_AUTOREQ OFF)
+
+  include(CPack)
+endif()
+
+if(PAPERBOAT_BUILD_TESTS)
+  enable_testing()
+  FetchContent_Declare(Catch2
+    URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.16.1.tar.gz
+    FIND_PACKAGE_ARGS 3)
+  FetchContent_MakeAvailable(Catch2)
+  add_subdirectory(tests)
+endif()

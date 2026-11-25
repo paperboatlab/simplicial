@@ -1,0 +1,28 @@
+# The scratchpad station: the engine's standard toolkits with no domain, on the default port.
+add_library(paperboat_scratchpad STATIC scratchpad.cpp)
+target_include_directories(paperboat_scratchpad PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(paperboat_scratchpad PUBLIC paperboat::core PRIVATE paperboat_warnings)
+
+if(TARGET paperboat_toolkit_opencv AND NOT PAPERBOAT_SHARED_LIBS)
+  target_link_libraries(paperboat_scratchpad PUBLIC paperboat::toolkit_opencv)
+  target_compile_definitions(paperboat_scratchpad PUBLIC PAPERBOAT_HAS_OPENCV)
+endif()
+if(TARGET paperboat_toolkit_optimization AND NOT PAPERBOAT_SHARED_LIBS)
+  target_link_libraries(paperboat_scratchpad PUBLIC paperboat::toolkit_optimization)
+  target_compile_definitions(paperboat_scratchpad PUBLIC PAPERBOAT_HAS_OPTIMIZATION)
+endif()
+if(TARGET paperboat_toolkit_control AND NOT PAPERBOAT_SHARED_LIBS)
+  target_link_libraries(paperboat_scratchpad PUBLIC paperboat::toolkit_control)
+  target_compile_definitions(paperboat_scratchpad PUBLIC PAPERBOAT_HAS_CONTROL)
+endif()
+if(TARGET paperboat_toolkit_meshop AND NOT PAPERBOAT_SHARED_LIBS)
+  target_link_libraries(paperboat_scratchpad PUBLIC paperboat::toolkit_meshop)
+  target_compile_definitions(paperboat_scratchpad PUBLIC PAPERBOAT_HAS_MESHOP)
+endif()
+
+add_executable(paperboat-scratchpad main.cpp)
+target_link_libraries(paperboat-scratchpad PRIVATE paperboat_scratchpad paperboat_warnings)
+
+if(PROJECT_IS_TOP_LEVEL)
+  install(TARGETS paperboat-scratchpad RUNTIME DESTINATION bin COMPONENT runtime)
+endif()

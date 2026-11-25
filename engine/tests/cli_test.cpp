@@ -1,0 +1,824 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <thread>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include "paperboat/core/station_manager.hpp"
+#include "paperboat/core/process.hpp"
+#include "paperboat/toolkit/installer.hpp"
+#include "paperboat/toolkit/platform.hpp"
+#ifdef PAPERBOAT_HAS_OPENCV
+#include "paperboat/toolkit/opencv.hpp"
+#endif
+#include "../tools/paperboat_tui.hpp"
+#include <nlohmann/json.hpp>
+
+using Catch::Matchers::ContainsSubstring;
+namespace core = paperboat::core;
+namespace tk = paperboat::toolkit;
+namespace fs = std::filesystem;
+
+TEST_CASE("ProcessRunner sync execution captures exit code and output") {
+  auto res = core::ProcessRunner::run_sync({"echo", "hello", "paperboat"});
+  CHECK(res.ok());
+  CHECK(res.exit_code == 0);
+  CHECK_THAT(res.stdout_text, ContainsSubstring("hello paperboat"));
+
+  auto err_res = core::ProcessRunner::run_sync({"sh", "-c", "echo 'failed' >&2; exit 42"});
+  CHECK_FALSE(err_res.ok());
+  CHECK(err_res.exit_code == 42);
+  CHECK_THAT(err_res.stderr_text, ContainsSubstring("failed"));
+}
+
+TEST_CASE("ProcessRunner sync timeout kills hanging command") {
+  auto start = std::chrono::steady_clock::now();
+  auto res = core::ProcessRunner::run_sync({"sleep", "10"}, {}, {}, std::chrono::milliseconds(150));
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - start);
+
+  CHECK(res.timed_out);
+  CHECK(elapsed.count() < 2000);
+}
+
+TEST_CASE("ProcessRunner stream and detached runs pass cwd, env and output through") {
+  const fs::path dir = fs::temp_directory_path() / "pb_process_test";
+  fs::create_directories(dir);
+  const std::vector<std::pair<std::string, std::string>> env{{"PB_PROBE", "on"}};
+
+  // Lines per stream: CRLF trimmed, a tail with no newline still delivered.
+  std::map<std::string, std::vector<std::string>> lines;
+  core::ProcessRunner::run_stream(
+      {"sh", "-c", "printf 'a\\r\\nb\\n'; printf 'e1\\n' >&2; printf \"$PB_PROBE $(pwd)\""}, dir, env,
+      [&](std::string_view stream, std::string_view line) { lines[std::string(stream)].emplace_back(line); });
+  CHECK(lines["stdout"] == std::vector<std::string>{"a", "b", "on " + fs::canonical(dir).string()});
+  CHECK(lines["stderr"] == std::vector<std::string>{"e1"});
+
+  // The exit code survives the pump reaping the child.
+  CHECK(core::ProcessRunner::run_stream({"sh", "-c", "exit 0"}) == 0);
+  CHECK(core::ProcessRunner::run_stream({"sh", "-c", "exit 3"}) == 3);
+
+  const fs::path log = dir / "detached.log";
+  fs::remove(log);
+  const int pid = core::ProcessRunner::run_detached({"sh", "-c", "echo \"$PB_PROBE $(pwd)\"; echo err >&2"}, dir, env, log);
+  REQUIRE(pid > 0);
+  int status = 0;
+  waitpid(pid, &status, 0);
+  std::ifstream in(log);
+  std::string a, b;
+  std::getline(in, a);
+  std::getline(in, b);
+  CHECK(a == "on " + fs::canonical(dir).string());
+  CHECK(b == "err");
+  fs::remove_all(dir);
+}
+
+TEST_CASE("ProcessRunner is_alive correctly identifies active and dead pids") {
+  CHECK(core::ProcessRunner::is_alive(getpid()));
+  CHECK_FALSE(core::ProcessRunner::is_alive(9999999));
+}
+
+TEST_CASE("StationManager finds the process listening on a port, and its command line") {
+  // a listening socket of our own, on a port the kernel picks
+  const int sock = socket(AF_INET, SOCK_STREAM, 0);
+  REQUIRE(sock >= 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;
+  REQUIRE(bind(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0);
+  REQUIRE(listen(sock, 1) == 0);
+  socklen_t len = sizeof(addr);
+  REQUIRE(getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len) == 0);
+  const int port = ntohs(addr.sin_port);
+
+  CHECK(core::StationManager::is_port_listening(port));
+  CHECK(core::StationManager::find_pid_by_port(port) == getpid());
+  CHECK_THAT(core::ProcessRunner::read_cmdline(getpid()), ContainsSubstring("paperboat_tests"));
+  close(sock);
+  CHECK(core::StationManager::find_pid_by_port(port) == 0);
+}
+
+TEST_CASE("StationManager port inspection and registry") {
+  // Random high port should not be listening
+  CHECK_FALSE(core::StationManager::is_port_listening(59483));
+
+  // Runtime registry paths
+  CHECK(core::StationManager::runtime_dir() == fs::path("/tmp/paperboat-runtime"));
+  CHECK(core::StationManager::runtime_record_path(8765) == fs::path("/tmp/paperboat-runtime/station-8765.json"));
+
+  // Register a mock running station
+  core::RunningStation mock;
+  mock.port = 59483;
+  mock.pid = getpid();
+  mock.engine = "test-engine";
+  mock.domain = "test-domain";
+  mock.cwd = fs::current_path();
+  mock.executable = "test-bin";
+  mock.ws_url = "ws://localhost:59483";
+  mock.started_at = 123456789;
+
+  core::StationManager::register_running_station(mock);
+  const auto rec_path = core::StationManager::runtime_record_path(59483);
+  CHECK(fs::is_regular_file(rec_path));
+
+  // Unregister cleans up
+  core::StationManager::unregister_running_station(59483);
+  CHECK_FALSE(fs::exists(rec_path));
+}
+
+TEST_CASE("StationManager check_station validates missing vs valid descriptors") {
+  auto non_existent = core::StationManager::check_station("/non/existent/path");
+  CHECK_FALSE(non_existent.ok);
+  CHECK_FALSE(non_existent.errors.empty());
+
+  // Check example stations if available
+  auto ex_dir = core::StationManager::find_examples_dir();
+  if (!ex_dir.empty() && fs::is_directory(ex_dir / "cart-pole-cpp")) {
+    auto res = core::StationManager::check_station(ex_dir / "cart-pole-cpp", /*fast=*/true);
+    CHECK(res.ok);
+    CHECK(res.domain == "cart-pole");
+    CHECK(res.manifest_ok);
+    CHECK(res.catalog_ok);
+  }
+}
+
+TEST_CASE("StationManifest load_manifest validates schema and required fields") {
+  const fs::path tmp_dir = fs::temp_directory_path() / "pb_test_manifest_val";
+  std::error_code ec;
+  fs::remove_all(tmp_dir, ec);
+  fs::create_directories(tmp_dir, ec);
+
+  // 1. Missing station.toml
+  std::string err;
+  auto m_missing = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK_FALSE(m_missing.has_manifest);
+  CHECK_THAT(err, ContainsSubstring("station.toml missing"));
+
+  // 2. Unsupported format version (e.g. format = 99)
+  {
+    std::ofstream out(tmp_dir / "station.toml");
+    out << "[station]\nformat = 99\nname = \"test\"\nlanguage = \"python\"\nrun = \"server.py\"\n";
+  }
+  err.clear();
+  auto m_bad_ver = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK_FALSE(m_bad_ver.has_manifest);
+  CHECK_THAT(err, ContainsSubstring("unsupported station.toml format version 99"));
+
+  // 3. Missing name
+  {
+    std::ofstream out(tmp_dir / "station.toml");
+    out << "[station]\nformat = 0\nlanguage = \"python\"\nrun = \"server.py\"\n";
+  }
+  err.clear();
+  auto m_no_name = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK_FALSE(m_no_name.has_manifest);
+  CHECK_THAT(err, ContainsSubstring("missing required field 'name'"));
+
+  // 4. Valid manifest
+  {
+    std::ofstream out(tmp_dir / "station.toml");
+    out << "[station]\nformat = 0\nname = \"my-service\"\nversion = \"1.2.3\"\nlanguage = \"cpp\"\nrun = \"build/my-bin\"\nport = 9000\n"
+        << "toolkits = [\"opencv\"]\n[test]\ngolden = \"expected.json\"\n";
+  }
+  err.clear();
+  auto m_valid = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK(m_valid.has_manifest);
+  CHECK(err.empty());
+  CHECK(m_valid.format == 0);
+  CHECK(m_valid.name == "my-service");
+  CHECK(m_valid.version == "1.2.3");
+  CHECK(m_valid.language == "cpp");
+  CHECK(m_valid.run == "build/my-bin");
+  CHECK(m_valid.port == 9000);
+  CHECK(m_valid.descriptor == "descriptor.toml");
+  CHECK(m_valid.toolkits == std::vector<std::string>{"opencv"});
+  CHECK(m_valid.golden == "expected.json");
+
+  fs::remove_all(tmp_dir, ec);
+}
+
+TEST_CASE("StationManifest load_manifest validates solver setting in station.toml") {
+  const fs::path tmp_dir = fs::temp_directory_path() / "pb_test_manifest_solver";
+  std::error_code ec;
+  fs::remove_all(tmp_dir, ec);
+  fs::create_directories(tmp_dir, ec);
+
+  // 1. Valid solver in [station]
+  {
+    std::ofstream out(tmp_dir / "station.toml");
+    out << "[station]\nformat = 0\nname = \"test-solver\"\nlanguage = \"python\"\nrun = \"server.py\"\nsolver = \"rk45\"\n";
+  }
+  std::string err;
+  auto m_valid = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK(m_valid.has_manifest);
+  CHECK(err.empty());
+  CHECK(m_valid.solver == "rk45");
+
+  // 2. Valid solver in [run]
+  {
+    std::ofstream out(tmp_dir / "station.toml");
+    out << "[station]\nformat = 0\nname = \"test-solver-run\"\nlanguage = \"python\"\nrun = \"server.py\"\n\n[run]\nsolver = \"discrete\"\n";
+  }
+  err.clear();
+  auto m_run = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK(m_run.has_manifest);
+  CHECK(err.empty());
+  CHECK(m_run.solver == "discrete");
+
+  // 3. Invalid solver name fails
+  {
+    std::ofstream out(tmp_dir / "station.toml");
+    out << "[station]\nformat = 0\nname = \"bad-solver\"\nlanguage = \"python\"\nrun = \"server.py\"\nsolver = \"nonexistent_solver\"\n";
+  }
+  err.clear();
+  auto m_bad = core::StationManager::load_manifest(tmp_dir, &err);
+  CHECK_FALSE(m_bad.has_manifest);
+  CHECK_THAT(err, ContainsSubstring("invalid solver 'nonexistent_solver'"));
+
+  fs::remove_all(tmp_dir, ec);
+}
+
+TEST_CASE("StationManager check_station checks solver setting and solver api detection") {
+  const fs::path tmp_dir = fs::temp_directory_path() / "pb_test_check_solver";
+  std::error_code ec;
+  fs::remove_all(tmp_dir, ec);
+  fs::create_directories(tmp_dir, ec);
+
+  {
+    std::ofstream btoml(tmp_dir / "station.toml");
+    btoml << "[station]\nformat = 0\nname = \"solver-check\"\nlanguage = \"python\"\nrun = \"server.py\"\nsolver = \"rk45\"\n";
+  }
+  {
+    std::ofstream srv(tmp_dir / "server.py");
+    srv << "# dummy\n";
+  }
+  {
+    std::ofstream desc(tmp_dir / "descriptor.toml");
+    desc << "domain = \"solver-check\"\nimport = [\"math\"]\n";
+  }
+
+  auto res = core::StationManager::check_station(tmp_dir, /*fast=*/true);
+  CHECK(res.ok);
+  CHECK(res.manifest_ok);
+  CHECK(res.catalog_ok);
+  CHECK(res.solver == "rk45");
+  REQUIRE(res.steps.size() >= 2);
+  CHECK_THAT(res.steps[0].message, ContainsSubstring("solver rk45"));
+  CHECK_THAT(res.steps[1].message, ContainsSubstring("solver rk45"));
+
+  fs::remove_all(tmp_dir, ec);
+}
+
+TEST_CASE("StationManager check_station handles broken descriptor with line accuracy") {
+  const fs::path tmp_dir = fs::temp_directory_path() / "pb_test_broken_desc";
+  std::error_code ec;
+  fs::remove_all(tmp_dir, ec);
+  fs::create_directories(tmp_dir, ec);
+
+  {
+    std::ofstream btoml(tmp_dir / "station.toml");
+    btoml << "[station]\nformat = 0\nname = \"broken\"\nlanguage = \"python\"\nrun = \"server.py\"\n";
+  }
+  {
+    std::ofstream srv(tmp_dir / "server.py");
+    srv << "# dummy\n";
+  }
+  {
+    std::ofstream desc(tmp_dir / "descriptor.toml");
+    desc << "domain = \"broken\"\nthis is invalid syntax !!!\n";
+  }
+
+  auto res = core::StationManager::check_station(tmp_dir, /*fast=*/true);
+  CHECK_FALSE(res.ok);
+  CHECK_FALSE(res.manifest_ok);
+  REQUIRE_FALSE(res.errors.empty());
+  CHECK_THAT(res.errors.front(), ContainsSubstring("descriptor syntax error"));
+  CHECK_THAT(res.errors.front(), ContainsSubstring(":2:"));
+
+  fs::remove_all(tmp_dir, ec);
+}
+
+TEST_CASE("StationManager check_station detects missing block in descriptor") {
+  const fs::path tmp_dir = fs::temp_directory_path() / "pb_test_missing_block";
+  std::error_code ec;
+  fs::remove_all(tmp_dir, ec);
+  fs::create_directories(tmp_dir, ec);
+
+  {
+    std::ofstream btoml(tmp_dir / "station.toml");
+    btoml << "[station]\nformat = 0\nname = \"missing-block\"\nlanguage = \"python\"\nrun = \"server.py\"\n";
+  }
+  {
+    std::ofstream srv(tmp_dir / "server.py");
+    srv << "# dummy\n";
+  }
+  {
+    std::ofstream desc(tmp_dir / "descriptor.toml");
+    desc << "domain = \"missing-block\"\nimport = [\"math\"]\n[[blocks]]\nuse = \"math/totally_nonexistent_xyz\"\n";
+  }
+
+  auto res = core::StationManager::check_station(tmp_dir, /*fast=*/true);
+  CHECK_FALSE(res.ok);
+  CHECK(res.manifest_ok);
+  CHECK_FALSE(res.catalog_ok);
+  REQUIRE_FALSE(res.errors.empty());
+  CHECK_THAT(res.errors.front(), ContainsSubstring("no template \"math/totally_nonexistent_xyz\""));
+
+  fs::remove_all(tmp_dir, ec);
+}
+
+TEST_CASE("StationManager check_station handles toolkit = ['__all__'] importing all built-in blocks") {
+  const fs::path tmp_dir = fs::temp_directory_path() / "pb_test_all_toolkits";
+  std::error_code ec;
+  fs::remove_all(tmp_dir, ec);
+  fs::create_directories(tmp_dir, ec);
+
+  {
+    std::ofstream btoml(tmp_dir / "station.toml");
+    btoml << "[station]\nformat = 0\nname = \"all-toolkits\"\nlanguage = \"python\"\nrun = \"server.py\"\ntoolkit = [\"__all__\"]\n";
+  }
+  {
+    std::ofstream srv(tmp_dir / "server.py");
+    srv << "# dummy\n";
+  }
+  {
+    std::ofstream desc(tmp_dir / "descriptor.toml");
+    desc << "domain = \"all-toolkits\"\ntoolkit = [\"__all__\"]\n";
+  }
+
+  auto res = core::StationManager::check_station(tmp_dir, /*fast=*/true);
+  CHECK(res.ok);
+  CHECK(res.manifest_ok);
+  CHECK(res.catalog_ok);
+  CHECK(res.block_count > 20); // Imports all built-in packages
+
+  fs::remove_all(tmp_dir, ec);
+}
+
+TEST_CASE("StationManager pack_station and unpack_station roundtrip excludes build junk") {
+  auto ex_dir = core::StationManager::find_examples_dir();
+  if (ex_dir.empty() || !fs::is_directory(ex_dir / "cart-pole-cpp")) {
+    return;
+  }
+
+  const fs::path src_dir = ex_dir / "cart-pole-cpp";
+  const fs::path pkg_path = fs::temp_directory_path() / "test_cart_pole_roundtrip.pst";
+  const fs::path unpack_dir = fs::temp_directory_path() / "test_cart_pole_unpacked";
+
+  std::error_code ec;
+  fs::remove(pkg_path, ec);
+  fs::remove_all(unpack_dir, ec);
+
+  // Pack station
+  auto pack_res = core::StationManager::pack_station(src_dir, pkg_path, /*fast=*/true);
+  REQUIRE(pack_res.ok);
+  CHECK(pack_res.file_count >= 6);
+  CHECK(fs::is_regular_file(pkg_path));
+
+  // Unpack station and verify checksums
+  auto unpack_res = core::StationManager::unpack_station(pkg_path, unpack_dir, /*verify=*/true);
+  REQUIRE(unpack_res.ok);
+  CHECK(unpack_res.file_count == pack_res.file_count);
+  CHECK(fs::is_regular_file(unpack_dir / "station.toml"));
+  CHECK(fs::is_regular_file(unpack_dir / "descriptor.toml"));
+
+  // Check the unpacked directory passes verification
+  auto check_unpacked = core::StationManager::check_station(unpack_dir, /*fast=*/true);
+  CHECK(check_unpacked.ok);
+  CHECK(check_unpacked.name == "cart-pole");
+
+  // Clean up
+  fs::remove(pkg_path, ec);
+  fs::remove_all(unpack_dir, ec);
+}
+
+TEST_CASE("WaveSpinner starts and stops cleanly") {
+  paperboat::tui::WaveSpinner spinner("Building something...");
+  spinner.start();
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  spinner.set_message("Still building...");
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  spinner.stop(true, "Build succeeded");
+  CHECK(true);
+}
+
+TEST_CASE("render_banner non-interactive executes cleanly without exception") {
+  CHECK_NOTHROW(paperboat::tui::render_banner(false));
+}
+
+TEST_CASE("check_station reports each stage as it starts and ends") {
+  const fs::path dir = fs::temp_directory_path() / "pb_check_progress";
+  fs::remove_all(dir);
+  fs::create_directories(dir);
+  std::ofstream(dir / "station.toml") << "[station]\nformat = 0\nname = \"probe\"\nlanguage = \"python\"\n"
+                                         "run = \"server.py\"\ndescriptor = \"descriptor.toml\"\n";
+  std::ofstream(dir / "descriptor.toml") << "domain = \"probe\"\nimport = [\"math\"]\n";
+  std::ofstream(dir / "server.py") << "\n";
+
+  std::vector<std::string> events;
+  const auto res = core::StationManager::check_station(dir, /*fast=*/true, [&](const core::CheckStep& s, bool done) {
+    events.push_back(s.name + (done ? (s.skipped ? ":skipped" : ":done") : ":start"));
+  });
+  CHECK(res.ok);
+  CHECK(events == std::vector<std::string>{"manifest:start", "manifest:done", "catalog:start", "catalog:done",
+                                           "smoke:skipped", "golden:skipped"});
+  fs::remove_all(dir);
+}
+
+TEST_CASE("resolve_station_dir finds an installed toolkit example by prefix and number") {
+  const fs::path root = fs::temp_directory_path() / "pb_toolkit_examples_root";
+  const fs::path example = root / "engine" / "toolkit" / "opencv" / "examples" / "ocv-01-parts-counter";
+  std::error_code ec;
+  fs::remove_all(root, ec);
+  fs::create_directories(example, ec);
+  std::ofstream(root / "toolkits.toml") << "[[toolkits]]\nname = \"opencv\"\nrepo = \"x\"\n";
+  std::ofstream(example / "station.toml")
+      << "[station]\nformat = 0\nname = \"ocv-01-parts-counter\"\nversion = \"0.1.0\"\n"
+         "engine = \">=0.1\"\nlanguage = \"cpp\"\nrun = \"build/x\"\nport = 8781\n";
+  std::ofstream(example / "descriptor.toml") << "domain = \"parts\"\n";
+
+  setenv("PAPERBOAT_ROOT", root.c_str(), 1);
+  setenv("PAPERBOAT_EXAMPLES_DIR", (root / "no-examples").c_str(), 1);
+
+  CHECK(fs::equivalent(core::StationManager::resolve_station_dir("ocv-01"), example));
+  CHECK(fs::equivalent(core::StationManager::resolve_station_dir("ocv-1"), example));
+  CHECK(fs::equivalent(core::StationManager::resolve_station_dir("ocv-01-parts-counter"), example));
+
+  const auto list = core::StationManager::get_examples();
+  CHECK(std::ranges::any_of(list, [](const core::ExampleStation& e) {
+    return e.name == "ocv-01-parts-counter" && e.port == 8781 && e.type == "cpp";
+  }));
+
+  unsetenv("PAPERBOAT_ROOT");
+  unsetenv("PAPERBOAT_EXAMPLES_DIR");
+  fs::remove_all(root, ec);
+}
+
+TEST_CASE("resolve_station_dir makes a relative station path absolute") {
+  const fs::path rel = "pb_rel_station";
+  fs::create_directories(rel);
+  std::ofstream(rel / "server.py") << "\n";
+  const auto dir = core::StationManager::resolve_station_dir(rel);
+  CHECK(dir.is_absolute());
+  CHECK(fs::equivalent(dir, rel));
+  fs::remove_all(rel);
+}
+
+TEST_CASE("a Python station gets `import paperboat` on PYTHONPATH and $PAPERBOAT_PYTHON's interpreter (pb#223)") {
+  const fs::path root = fs::temp_directory_path() / "pb_python_env_root";
+  fs::remove_all(root);
+  fs::create_directories(root);
+  auto pythonpath = [](const core::StationManager::PythonEnv& env) {
+    for (const auto& [k, v] : env.env)
+      if (k == "PYTHONPATH") return v;
+    return std::string{};
+  };
+
+  // No paperboat package here, and none next to this test binary: nothing to add.
+  CHECK(core::StationManager::python_package_dir(root).empty());
+  CHECK(pythonpath(core::StationManager::prepare_python_env(root)).empty());
+
+  // A built copy (no CMakeLists.txt beside it, so nothing is built): first on PYTHONPATH.
+  fs::create_directories(root / "python" / "paperboat");
+  std::ofstream(root / "python" / "paperboat" / "__init__.py") << "\n";
+  CHECK(core::StationManager::python_package_dir(root) == root / "python");
+  const fs::path named_python = root / "python3.13";
+  std::ofstream(named_python) << "\n";
+  setenv("PYTHONPATH", "/elsewhere", 1);
+  setenv("PAPERBOAT_PYTHON", named_python.c_str(), 1);
+  const auto env = core::StationManager::prepare_python_env(root);
+  CHECK(pythonpath(env) == (root / "python").string());  // the host's is dropped (#322)
+  CHECK(env.python_bin == named_python.string());
+  // A name that is not a file falls back to python3 instead of failing in the station.
+  setenv("PAPERBOAT_PYTHON", "/opt/python3.13/bin/python3", 1);
+  CHECK(core::StationManager::prepare_python_env(root).python_bin == "python3");
+  unsetenv("PYTHONPATH");
+  unsetenv("PAPERBOAT_PYTHON");
+  CHECK(core::StationManager::prepare_python_env(root).python_bin == "python3");
+  fs::remove_all(root);
+}
+
+TEST_CASE("the host's PYTHONPATH and JULIA_* never reach a station (#322)") {
+  const fs::path dir = fs::temp_directory_path() / "pb_env_leak";
+  fs::remove_all(dir);
+  fs::create_directories(dir);
+  setenv("PYTHONPATH", "/leak/py", 1);
+  setenv("PYTHONHOME", "/leak/home", 1);
+  setenv("JULIA_PROJECT", "/leak/project", 1);
+  setenv("JULIA_DEPOT_PATH", "/leak/depot", 1);
+  setenv("JULIA_LOAD_PATH", "/leak/load", 1);
+  // What the station process really sees: the station's env laid over this process's.
+  auto seen = [&](const std::vector<std::pair<std::string, std::string>>& env, const std::string& var) {
+    auto r = core::ProcessRunner::run_sync({"/bin/sh", "-c", "printf %s \"$" + var + "\""}, dir, env);
+    return r.stdout_text;
+  };
+  const auto py = core::StationManager::prepare_python_env(dir, dir).env;
+  CHECK(seen(py, "PYTHONPATH").find("/leak") == std::string::npos);
+  CHECK(seen(py, "PYTHONHOME").empty());
+  const auto jl = core::StationManager::julia_env(dir);
+  CHECK(seen(jl, "JULIA_PROJECT") == dir.string());
+  CHECK(seen(jl, "JULIA_DEPOT_PATH") == (dir / ".julia").string());
+  CHECK(seen(jl, "JULIA_LOAD_PATH") == "@:@stdlib");
+  for (const char* var : {"PYTHONPATH", "PYTHONHOME", "JULIA_PROJECT", "JULIA_DEPOT_PATH", "JULIA_LOAD_PATH"})
+    unsetenv(var);
+  fs::remove_all(dir);
+}
+
+TEST_CASE("list_toolkits includes built-in toolkit and inspect_toolkit categorizes blocks and instruments") {
+  const auto list = tk::list_toolkits();
+  REQUIRE_FALSE(list.empty());
+  CHECK(list.front().name == "builtin");
+  CHECK(list.front().builtin);
+  CHECK(list.front().installed);
+  CHECK_FALSE(list.front().optional);
+
+  const auto j = nlohmann::json::parse(tk::toolkits_json(list));
+  REQUIRE(j.is_array());
+  REQUIRE_FALSE(j.empty());
+  CHECK(j[0]["name"] == "builtin");
+  CHECK(j[0]["builtin"] == true);
+  CHECK(j[0]["installed"] == true);
+
+  // Built-in toolkit cannot be installed or uninstalled
+  CHECK_FALSE(tk::install_toolkit("builtin").ok);
+  CHECK_FALSE(tk::uninstall_toolkit("builtin").ok);
+
+  // Inspecting "builtin" aggregates flow blocks and board instruments
+  const auto builtin_res = tk::inspect_toolkit("builtin");
+  CHECK(builtin_res.found);
+  CHECK(builtin_res.name == "builtin");
+  CHECK(builtin_res.builtin);
+  CHECK(builtin_res.installed);
+  CHECK_FALSE(builtin_res.flow_blocks.empty());
+  CHECK_FALSE(builtin_res.board_instruments.empty());
+
+  const auto builtin_json = nlohmann::json::parse(tk::toolkit_inspect_json(builtin_res));
+  CHECK(builtin_json["name"] == "builtin");
+  CHECK(builtin_json["builtin"] == true);
+  CHECK(builtin_json["flow_blocks"].size() == builtin_res.flow_blocks.size());
+  CHECK(builtin_json["board_instruments"].size() == builtin_res.board_instruments.size());
+
+  const auto builtin_text = tk::toolkit_inspect_text(builtin_res);
+  CHECK_THAT(builtin_text, ContainsSubstring("Toolkit: builtin (built-in)"));
+  CHECK_THAT(builtin_text, ContainsSubstring("Flow blocks"));
+  CHECK_THAT(builtin_text, ContainsSubstring("Board instruments"));
+
+  // Inspecting individual packages ("math", "board")
+  const auto math_res = tk::inspect_toolkit("math");
+  CHECK(math_res.found);
+  CHECK(math_res.builtin);
+  CHECK_FALSE(math_res.flow_blocks.empty());
+  CHECK(math_res.board_instruments.empty());
+
+  const auto dash_res = tk::inspect_toolkit("board");
+  CHECK(dash_res.found);
+  CHECK(dash_res.builtin);
+  CHECK_FALSE(dash_res.board_instruments.empty());
+
+#ifdef PAPERBOAT_HAS_OPENCV
+  tk::Registry reg = tk::builtins();
+  tk::opencv::register_opencv(reg);
+  const auto cv_res = tk::inspect_toolkit("opencv", reg);
+  CHECK(cv_res.found);
+  CHECK_FALSE(cv_res.builtin);
+  CHECK(cv_res.installed);
+  CHECK_FALSE(cv_res.station_blocks.empty());
+  CHECK_FALSE(cv_res.flow_blocks.empty());
+  CHECK_FALSE(cv_res.board_instruments.empty());
+#endif
+
+  // Unknown toolkit returns found = false
+  const auto unknown_res = tk::inspect_toolkit("nonexistent_xyz");
+  CHECK_FALSE(unknown_res.found);
+}
+
+namespace {
+// The CLI built with these tests: <build>/tests/paperboat_tests -> <build>/tools/paperboat.
+fs::path find_cli() {
+  const fs::path beside = paperboat::platform::exe_path().parent_path().parent_path() / "tools" / "paperboat";
+  return fs::is_regular_file(beside) ? beside : fs::path{"bin/paperboat"};
+}
+}  // namespace
+
+TEST_CASE("paperboat open validates project file and station") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+
+  // Missing file fails
+  auto res1 = core::ProcessRunner::run_sync({cli.string(), "open", "nonexistent_file.psf"});
+  CHECK(res1.exit_code != 0);
+
+  // Invalid JSON fails
+  const fs::path tmp = fs::temp_directory_path() / "bad_project.psf";
+  std::ofstream(tmp) << "not json content";
+  auto res2 = core::ProcessRunner::run_sync({cli.string(), "open", tmp.string()});
+  CHECK(res2.exit_code != 0);
+  fs::remove(tmp);
+
+  // Missing station in project fails
+  std::ofstream(tmp) << "{\"paperboat\": 0, \"flow\": {}}";
+  auto res3 = core::ProcessRunner::run_sync({cli.string(), "open", tmp.string()});
+  CHECK(res3.exit_code != 0);
+
+  // Unknown station fails
+  std::ofstream(tmp) << "{\"paperboat\": 0, \"station\": \"nonexistent_station_xyz\", \"flow\": {}}";
+  auto res4 = core::ProcessRunner::run_sync({cli.string(), "open", tmp.string()});
+  CHECK(res4.exit_code != 0);
+  fs::remove(tmp);
+
+  // Valid project with --run runs headlessly against a station
+  const fs::path station_dir = fs::temp_directory_path() / "pb_test_station";
+  fs::remove_all(station_dir);
+  fs::create_directories(station_dir);
+  std::ofstream(station_dir / "station.toml") << "[station]\nformat = 0\nname = \"test_probe\"\nlanguage = \"python\"\n"
+                                                 "run = \"server.py\"\ndescriptor = \"descriptor.toml\"\n";
+  std::ofstream(station_dir / "descriptor.toml") << "domain = \"test_probe\"\nimport = [\"math\"]\n";
+  std::ofstream(station_dir / "server.py") << "import sys; sys.exit(0)\n";
+
+  const fs::path valid_proj = fs::temp_directory_path() / "test_run.psf";
+  std::ofstream(valid_proj) << "{\"paperboat\": 0, \"station\": \"" + station_dir.string() + "\", \"flow\": {\"nodes\": [], \"edges\": []}}";
+  auto res5 = core::ProcessRunner::run_sync({cli.string(), "open", valid_proj.string(), "--run", "--no-build"});
+  CHECK(res5.exit_code == 0);
+
+  // --record is handed to the station as PAPERBOAT_RECORD (#277), for open and run alike.
+  const fs::path record_dir = fs::temp_directory_path() / "pb_test_record";
+  fs::remove_all(record_dir);
+  std::ofstream(station_dir / "server.py") << "import os, pathlib; pathlib.Path('seen.txt').write_text(os.environ.get('PAPERBOAT_RECORD', ''))\n";
+  auto res6 = core::ProcessRunner::run_sync({cli.string(), "open", valid_proj.string(), "--run", "--no-build", "--record", record_dir.string()});
+  CHECK(res6.exit_code == 0);
+  std::ifstream seen(station_dir / "seen.txt");
+  std::string record_seen;
+  std::getline(seen, record_seen);
+  CHECK(record_seen == fs::absolute(record_dir).lexically_normal().string());
+  CHECK(fs::is_directory(record_dir));
+
+  fs::remove(valid_proj);
+  fs::remove_all(record_dir);
+  fs::remove_all(station_dir);
+}
+
+TEST_CASE("every command in the table is in the help menu and the prompt's help") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+  const auto table = nlohmann::json::parse(core::ProcessRunner::run_sync({cli.string(), "commands", "--json"}).stdout_text);
+  const auto help = core::ProcessRunner::run_sync({cli.string(), "--help"}).stdout_text;
+  REQUIRE(table.size() > 10);
+  for (const auto& c : table) {
+    const std::string name = c["name"];
+    INFO("command: " << name);
+    CHECK(help.find("  " + name) != std::string::npos);  // a line of the manual starts with it
+  }
+}
+
+TEST_CASE("start, stop and restart are one command each, and run no longer aliases start") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+  const auto table = nlohmann::json::parse(core::ProcessRunner::run_sync({cli.string(), "commands", "--json"}).stdout_text);
+  int starts = 0;
+  for (const auto& c : table) {
+    if (c["name"] == "start") ++starts;
+    if (c["name"] == "run") CHECK(c["aliases"].empty());
+  }
+  CHECK(starts == 1);
+}
+
+TEST_CASE("start names what it could not find, and a library is not a squero app") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+  const auto missing = core::ProcessRunner::run_sync({cli.string(), "start", "no-such-thing-xyz"});
+  CHECK(missing.exit_code == 1);
+  CHECK(missing.stderr_text.find("is not a station") != std::string::npos);
+  const auto lib = core::ProcessRunner::run_sync({cli.string(), "squero", "start", "paperboat-shared"});
+  CHECK(lib.exit_code == 1);
+  CHECK(lib.stderr_text.find("is a library") != std::string::npos);
+}
+
+TEST_CASE("list --json says what kind each running thing is") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+  const auto rows = nlohmann::json::parse(core::ProcessRunner::run_sync({cli.string(), "list", "--json"}).stdout_text);
+  REQUIRE(rows.is_array());
+  for (const auto& r : rows) {
+    CHECK((r["kind"] == "station" || r["kind"] == "paperboat" || r["kind"] == "squero"));
+    CHECK(r.contains("port"));
+    CHECK(r.contains("pid"));
+  }
+}
+
+TEST_CASE("paperboat status: a start's stage, its failure, and stale records pruned (pb#332)") {
+  using paperboat::core::StationManager;
+  using paperboat::core::StartingStation;
+  const auto status = [](std::string_view filter = {}) { return nlohmann::json::parse(StationManager::status_json(filter))["stations"]; };
+  const auto clear = [](int pid) { StationManager::remove_start_record(pid); };
+
+  // Building, from this (live) process: shown with its stage.
+  StartingStation me{.name = "pb332-demo", .dir = "/tmp/pb332-demo", .port = 59331, .pid = static_cast<int>(getpid()),
+                     .state = "building", .stage = "compile", .started_at_ms = 0, .updated_at_ms = 0, .error = {}};
+  StationManager::write_start_record(me);
+  auto mine = status("pb332-demo");
+  REQUIRE(mine.size() == 1);
+  CHECK(mine[0]["state"] == "building");
+  CHECK(mine[0]["stage"] == "compile");
+  CHECK(status("59331").size() == 1);  // by port too
+  CHECK(status("someone-else").empty());
+
+  // A start whose process is gone, still building: pruned.
+  const pid_t child = fork();
+  if (child == 0) _exit(0);
+  waitpid(child, nullptr, 0);
+  StartingStation dead = me;
+  dead.name = "pb332-dead";
+  dead.port = 59332;
+  dead.pid = static_cast<int>(child);
+  StationManager::write_start_record(dead);
+  CHECK(status("pb332-dead").empty());
+  CHECK_FALSE(std::filesystem::exists(StationManager::start_record_path(dead.pid)));
+
+  // Failed, its process gone: kept (a minute) with its error for a wait screen.
+  dead.state = "failed";
+  dead.error = "build failed: main.cpp:18:1: error: expected unqualified-id";
+  StationManager::write_start_record(dead);
+  auto failed = status("pb332-dead");
+  REQUIRE(failed.size() == 1);
+  CHECK(failed[0]["state"] == "failed");
+  CHECK(failed[0]["error"] == dead.error);
+
+  // A later start on the same port replaces the failure.
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  me.port = dead.port;
+  me.started_at_ms = 0;  // a new start
+  StationManager::write_start_record(me);
+  auto now = status("59332");
+  REQUIRE(now.size() == 1);
+  CHECK(now[0]["state"] == "building");
+
+  clear(me.pid);
+  clear(dead.pid);
+  CHECK(status("pb332-demo").empty());
+}
+
+TEST_CASE("Installed package discovers sibling scratchpad binary when engine/scratchpad is absent") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+
+  // Checkout root (where tests run): resolves source engine/scratchpad and built binary.
+  const fs::path repo_root = cli.parent_path().parent_path().parent_path().parent_path();
+  if (fs::is_directory(repo_root / "engine" / "scratchpad")) {
+    CHECK(core::StationManager::resolve_station_dir("scratchpad") == repo_root / "engine" / "scratchpad");
+    const fs::path built_wb = core::StationManager::scratchpad_binary(repo_root);
+    if (!built_wb.empty()) CHECK(fs::is_regular_file(built_wb));
+  }
+
+  // Simulated installed prefix (<tmp>/bin/paperboat + sibling paperboat-scratchpad, <tmp>/share/paperboat, no checkout).
+  const fs::path prefix = fs::temp_directory_path() / ("pb_wb_install_" + std::to_string(getpid()));
+  std::error_code ec;
+  fs::remove_all(prefix, ec);
+  const fs::path bin_dir = prefix / "bin";
+  const fs::path share_dir = prefix / "share" / "paperboat";
+  fs::create_directories(bin_dir);
+  fs::create_directories(share_dir);
+  std::ofstream(share_dir / "toolkits.toml") << "toolchains = []\n";
+  const fs::path installed_cli = bin_dir / "paperboat";
+  fs::copy_file(cli, installed_cli, fs::copy_options::overwrite_existing);
+
+  // Without sibling paperboat-scratchpad, scratchpad is not listed.
+  const auto without_wb = core::ProcessRunner::run_sync(
+      {installed_cli.string(), "stations", "--json"}, prefix, {{"HOME", prefix.string()}});
+  REQUIRE(without_wb.ok());
+  const auto rows_before = nlohmann::json::parse(without_wb.stdout_text);
+  const bool has_before = std::any_of(rows_before.begin(), rows_before.end(),
+                                      [](const auto& r) { return r.value("name", "") == "scratchpad"; });
+  CHECK_FALSE(has_before);
+
+  // With sibling executable paperboat-scratchpad, stations --json exposes it as builtin prebuilt scratchpad.
+  const fs::path installed_wb = bin_dir / "paperboat-scratchpad";
+  {
+    std::ofstream out(installed_wb);
+    out << "#!/bin/sh\nexit 0\n";
+  }
+  fs::permissions(installed_wb, fs::perms::owner_exec | fs::perms::owner_read | fs::perms::owner_write,
+                  fs::perm_options::replace);
+
+  const auto with_wb = core::ProcessRunner::run_sync(
+      {installed_cli.string(), "stations", "--json"}, prefix, {{"HOME", prefix.string()}});
+  REQUIRE(with_wb.ok());
+  const auto rows_after = nlohmann::json::parse(with_wb.stdout_text);
+  auto it = std::find_if(rows_after.begin(), rows_after.end(),
+                         [](const auto& r) { return r.value("name", "") == "scratchpad"; });
+  REQUIRE(it != rows_after.end());
+  CHECK((*it)["source"] == "builtin");
+  CHECK((*it)["port"] == 8765);
+  CHECK((*it)["dir"] == fs::weakly_canonical(installed_wb).string());
+
+  fs::remove_all(prefix, ec);
+}
