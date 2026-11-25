@@ -84,6 +84,11 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
 .dock .dock-sep { width: 1px; height: 18px; background: var(--line); margin-right: 4px; }
 .dock .run-options input { width: 64px; text-align: right; }
 .dock .run-options select { appearance: none; width: 52px; text-align: right; cursor: pointer; }
+/* ∞: runs until cancelled. Chosen: raised and outlined, never a fill. */
+.dock .run-forever { all: unset; box-sizing: border-box; height: 24px; min-width: 24px; display: inline-grid; place-items: center; border-radius: var(--radius-md); font: 15px var(--font-mono); color: var(--text-muted); cursor: pointer; }
+.dock .run-forever:hover { color: var(--text); background: var(--surface-raised); }
+.dock .run-forever.on { color: var(--accent-text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--accent-select); }
+.dock .run-forever:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .dock .run-status { display: inline-flex; align-items: center; gap: 7px; font: 12.5px var(--font-mono); padding-left: 4px; }
 .dock .run-status.status-running { color: var(--accent-text); }
 .dock .run-status.status-failed { color: var(--danger-text); }
