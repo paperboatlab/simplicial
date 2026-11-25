@@ -6,7 +6,7 @@ import { readStored, writeStored } from "@paperboatlab/ui";
 export type Found = { url: string; name: string; version?: string };
 
 const RECENT = "simplicial.stations";
-const PORTS = Array.from({ length: 11 }, (_, i) => 51301 + i);
+const PORTS = Array.from({ length: 12 }, (_, i) => 51301 + i);
 const isList = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === "string");
 
 /** What was typed as a station's address: a port, host:port, or a ws/http URL. "" when it can't be one. */

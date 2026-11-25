@@ -34,8 +34,8 @@ struct NewResult {
   std::vector<std::filesystem::path> files;  // written, relative to dir
 };
 
-// The port a new station serves on (station.toml's port): after the examples' 51301-51310.
-inline constexpr int kNewStationPort = 51311;
+// The port a new station serves on (station.toml's port): the next free one after the examples' 51301-51310 and Articula's 51311.
+inline constexpr int kNewStationPort = 51312;
 
 // Empty if `name` is a valid station name, else what is wrong with it.
 std::string check_station_name(std::string_view name);

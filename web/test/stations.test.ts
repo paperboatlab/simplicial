@@ -15,5 +15,5 @@ test("it looks at the recent stations first, then the local ports, each once", (
   const c = candidates(["ws://lab-pc:51302", "ws://localhost:51302"]);
   assert.deepEqual(c.slice(0, 3), ["ws://lab-pc:51302", "ws://localhost:51302", "ws://localhost:51301"]);
   assert.equal(c.filter((u) => u === "ws://localhost:51302").length, 1);
-  assert.equal(c.at(-1), "ws://localhost:51311");
+  assert.equal(c.at(-1), "ws://localhost:51312");
 });
