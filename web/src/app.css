@@ -1,0 +1,93 @@
+/* Simplicial's own styles: what the kit (@paperboatlab/ui ui.css) doesn't draw. From the mockup
+   (agent-docs/rebrand/apps/simplicial). Roles and component tokens only. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 var(--font-sans); }
+
+/* the window: the bar on top, the page rail at the left (Navigator only), the pages and the Variables card */
+.win { height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: var(--bar-height) minmax(0, 1fr); gap: var(--gutter); padding: var(--gutter); }
+.win > .splash-stage { grid-column: 1 / -1; }
+.bar { grid-column: 1 / -1; position: relative; display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-3) 0 var(--space-4); background: var(--surface-panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.lk { display: inline-flex; align-items: center; gap: 8px; }
+.wm { font: 600 17px var(--font-display); letter-spacing: -0.01em; white-space: nowrap; }
+.bar .menubar { margin-left: var(--space-2); }
+.bar .menu { min-width: 250px; }
+.bar .menu-item { white-space: nowrap; }
+.proj { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; font: 12.5px var(--font-mono); color: var(--text-muted); white-space: nowrap; }
+.proj .dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.bend { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+.modes { margin-right: var(--space-2); }
+.lsep { width: 1px; height: 18px; background: var(--line); }
+/* icon keys in the bar are rounded squares (the theme key's shape); the Console key's count of errors in red */
+.bar-key.round { border-radius: var(--radius-md); }
+.bar-key[aria-pressed="true"] { background: var(--surface-sunken); }
+.bar-key .badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--danger); font: 600 10px/14px var(--font-mono); color: var(--danger-text); text-align: center; }
+
+/* the page rail steps aside in Commander and Lookout (every page is in view there), gap and all */
+.page-rail.aside { margin-right: calc(-1 * var(--gutter)); }
+.main { display: flex; gap: var(--gutter); min-height: 0; min-width: 0; }
+.main > .panel.side { height: 100%; }
+.vfoot { padding: 8px var(--space-3) 8px var(--panel-pad); border-top: 1px solid var(--line); font-size: 12px; color: var(--text-muted); }
+.main > .panel.side .panel-body { display: flex; flex-direction: column; }
+.vars { flex: 1; overflow: auto; padding-bottom: 8px; }
+
+/* a page's head: its name (15 px, as the mockup), its count, then its tools at the right end, its hide key last */
+.panel-head > b { font-size: 15px; }
+.pg .panel-head > small:not(.sum) { display: none; }  /* a page's count is for its slim bar; its head says it in words */
+.panel-head > small { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.panel-head > .tools { order: 2; margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+.panel-head > .hide-key { order: 3; }
+.panel-head > .hide-key, .panel-head > small + .hide-key { margin-left: auto; }
+.panel-head > .tools ~ .hide-key, .panel-head > .tools ~ small + .hide-key { margin-left: 0; }
+.panel-head > .tabs { height: 100%; border: 0; padding: 0; margin-left: var(--space-4); }
+.panel-head .seg { padding: 2px; }
+.panel-head .seg button { padding: 2px 10px; font-size: 12px; }
+.bread { display: flex; align-items: center; gap: 14px; margin-left: var(--space-4); font: 12px var(--font-mono); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.bread b { font-weight: 500; color: var(--text); }
+.page-body { height: 100%; }
+
+/* the pages: one column that slides to the page picked (Navigator); a wrapper per page holds its card */
+.pages { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-lg); }
+.pcol { display: grid; grid-auto-rows: 100%; row-gap: var(--gutter); height: 100%; transform: translateY(calc(var(--i, 0) * (-100% - var(--gutter)))); transition: transform var(--slide); }
+.pg { display: flex; min-width: 0; min-height: 0; position: relative; }
+.pg > .panel { flex: 1; min-width: 0; }
+.pg[inert] { pointer-events: none; }
+/* outside Lookout a page is never a side drawer: it takes its cell, its body the card's width */
+.win:not([data-mode="lookout"]) .pg > .panel.side > .panel-inner { width: 100% !important; }
+
+/* Commander: Station and Flow side by side, the Board a drawer under them that hides to its head */
+.win:not([data-mode="navigator"]) .pcol { transform: none; grid-auto-rows: auto; gap: var(--gutter); }
+.win:not([data-mode="navigator"]) .pg-station { grid-area: st; }
+.win:not([data-mode="navigator"]) .pg-flow { grid-area: fl; }
+.win:not([data-mode="navigator"]) .pg-board { grid-area: bd; }
+.win[data-mode="commander"] .pcol { --bdh: 330px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr); grid-template-rows: minmax(0, 1fr) var(--bdh); grid-template-areas: "st fl" "bd bd"; transition: grid-template-rows var(--slide); }
+.win[data-mode="commander"].hide-bd .pcol { --bdh: var(--panel-head-height); }
+.win[data-mode="commander"].hide-bd .dock { bottom: calc(var(--panel-head-height) + 16px); }
+.win[data-mode="commander"].nost .pcol { grid-template-areas: "fl fl" "bd bd"; }
+/* Lookout: the Board fills the window, Station and Flow drawers at its sides that hide to slim bars (slide, never squeeze) */
+.win[data-mode="lookout"] .pcol { --stw: 380px; --flw: 480px; grid-template-columns: var(--stw) minmax(0, 1fr) var(--flw); grid-template-rows: minmax(0, 1fr); grid-template-areas: "st bd fl"; transition: grid-template-columns var(--slide); }
+.win[data-mode="lookout"].hide-st .pcol { --stw: 38px; }
+.win[data-mode="lookout"].hide-fl .pcol { --flw: 38px; }
+.win[data-mode="lookout"].nost .pcol { grid-template-columns: minmax(0, 1fr) var(--flw); grid-template-areas: "bd fl"; }
+.dock .dock-sep { width: 1px; height: 18px; background: var(--line); margin-right: 4px; }
+.dock .run-options input { width: 64px; text-align: right; }
+.dock .run-options select { appearance: none; width: 52px; text-align: right; cursor: pointer; }
+.dock .run-status { display: inline-flex; align-items: center; gap: 7px; font: 12.5px var(--font-mono); padding-left: 4px; }
+.dock .run-status.status-running { color: var(--accent-text); }
+.dock .run-status.status-failed { color: var(--danger-text); }
+
+/* Variables: shared by the Station and the Flow, so a card beside the pages, never a page */
+.vg { font: 500 10.5px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); padding: 12px var(--panel-pad) 4px; }
+.vr { display: grid; grid-template-columns: minmax(0, 1fr) 84px 30px; gap: 8px; align-items: center; padding: 4px var(--space-3) 4px var(--panel-pad); margin: 0 6px; font: 12.5px var(--font-mono); border-radius: var(--radius-md); }
+.vr > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.vr .well { min-height: 24px; height: 24px; padding: 0 8px; justify-content: flex-end; font-size: 12.5px; }
+.vr .well .f { margin-right: auto; font-style: italic; color: var(--text-muted); }
+.vr .u { color: var(--text-muted); font-size: 12px; }
+.vr small { grid-column: 1 / -1; margin-top: -2px; font: 12px var(--font-sans); color: var(--text-muted); }
+.vr small code { font: 12px var(--font-mono); color: var(--text); }
+.vnone { flex: 1; }
+.vnone, .verr { margin: 0; padding: 12px var(--panel-pad); font-size: 12px; color: var(--text-muted); }
+.verr { color: var(--danger-text); }
+
+/* nothing moves at start-up: the saved layout is simply there */
+.still *, .still *::before, .still *::after { transition: none !important; }

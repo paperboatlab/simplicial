@@ -1,0 +1,304 @@
+// Simplicial's page (agent-docs/rebrand/apps/simplicial): the bar (lockup, menus, the project's name, the view
+// mode, the Console, Panels and theme keys), the page rail in Navigator, the three pages laid out by the view
+// mode, the Variables card, the run dock, the Console window and the floating search. The parts are the kit's
+// (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash.
+import {
+  AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
+  isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, writeStored,
+  type PaneRect, type SearchItem, type Theme,
+} from "@paperboatlab/ui";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEngine } from "./engine.ts";
+import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
+import type { RunSettings } from "./protocol.ts";
+
+/** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
+const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:8765");
+const ISSUES = "https://github.com/paperboatlab/simplicial/issues/new";
+const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
+
+const isTheme = (v: unknown): v is Theme => v === "light" || v === "dark" || v === "system";
+const isMode = (v: unknown): v is Mode => MODES.includes(v as Mode);
+const isPage = (v: unknown): v is Page => PAGES.includes(v as Page);
+const isHidden = (v: unknown): v is Record<Mode, Pane[]> => !!v && typeof v === "object" && MODES.every((m) => Array.isArray((v as Record<string, unknown>)[m]));
+const HIDDEN: Record<Mode, Pane[]> = { navigator: [], commander: [], lookout: ["fl", "r"] };
+
+/** The window's sketch for the Panels key's previews (64 × 44), per mode; without a station, its area goes. */
+function sketch(mode: Mode, station: boolean): Record<string, PaneRect> {
+  const s: Record<Mode, Record<string, PaneRect>> = {
+    navigator: { n: [4, 4, 6, 36], p: [12, 4, 34, 36], r: [48, 4, 12, 36] },
+    commander: { st: [4, 4, 18, 22], fl: [24, 4, 22, 22], bd: [4, 28, 42, 12], r: [48, 4, 12, 36] },
+    lookout: { st: [4, 4, 11, 36], bd: [17, 4, 22, 36], fl: [41, 4, 10, 36], r: [53, 4, 7, 36] },
+  };
+  const out = { ...s[mode] };
+  if (!station) {
+    delete out.st;
+    if (mode === "commander") out.fl = [4, 4, 42, 22];
+    if (mode === "lookout") out.bd = [4, 4, 35, 36];
+  }
+  return out;
+}
+const PANE_NAME: Record<Pane, [string, string?]> = { r: ["Variables", "Ctrl Alt B"], st: ["Station"], fl: ["Flow"], bd: ["Board", "Ctrl J"] };
+const fmt = (v: unknown) => (typeof v === "number" ? String(Number(v.toPrecision(4))).replace("-", "−") : String(v));
+
+/** How long and how fast the next run goes, beside Run (legacy RunOptions): the station's defaults until changed; 0 s runs until stopped. */
+function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; value: RunSettings; onChange: (v: RunSettings) => void }) {
+  const duration = value.duration ?? defaults.duration ?? 10, speed = value.speed ?? defaults.speed ?? 1;
+  const [draft, setDraft] = useState(String(duration));
+  useEffect(() => setDraft(String(duration)), [duration]);
+  const set = (change: RunSettings) => {
+    const next = { ...value, ...change };
+    for (const k of ["duration", "speed"] as const) if (next[k] === defaults[k]) delete next[k];  // only what changed goes with the run
+    onChange(next);
+  };
+  const commit = () => { const d = Number(draft); if (draft.trim() && Number.isFinite(d) && d >= 0) set({ duration: d }); else setDraft(String(duration)); };
+  return (
+    <span className="run-options" title="The next run's length and speed (the station's defaults until changed; 0 s runs until stopped)">
+      <i className="dock-sep" />for
+      <input aria-label="Run length, s" value={draft} size={4} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />s
+      <label>at</label>
+      <select aria-label="Speed" value={speed} title="Times real time; during a run, it changes the run at once" onChange={(e) => set({ speed: Number(e.target.value) })}>
+        {SPEEDS.map((x) => <option key={x} value={x}>{x === 0 ? "max" : `${x}×`}</option>)}
+      </select>
+    </span>
+  );
+}
+
+export function App() {
+  const { state, send } = useEngine(URL_);
+  const [theme, setTheme] = useState<Theme>(() => readStored("paperboat.theme", isTheme) ?? "system");
+  useTheme(theme);
+  useEffect(() => writeStored("paperboat.theme", theme), [theme]);
+  const [mode, setMode] = useState<Mode>(() => readStored("simplicial.mode", isMode) ?? "navigator");
+  const [page, setPage] = useState<Page>(() => readStored("simplicial.page", isPage) ?? "flow");
+  const [hidden, setHidden] = useState<Record<Mode, Pane[]>>(() => readStored("simplicial.hidden", isHidden) ?? HIDDEN);
+  useEffect(() => writeStored("simplicial.mode", mode), [mode]);
+  useEffect(() => writeStored("simplicial.page", page), [page]);
+  useEffect(() => writeStored("simplicial.hidden", hidden), [hidden]);
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [search, setSearch] = useState<null | { at?: { x: number; y: number } }>(null);
+  const [sview, setSview] = useState<"3d" | "graph">("3d");
+  const [tab, setTab] = useState("");
+  const [runSettings, setRunSettings] = useState<RunSettings>({});
+  const [booted, setBooted] = useState(false);   // the splash has handed over
+  const [retrying, setRetrying] = useState(false);  // the first try found no station
+  useEffect(() => { if (state.connection === "closed") setRetrying(true); }, [state.connection]);
+  const [still, setStill] = useState(true);       // nothing moves at start-up: the saved layout is simply there
+  const conKey = useRef<HTMLButtonElement>(null);
+  const flowBody = useRef<HTMLDivElement>(null);
+  const mouse = useRef<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!booted) return;
+    const f = requestAnimationFrame(() => requestAnimationFrame(() => setStill(false)));
+    return () => cancelAnimationFrame(f);
+  }, [booted]);
+  useEffect(() => { document.title = state.engine ? `${state.engine} · Simplicial` : "Simplicial"; }, [state.engine]);
+  useEffect(() => { if (state.stationView.view === "graph") setSview("graph"); }, [state.stationView.view]);
+
+  const station = state.stationView.visible !== false;
+  const shownPage: Page = !station && page === "station" ? "flow" : page;
+  const pages = station ? PAGES : PAGES.filter((p) => p !== "station");
+  const hid = (p: Pane) => hidden[mode].includes(p);
+  const toggle = (p: Pane, show = hid(p)) => setHidden((h) => ({ ...h, [mode]: show ? h[mode].filter((x) => x !== p) : [...h[mode], p] }));
+  const go = (p: Page) => { if (p === "station" && !station) return; setMode("navigator"); setPage(p); };
+
+  const running = state.run?.status === "running";
+  const whyNot = running ? "A run is in progress" : state.connection !== "open" ? "Not connected to a station" : !state.loaded ? "The station sent no flow to run" : "";
+  const run = () => {
+    if (whyNot || !state.loaded) return;
+    if (mode === "commander" && hid("bd")) toggle("bd", true);  // a run is watched on the Board
+    send({
+      type: "graph.run", graph: state.loaded, ...(state.station ? { station: state.station } : {}),
+      ...(Object.keys(runSettings).length ? { settings: runSettings } : {}), variables: state.variables,
+    });
+  };
+  const cancel = () => send({ type: "run.cancel" });
+  const errors = state.logs.filter((l) => l.level === "error").length;
+
+  const commands = registry(
+    { mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot },
+    {
+      setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
+      run, cancel, report: () => window.open(ISSUES, "_blank", "noopener"),
+    },
+  );
+  useShortcuts(booted ? commands : []);
+
+  /** Quick add at a point: the cursor over the Flow, else a third down its middle; only where the Flow is in view. */
+  const quickAdd = (at?: { x: number; y: number }) => {
+    const r = flowBody.current?.getBoundingClientRect();
+    const inView = r && r.width > 0 && (mode !== "navigator" || shownPage === "flow") && !(mode === "lookout" && hid("fl"));
+    if (!inView) return;
+    setSearch({ at: at ?? mouse.current ?? { x: r.left + r.width / 2 - 200, y: r.top + r.height / 3 } });
+  };
+  // Esc cancels a run (once nothing floats: menus, the Console and the search take Esc first); / is quick add
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (!booted || typing(e.target) || ownKeys(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Escape" && running) { e.preventDefault(); cancel(); }
+      else if (e.key === "/" && !search) { e.preventDefault(); quickAdd(); }
+    };
+    addEventListener("keydown", on);
+    return () => removeEventListener("keydown", on);
+  });
+
+  // Ctrl K: the registry's commands, the catalog's blocks and the variables; quick add: the blocks alone, by toolkit
+  const blocks = useMemo(() => state.blocks.filter((b) => !b.linked).sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "")), [state.blocks]);
+  const blockItems: SearchItem[] = blocks.map((b) => ({
+    id: `b:${b.type}`, label: b.label, detail: `${b.kind} · ${b.group ?? b.type}`, group: b.group ?? "Blocks", scope: "Blocks", icon: b.kind === "monitor" ? "a-board" : "a-flow",
+    run: () => {},  // adding a block comes with the canvas (M2)
+  }));
+  const searchItems: SearchItem[] = search?.at ? blockItems : [
+    ...commands.filter((c) => !c.quiet).sort((a, b) => Number(!isEnabled(a)) - Number(!isEnabled(b))).map((c): SearchItem => ({  // what can't run goes last
+      id: c.id, label: c.label, group: "Commands", scope: "Commands", icon: c.id.startsWith("view.") && PAGES.includes(c.id.slice(5) as Page) ? "go" : "command",
+      detail: MENUS.find((m) => m.id === c.menu)?.label, shortcut: c.shortcut, disabled: !isEnabled(c), why: c.why, run: c.run,
+    })),
+    ...blockItems.map((b) => ({ ...b, group: "Blocks" })),
+    ...state.variables.map((v): SearchItem => ({
+      id: `v:${v.name}`, label: v.name, group: "Variables", scope: "Variables", icon: "a-variables",
+      detail: [v.expr ? `ƒ ${v.expr}` : fmt(v.value ?? state.varValues[v.name] ?? ""), v.unit, v.group].filter(Boolean).join(" · "),
+      run: () => toggle("r", true),
+    })),
+  ];
+
+  // the Board's tabs (the layout's; a strip only with two or more) and its latest readouts (the hidden drawer's head)
+  const tabs = state.board?.tabs ?? [];
+  const readouts = Object.entries(state.latest).filter(([, v]) => typeof v === "number").slice(0, 4);
+  const duration = Number(runSettings.duration ?? state.runDefaults.duration ?? 0);
+  const elapsed = !state.run ? "" : duration > 0 ? `${(state.run.progress * duration).toFixed(1)} / ${duration} s` : `${(state.run.simTime ?? 0).toFixed(1)} s`;
+  const status = state.run?.status;
+  const statusText = status === "running" ? <><Spinner size={12} />running {elapsed}</>
+    : status === "failed" ? (state.failed.length ? `${state.failed[0]} failed` : "failed")
+    : status === "done" ? `done · ${elapsed}` : status;
+
+  const dock = (
+    <Dock canRun={!whyNot} whyNot={whyNot} running={running} status={status} statusText={statusText} onRun={run} onCancel={cancel}
+      optionsSlot={state.runDefaults.mode === "clock" && (
+        <RunOptions defaults={state.runDefaults} value={runSettings} onChange={(next) => {
+          const speed = (s: RunSettings) => s.speed ?? state.runDefaults.speed ?? 1;
+          if (running && speed(next) !== speed(runSettings)) send({ type: "run.speed", speed: speed(next) });  // the run takes it at once
+          setRunSettings(next);
+        }} />
+      )} />
+  );
+  const drawer = (p: Pane, on: boolean) => (on ? { hidden: hid(p), onHidden: (h: boolean) => toggle(p, !h) } : {});
+  const inert = (p: Page) => mode === "navigator" && p !== shownPage;
+  const graph = state.loaded;
+  const objects = state.station?.objects.length ?? Object.keys(state.entities).length;
+
+  return (
+    <div className={`win${still ? " still" : ""}${station ? "" : " nost"}${(["st", "fl", "bd"] as Pane[]).map((p) => (hid(p) ? ` hide-${p}` : "")).join("")}`} data-mode={mode}>
+      <header className="bar">
+        <span className="lk"><AppMark app="simplicial" size={26} idle paused={!booted} label="Simplicial" /><span className="wm">Simplicial</span></span>
+        {booted && <>
+          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme" }} />
+          <span className="proj" title={Object.keys(runSettings).length ? `${state.engine} · changes not saved` : state.engine}>
+            {state.engine}{Object.keys(runSettings).length > 0 && <i className="dirty" />}
+          </span>
+          <span className="bend">
+            <span className="modes" title="View mode (Alt M steps through them)">
+              <Segmented label="View mode" value={mode} onChange={setMode} options={[
+                { value: "navigator", label: "Navigator", hint: "One page at a time" },
+                { value: "commander", label: "Commander", hint: "Station and Flow side by side, the Board under them" },
+                { value: "lookout", label: "Lookout", hint: "The Board fills the window; Station and Flow at its sides" },
+              ]} />
+            </span>
+            <button ref={conKey} type="button" className="key round bar-key" aria-label="Console (Ctrl `)" title="Console (Ctrl `)" aria-pressed={consoleOpen} onClick={() => setConsoleOpen((o) => !o)}>
+              <Icon name="a-console" />{errors > 0 && <b className="badge">{errors}</b>}
+            </button>
+            <PanelsKey layout={sketch(mode, station)} onToggle={(id) => toggle(id as Pane)}
+              panels={PANES[mode].filter((p) => station || p !== "st").map((p) => ({ id: p, label: PANE_NAME[p][0], keys: PANE_NAME[p][1], shown: !hid(p) }))} />
+            <span className="lsep" />
+            <ThemePicker theme={theme} onChange={setTheme} />
+          </span>
+        </>}
+      </header>
+
+      {!booted ? (
+        <Splash app="simplicial" ready={!!state.engine} onReady={() => setBooted(true)} onLog={() => setConsoleOpen(true)}
+          say={retrying ? "Waiting for the station" : "Connecting to the station"} detail={retrying ? `${URL_} · retrying` : URL_} />
+      ) : <>
+        <PageRail label="Pages" page={shownPage} onPage={(p) => go(p as Page)} aside={mode !== "navigator"} pages={[
+          { id: "station", label: "Station", icon: "a-station", keys: "Alt 1", why: station ? undefined : NO_STATION },
+          { id: "flow", label: "Flow", icon: "a-flow", keys: "Alt 2" },
+          { id: "board", label: "Board", icon: "a-board", keys: "Alt 3", count: running ? "live" : undefined },
+        ]} />
+        <div className="main">
+          <div className="pages">
+            <div className="pcol" style={{ "--i": pages.indexOf(shownPage) } as CSSProperties}>
+              {station && (
+                <div className="pg pg-station" inert={inert("station")}>
+                  <Panel name="Station" side="left" width={380} icon="a-station" count={objects} {...drawer("st", mode === "lookout")}
+                    head={<><small className="sum">{`${state.engine} · ${objects} ${objects === 1 ? "object" : "objects"}`}</small><Tools><Segmented label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} /></Tools></>} />
+                </div>
+              )}
+              <div className="pg pg-flow" inert={inert("flow")}>
+                <Panel name="Flow" side="right" width={480} icon="a-flow" count={graph?.nodes.length ?? 0} {...drawer("fl", mode === "lookout")}
+                  head={<><small className="sum">{graph ? `${graph.nodes.length} ${graph.nodes.length === 1 ? "block" : "blocks"} · ${graph.edges.length} ${graph.edges.length === 1 ? "wire" : "wires"}` : "no flow"}</small><Tools>
+                    <Later what="Arrange the blocks along their wires" />
+                    <Key size="sm" kind="quiet" icon="add" shortcut="/" title="Add a block (/ or double-click the canvas)"
+                      onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setSearch({ at: { x: r.right - 400, y: r.bottom + 6 } }); }}>Add block</Key>
+                  </Tools></>}>
+                  <div ref={flowBody} className="page-body" onDoubleClick={(e) => quickAdd({ x: e.clientX, y: e.clientY })}
+                    onPointerMove={(e) => (mouse.current = { x: e.clientX, y: e.clientY })} onPointerLeave={() => (mouse.current = null)} />
+                </Panel>
+              </div>
+              <div className="pg pg-board" inert={inert("board")}>
+                <Panel name="Board" side="bottom" {...drawer("bd", mode === "commander")}
+                  head={<>
+                    {tabs.length > 1 && !(mode === "commander" && hid("bd")) && <Tabs label="Board tabs" value={tab || tabs[0]} onChange={setTab} tabs={tabs.map((t) => ({ value: t, label: t }))} />}
+                    {mode === "commander" && hid("bd") && readouts.length > 0 && (
+                      <span className="bread">{readouts.map(([k, v]) => <span key={k}>{k} <b>{fmt(v)}</b></span>)}</span>
+                    )}
+                    <Tools><Later what="Move and size the instruments" /></Tools>
+                  </>} />
+                {mode === "lookout" && dock}
+              </div>
+            </div>
+            {mode !== "lookout" && dock}
+          </div>
+          <Panel name="Variables" side="right" width={312} icon="a-variables" count={state.variables.length} hidden={hid("r")} onHidden={(h) => toggle("r", !h)}>
+            <Variables state={state} />
+            <div className="vfoot">Shared by the Station and the Flow</div>
+          </Panel>
+        </div>
+      </>}
+
+      {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
+        onBlock={booted ? () => { setConsoleOpen(false); go("flow"); } : undefined} />}  {/* picking the block on the canvas comes with M2 */}
+      {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
+        scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables"]}
+        placeholder={search.at ? "Add a block here" : "Search commands, blocks and variables"} />}
+    </div>
+  );
+}
+
+const Tools = ({ children }: { children: ReactNode }) => <span className="tools">{children}</span>;
+/** Arrange, greyed until the canvas comes; the span carries the why (a disabled key takes no hover). */
+const Later = ({ what }: { what: string }) => <span title={`${what}: not in v0.1 yet`}><Key size="sm" kind="quiet" disabled>Arrange</Key></span>;
+
+/** The station's variables, read-only in v0.1: by group, the value in a well (a formula's, with ƒ and its expression), the unit. */
+function Variables({ state }: { state: ReturnType<typeof useEngine>["state"] }) {
+  const groups = new Map<string, typeof state.variables>();
+  for (const v of state.variables) groups.set(v.group ?? "", [...(groups.get(v.group ?? "") ?? []), v]);
+  if (!state.variables.length) return <p className="vnone">The station has no variables</p>;
+  return (
+    <div className="vars">
+      {[...groups].map(([g, vs]) => (
+        <div key={g}>
+          {g && <div className="vg">{g}</div>}
+          {vs.map((v) => (
+            <div key={v.name} className="vr" title={v.note}>
+              <span>{v.name}</span>
+              <span className="well">{v.expr && <span className="f">ƒ</span>}{fmt(v.value ?? state.varValues[v.name] ?? "")}</span>
+              <span className="u">{v.unit}</span>
+              {v.expr && <small>= <code>{v.expr}</code></small>}
+            </div>
+          ))}
+        </div>
+      ))}
+      {state.varError && <p className="verr">{state.varError.text}</p>}
+    </div>
+  );
+}
