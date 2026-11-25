@@ -91,3 +91,72 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
 
 /* nothing moves at start-up: the saved layout is simply there */
 .still *, .still *::before, .still *::after { transition: none !important; }
+
+/* ---- Flow: the canvas (React Flow) on the dotted panel; blocks, wires and ports are the kit's (canvas.css) ---- */
+.flow-canvas { position: relative; height: 100%; min-height: 0;
+  --xy-background-color-default: var(--surface-panel); --xy-selection-background-color-default: color-mix(in srgb, var(--accent) 8%, transparent);
+  --xy-selection-border-default: 1px dashed var(--line-ink); --xy-connectionline-stroke-default: var(--line-ink); --xy-connectionline-stroke-width-default: 1.2;
+  --xy-resize-background-color-default: var(--line-ink); }
+.flow-canvas .react-flow__node { font: 12px var(--font-sans); color: var(--text); }
+.flow-canvas .react-flow__node.selectable:focus-visible { outline: none; }
+.flow-canvas .react-flow__node:focus-visible > :first-child { outline: 2px solid var(--focus); outline-offset: 3px; }
+.flow-canvas.locked .react-flow__handle { cursor: default; }
+.wire-hit { fill: none; stroke: transparent; stroke-width: 14px; pointer-events: none; }
+.wire-remove { position: absolute; pointer-events: all; }
+.canvas-empty { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; font-size: 13px; color: var(--text-muted); pointer-events: none; }
+.canvas-empty .kbd { margin-right: 6px; }
+/* the minimap: Navigator only, bottom-right; a sunken well, blocks grey, running in the accent, failed red, the view the clear window */
+.flow-canvas .react-flow__minimap { width: 160px; height: 100px; margin: 12px; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.flow-canvas .react-flow__minimap svg { display: block; width: 160px; height: 100px; }
+/* the selection dialog: floats above what is picked; its groups unfold as menus */
+.selection-dialog { display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: 12px; white-space: nowrap; }
+.selection-dialog .sel-what { padding: 0 8px; color: var(--text-muted); }
+.selection-dialog .sel-sep { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
+.selection-dialog .key.sm .pb-icon { width: 12px; height: 12px; }
+.sel-menu { position: relative; }
+.sel-menu .sel-pop { position: absolute; top: calc(100% + 6px); left: 0; min-width: 210px; }
+/* a bound param's binding, under the card's head: the variable, Show, Unbind */
+.binding { display: flex; align-items: center; gap: 6px; font: 12px var(--font-mono); color: var(--text-muted); }
+.binding > span:first-child { margin-right: auto; }
+.binding b { font-weight: 500; color: var(--text); }
+.block-under .binding + textarea { margin-top: 6px; }
+/* a subsystem's dashed + ports, shown while a wire is dragged; its empty body says what to do */
+.react-flow__handle.ghost-port { opacity: 0; pointer-events: none; width: 12px; height: 12px; border: 1.5px dashed var(--line-ink); background: var(--surface-raised); }
+.react-flow__handle.ghost-port.on { opacity: 1; pointer-events: all; }
+.react-flow__handle.ghost-port::before { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font: 600 10px/1 var(--font-mono); color: var(--text); }
+.group-empty { margin: 4px 10px 12px; font-size: 12px; color: var(--text-muted); }
+/* a frame: a dashed box round its blocks, its head a strip on top */
+.frame { width: 100%; height: 100%; box-sizing: border-box; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface-sunken) 40%, transparent); }
+.frame.selected { outline: 2px solid var(--accent-select); outline-offset: 3px; }
+.frame-head { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 6px; }
+.frame-toggle { all: unset; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; }
+.frame-toggle:hover { color: var(--text); background: var(--surface-sunken); }
+.frame-label { min-width: 0; flex: 0 1 auto; width: 14ch; height: 22px; padding: 0 4px; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--text); border-radius: var(--radius-sm); }
+.frame-label:focus { outline: 2px solid var(--focus); background: var(--surface-well); }
+.frame-kind { margin-right: auto; font: 12px var(--font-mono); color: var(--text-muted); }
+/* In and Out: a group's ports inside it (pills), and where wires from outside a level come and go */
+.port-pill, .boundary { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; white-space: nowrap; background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 14px; font-size: 12px; }
+.port-pill.selected { outline: 2px solid var(--accent-select); outline-offset: 3px; }
+.port-pill-tag, .boundary-tag { font: 600 12px var(--font-sans); color: var(--text-muted); }
+.port-pill-name, .boundary-name { font: 12px var(--font-mono); color: var(--text); }
+input.port-pill-name { width: auto; height: 20px; padding: 0 4px; border: 0; background: var(--surface-well); box-shadow: var(--well-shadow); border-radius: var(--radius-sm); }
+input.port-pill-name:focus { outline: 2px solid var(--focus); }
+.port-pill .react-flow__handle.outer { opacity: 0; pointer-events: none; }
+/* the breadcrumb when a subsystem or story is open: Flow › its name (editable), its kind */
+.react-flow__panel.crumbs { display: flex; align-items: center; gap: 4px; margin: 12px; padding: 3px 10px 3px 6px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: 13px; }
+.crumb { all: unset; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.crumb:hover { color: var(--text); }
+.crumb-step { display: inline-flex; align-items: center; gap: 4px; }
+.crumb-sep { color: var(--text-muted); }
+.crumb-here { height: 22px; padding: 0 4px; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--text); border-radius: var(--radius-sm); }
+.crumb-here:focus { outline: 2px solid var(--focus); background: var(--surface-well); }
+.crumb-kind { margin-left: 6px; font: 12px var(--font-mono); color: var(--text-muted); }
+/* what dropping a dragged card would do: where it lands, the port it joins, in words */
+.drop-hint { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.drop-outline { position: absolute; border: 1.5px dashed var(--line-ink); border-radius: var(--radius-md); }
+.drop-wire { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.drop-wire line { stroke: var(--line-ink); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.drop-wire circle { fill: none; stroke: var(--line-ink); stroke-width: 1.5; }
+.drop-label { position: absolute; padding: 2px 8px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-1); font: 12px var(--font-mono); white-space: nowrap; }
+/* the selection dialog steps aside while a plate's card floats over it */
+.flow-canvas:has(.compact-block.open) .selection-dialog { visibility: hidden; }

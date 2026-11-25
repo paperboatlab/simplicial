@@ -20,6 +20,7 @@ export const MENUS: { id: string; label: string }[] = [
 export const PANES: Record<Mode, Pane[]> = { navigator: ["r"], commander: ["bd", "r"], lookout: ["st", "fl", "r"] };
 export const NO_STATION = "This station has no Station page";
 const LATER = "Not in v0.1 yet";
+const NOTHING = "Select blocks on the Flow first";
 
 export type View = {
   mode: Mode;
@@ -32,6 +33,8 @@ export type View = {
   running: boolean;
   /** Why Run can't start now; "" when it can. */
   whyNot: string;
+  /** The Flow canvas: what its Edit items can do now, and why the flow can't be edited ("" when it can). */
+  flow: { lock: string; undo: boolean; redo: boolean; copy: boolean; paste: boolean; arrange: boolean };
 };
 export type Do = {
   setMode: (m: Mode) => void;
@@ -43,6 +46,14 @@ export type Do = {
   run: () => void;
   cancel: () => void;
   report: () => void;
+  /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
+  undo: () => void;
+  redo: () => void;
+  cut: () => void;
+  copy: () => void;
+  paste: () => void;
+  all: () => void;
+  arrange: () => void;
 };
 
 const later = (id: string, label: string, menu: string, group: string, shortcut?: string): Command =>
@@ -50,6 +61,9 @@ const later = (id: string, label: string, menu: string, group: string, shortcut?
 
 export function registry(v: View, a: Do): Command[] {
   const nav = v.mode === "navigator";
+  // A Flow edit: greyed with why while a run is in progress, else while it has nothing to act on.
+  const edit = (id: string, label: string, group: string, shortcut: string, can: boolean, why: string, run: () => void): Command =>
+    ({ id, label, menu: "edit", group, shortcut, enabled: !v.flow.lock && can, why: v.flow.lock || why, run });
   const drawer = (p: Pane, label: string, shortcut?: string, chord?: Command["chord"]): Command =>
     ({ id: `view.${p}`, label, menu: "view", group: "panels", shortcut, chord, checked: !v.hidden(p), run: () => a.toggle(p) });
   return [
@@ -60,12 +74,12 @@ export function registry(v: View, a: Do): Command[] {
     later("file.export", "Export station…", "file", "station"),
     later("file.settings", "Settings…", "file", "settings", "Ctrl ,"),
 
-    later("edit.undo", "Undo", "edit", "undo", "Ctrl Z"),
-    later("edit.redo", "Redo", "edit", "undo", "Ctrl Shift Z"),
-    later("edit.cut", "Cut", "edit", "clip", "Ctrl X"),
-    later("edit.copy", "Copy", "edit", "clip", "Ctrl C"),
-    later("edit.paste", "Paste", "edit", "clip", "Ctrl V"),
-    later("edit.all", "Select all", "edit", "clip", "Ctrl A"),
+    edit("edit.undo", "Undo", "undo", "Ctrl Z", v.flow.undo, "Nothing to undo", a.undo),
+    edit("edit.redo", "Redo", "undo", "Ctrl Shift Z", v.flow.redo, "Nothing to redo", a.redo),
+    edit("edit.cut", "Cut", "clip", "Ctrl X", v.flow.copy, NOTHING, a.cut),
+    { id: "edit.copy", label: "Copy", menu: "edit", group: "clip", shortcut: "Ctrl C", enabled: v.flow.copy, why: NOTHING, run: a.copy },
+    edit("edit.paste", "Paste", "clip", "Ctrl V", v.flow.paste, "Nothing copied yet", a.paste),
+    { id: "edit.all", label: "Select all", menu: "edit", group: "clip", shortcut: "Ctrl A", run: a.all },
     later("edit.find", "Find…", "edit", "find", "Ctrl F"),
 
     ...MODES.map((m): Command => ({ id: `view.${m}`, label: NAME[m], menu: "view", group: "mode", checked: v.mode === m, run: () => a.setMode(m) })),
@@ -86,11 +100,11 @@ export function registry(v: View, a: Do): Command[] {
     ...(["light", "dark", "system"] as Theme[]).map((t): Command => ({
       id: `view.theme.${t}`, label: t[0].toUpperCase() + t.slice(1), menu: "view", group: "theme", checked: v.theme === t, run: () => a.setTheme(t),
     })),
+    { id: "view.arrange", label: "Arrange blocks", menu: "view", group: "flow", enabled: !v.flow.lock && v.flow.arrange, why: v.flow.lock || "Nothing on this level to arrange", run: a.arrange },
     { id: "view.search", label: "Command search…", menu: "view", group: "search", shortcut: "Ctrl K", chord: { key: "k", ctrl: true }, quiet: true, run: a.search },
 
     { id: "run.run", label: "Run", menu: "run", group: "run", shortcut: "Ctrl R", chord: { key: "r", ctrl: true }, enabled: !v.whyNot, why: v.whyNot, run: a.run },
     { id: "run.cancel", label: "Cancel", menu: "run", group: "run", shortcut: "Esc", enabled: v.running, why: "Nothing is running", run: a.cancel },
-    later("run.arrange", "Arrange blocks", "run", "flow"),
     later("run.settings", "Run settings…", "run", "flow"),
 
     later("help.docs", "Docs", "help", "docs", "F1"),
