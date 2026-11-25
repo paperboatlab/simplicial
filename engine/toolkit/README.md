@@ -1,13 +1,13 @@
 # toolkit
 
-Reusable C++20 block and station-object packages for the [Paperboat](../../README.md) engine.
+Reusable C++20 block and station-object packages for the [Simplicial](../../README.md) engine.
 Built-in packages (`base`, `signal`, `math`, `string`, `list`, `board`, `step`, `group`) ship
 with the engine; optional toolkits (`control`, `optimization`, `opencv`, `meshop`) install into
 `engine/toolkit/<name>/` or `~/.local/share/paperboat/toolkits/<name>/` as plugins.
 
 **Docs:** <https://paperboatlab.github.io/#toolkits> and
 <https://paperboatlab.github.io/paperboat/descriptor.html> (sources in `src/<package>/docs/` and
-[`../../docs/api/descriptor.rst`](../../docs/api/descriptor.rst))
+paperboat-legacy's [`docs/api/descriptor.rst`](https://github.com/paperboatlab/paperboat-legacy/blob/dev/docs/api/descriptor.rst))
 
 ## Layout
 
