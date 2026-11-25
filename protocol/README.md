@@ -9,7 +9,7 @@ shapes are defined by the JSON Schema in [schema/paperboat-0.schema.json](schema
 A run's results are not a protocol message: `paperboat run --record <dir>` writes a
 [run record](schema/record-0.schema.json) with the messages the run sent (#277).
 
-Default address: `ws://localhost:8765`.
+Default address: `ws://localhost:51301`.
 
 ## Station → UI
 

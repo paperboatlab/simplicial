@@ -34,7 +34,7 @@ import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page,
 import type { BoardLayout, RunSettings } from "./protocol.ts";
 
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
-const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:8765");
+const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
 const ISSUES = "https://github.com/paperboatlab/simplicial/issues/new";
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
 /** What Simplicial ships beyond the kit: the engine's libraries (engine/CMakeLists.txt; licences from their own files). */

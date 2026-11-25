@@ -41,7 +41,7 @@ struct StartingStation {
 };
 
 struct StationRunOptions {
-  int port = 0;  // 0: default for station or 8765
+  int port = 0;  // 0: default for station or 51301
   bool build = true;
   bool clean = false;
   bool time_metrics = false;
@@ -77,7 +77,7 @@ struct StationManifest {
   std::string engine = ">=0.1";
   std::string language;  // "cpp" or "python"
   std::string run;       // path to binary or script relative to station root
-  int port = 8765;
+  int port = 51301;
   std::string descriptor = "descriptor.toml";
   std::vector<std::string> toolkits;
   std::string golden;    // from [test].golden
@@ -224,9 +224,9 @@ class StationManager {
   static std::vector<ExampleStation> status_examples(const std::filesystem::path& examples_dir = {});
 
   // Web application management
-  static bool start_app(int port = 3047, const std::string& host = "0.0.0.0", bool daemon = false);
-  static bool stop_app(int port = 3047);
-  static bool restart_app(int port = 3047, const std::string& host = "0.0.0.0");
+  static bool start_app(int port = 30471, const std::string& host = "0.0.0.0", bool daemon = false);
+  static bool stop_app(int port = 30471);
+  static bool restart_app(int port = 30471, const std::string& host = "0.0.0.0");
   static bool build_app();
 
   // Verification & checking

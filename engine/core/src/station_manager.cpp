@@ -401,7 +401,7 @@ bool StationManager::free_port(int port, int timeout_ms) {
 
   // Stop corresponding systemd service if any
   stop_user_service("paperboat-station-" + std::to_string(port) + ".service");
-  if (port == 3047) stop_user_service("paperboat-web.service");
+  if (port == 30471) stop_user_service("paperboat-web.service");
 
   int pid = find_pid_by_port(port);
   if (pid > 0) {
@@ -508,8 +508,8 @@ std::vector<RunningStation> StationManager::list_running_stations() {
     }
   }
 
-  // Fallback probe for known example ports 8765..8773 and the toolkit examples (ocv/opt)
-  for (int p = 8765; p <= 8799; ++p) {
+  // Fallback probe for the station ports: the examples (51301..51310), then the next free numbers
+  for (int p = 51301; p <= 51335; ++p) {
     if (std::ranges::find(found_ports, p) != found_ports.end()) continue;
     if (is_port_listening(p)) {
       int pid = find_pid_by_port(p);
@@ -1241,7 +1241,7 @@ int StationManager::run_station(const fs::path& path_or_domain, const StationRun
         } catch (...) {}
       }
     }
-    if (port <= 0) port = 8765;
+    if (port <= 0) port = 51301;
   }
 
   // Free port if already listening
@@ -1553,7 +1553,7 @@ std::vector<ExampleStation> StationManager::get_examples(const fs::path& example
 
   for (const auto& sdir : dirs) {
     StationManifest m = load_manifest(sdir);
-    int port = m.port > 0 ? m.port : 8765;
+    int port = m.port > 0 ? m.port : 51301;
     std::string name = sdir.filename().string();
     std::string type = m.language.empty() ? (fs::is_regular_file(sdir / "CMakeLists.txt") ? "cpp" : "python") : m.language;
     ExampleStation item{port, name, type, sdir, false, 0, ws_url(port)};
@@ -1571,11 +1571,11 @@ std::vector<ExampleStation> StationManager::get_examples(const fs::path& example
       const char* type;
     };
     static constexpr Known known[] = {
-        {8765, "mass-spring-python", "python"}, {8766, "cart-pole-cpp", "cpp"},
-        {8767, "parametric-python", "python"},  {8768, "runner-python", "python"},
-        {8769, "animation-python", "python"},   {8770, "parts-cpp", "cpp"},
-        {8771, "chain-python", "python"},       {8772, "supply-python", "python"},
-        {8773, "double-pendulum-cpp", "cpp"},
+        {51301, "01-smart-thermostat-python", "python"}, {51302, "02-cart-pole-cpp", "cpp"},
+        {51303, "03-low-poly-island-python", "python"},  {51304, "04-cocktail-barista-python", "python"},
+        {51305, "05-rover-lander-python", "python"},     {51306, "06-robot-pick-place-python", "python"},
+        {51307, "07-airfoil-cfd-python", "python"},      {51308, "08-air-hockey-tracker-cpp", "cpp"},
+        {51309, "09-modular-synth-cpp", "cpp"},          {51310, "10-train-pantograph-cpp", "cpp"},
     };
 
     for (const auto& k : known) {
@@ -1671,7 +1671,7 @@ bool StationManager::start_examples(const fs::path& examples_dir) {
 
 bool StationManager::stop_examples() {
   std::vector<int> ports;
-  for (int p = 8765; p <= 8773; ++p) ports.push_back(p);
+  for (int p = 51301; p <= 51310; ++p) ports.push_back(p);
   for (const auto& ex : get_examples()) {
     if (std::ranges::find(ports, ex.port) == ports.end()) ports.push_back(ex.port);
   }
@@ -1800,7 +1800,7 @@ StationManifest StationManager::load_manifest(const fs::path& station_dir, std::
     // A C++ station's run names the program without .exe, the same on every platform.
     if (m.language == "cpp" && !m.run.empty() && fs::path(m.run).extension().empty()) m.run += ".exe";
 #endif
-    m.port = static_cast<int>(doc["station"]["port"].value_or(8765));
+    m.port = static_cast<int>(doc["station"]["port"].value_or(51301));
     m.descriptor = doc["station"]["descriptor"].value_or("descriptor.toml");
 
     auto parse_toolkit_node = [&](const toml::node* node) {

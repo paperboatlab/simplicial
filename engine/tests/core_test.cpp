@@ -320,7 +320,7 @@ edges = [{ from = ["c", "y"], to = ["show", "in"] }]
   CHECK_THAT(out.str(), ContainsSubstring(R"("node":"show")"));
   CHECK_THAT(out.str(), ContainsSubstring(R"("v":10.0)"));
   const char* argv[] = {"station", "--run", "--var", "level=5"};
-  const auto o = core::parse_options(4, const_cast<char**>(argv), 8765);
+  const auto o = core::parse_options(4, const_cast<char**>(argv), 51301);
   CHECK(o.vars == std::vector<std::pair<std::string, std::string>>{{"level", "5"}});
 }
 
