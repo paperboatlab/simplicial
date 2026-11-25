@@ -1,0 +1,2 @@
+# Values, keys, logic, conversion and time. One block, one folder: base/<block>/<block>.cpp defines add_<block>.
+name = "base"

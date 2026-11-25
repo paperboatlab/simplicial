@@ -1,0 +1,3 @@
+# The signal package: C++ parents plus TOML definitions in blocks.toml.
+name = "signal"
+definitions = "blocks.toml"
