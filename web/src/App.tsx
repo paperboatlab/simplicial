@@ -1,7 +1,8 @@
 // Simplicial's page (agent-docs/rebrand/apps/simplicial): the bar (lockup, menus, the project's name, the view
 // mode, the Console, Panels and theme keys), the page rail in Navigator, the three pages laid out by the view
 // mode, the Variables card, the run dock, the Console window and the floating search. The parts are the kit's
-// (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash.
+// (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash, and
+// once the first try finds none, Choose a station over it (StationPicker.tsx).
 // The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them. The
 // Board (board/Board.tsx) shows an instrument for each monitor block among them, laid out by the user's layout (kept
 // per station in the browser) or the station's.
@@ -17,6 +18,8 @@ import { Board } from "./board/Board.tsx";
 import { loadSaved, save } from "./board/boardLayout.ts";
 import { useBoardWiring } from "./board/boardWiring.ts";
 import { useEngine } from "./engine.ts";
+import { StationPicker } from "./StationPicker.tsx";
+import { remember } from "./stations.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
 import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
 import { FlowEditor, type FlowControls } from "./flow/FlowEditor.tsx";
@@ -102,6 +105,8 @@ export function App() {
   const [booted, setBooted] = useState(false);   // the splash has handed over
   const [retrying, setRetrying] = useState(false);  // the first try found no station
   useEffect(() => { if (state.connection === "closed") setRetrying(true); }, [state.connection]);
+  useEffect(() => { if (state.engine) remember(URL_); }, [state.engine]);
+  const [picker, setPicker] = useState(false);   // Choose a station, from File; over the splash while none answers
   const [still, setStill] = useState(true);       // nothing moves at start-up: the saved layout is simply there
   const conKey = useRef<HTMLButtonElement>(null);
   const flowBody = useRef<HTMLDivElement>(null);
@@ -177,7 +182,7 @@ export function App() {
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, report: () => window.open(ISSUES, "_blank", "noopener"),
+      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -357,6 +362,7 @@ export function App() {
         </div>
       </>}
 
+      {(picker || (!booted && retrying)) && <StationPicker current={URL_} wait={!booted} onClose={() => setPicker(false)} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
