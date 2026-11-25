@@ -65,3 +65,26 @@ test("decorations: a label takes cells, a rule none; on a narrower Board the rul
   assert.deepEqual(narrow.instruments.map((p) => [p.col, p.row]), [[0, 1]], "the instrument follows the label in reading order, under it when it can't fit beside");
   assert.equal(arrange(monitors, removeDecoration(labelled, 0), 6).decorations[0].kind, "hline");
 });
+
+test("a resizable instrument takes a custom span, up to the grid's columns each way", async () => {
+  const { resizeInstrument, spanInstrument } = await import("../src/board/boardLayout.ts");
+  const monitors = { s: { kind: "scope", x: 0, y: 0, resizable: true }, d: { kind: "display", x: 1, y: 0 } };
+  const a = arrange(monitors, undefined, 6);
+  const wide = spanInstrument(a, "s", 5, 4);
+  const s = arrange(monitors, wide, 6).instruments.find((p) => p.block === "s")!;
+  assert.deepEqual([s.w, s.h, s.size], [5, 4, "xlarge"]);
+  assert.deepEqual(wide.instruments!.find((i) => i.block === "s")!.span, [5, 4]);
+  // Clamped: no wider than fits from its column, no taller than the columns.
+  const placed = arrange(monitors, spanInstrument(a, "s", 99, 99), 6).instruments.find((p) => p.block === "s")!;
+  assert.deepEqual([placed.w, placed.h], [6 - placed.col, 6]);
+  assert.deepEqual(arrange(monitors, spanInstrument(a, "s", 1, 1), 6).instruments.find((p) => p.block === "s")!.size, "compact");
+  // A narrower Board clamps a saved span to its columns.
+  const narrow = arrange(monitors, wide, 3).instruments.find((p) => p.block === "s")!;
+  assert.deepEqual([narrow.w, narrow.h], [3, 3]);
+  // Picking a preset drops the span.
+  const back = resizeInstrument(arrange(monitors, wide, 6), "s", "normal");
+  assert.equal(back.instruments!.find((i) => i.block === "s")!.span, undefined);
+  // An instrument that can't resize ignores a span in the layout.
+  const d = arrange(monitors, { instruments: [{ block: "d", span: [4, 4] }] }, 6).instruments.find((p) => p.block === "d")!;
+  assert.deepEqual([d.w, d.h], [2, 1]);
+});

@@ -57,9 +57,9 @@ come back out of process over `paperboat-runtime/0` (#7).
     `flowContexts.ts` is what they share. A run locks the edits (`Lock`). The tests load the kit's TypeScript through
     `web/scripts/kit.ts` (node strips no types under `node_modules`).
   - `src/board/`: the Board, ported from legacy's `Board.tsx`. `boardLayout.ts` (pure, tested: the grid of equal cells,
-    S/M/L/XL, tabs, decorations, `{block}` values in text, the automatic order), `boardWiring.ts` (the monitor blocks
+    S/M/L/XL or, for an instrument its toolkit marks `resizable`, a custom span up to the grid's columns each way, tabs, decorations, `{block}` values in text, the automatic order), `boardWiring.ts` (the monitor blocks
     on the Flow are the instruments: kind, what feeds them, + tap), `Board.tsx` (the grid, Arrange: drag or arrow
-    keys, sizes, decorations, tabs), `host.ts` (the instrument registry and `InstrumentProps`, imported by the
+    keys, sizes, a resizable instrument's corner grip, decorations, tabs), `host.ts` (the instrument registry and `InstrumentProps`, imported by the
     toolkits as `@paperboat/host`), `toolkits.ts` (calls each toolkit web part's `register(host)`). The user's layout
     is kept per station in the browser, else the station's (`catalog.board`). Every instrument's face is the kit's
     (`@paperboatlab/ui/plot`: graph, display, lamp, switch, choice, speaker in its `Instrument` frame; `/scope`: the

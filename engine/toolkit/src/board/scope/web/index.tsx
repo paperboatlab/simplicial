@@ -5,5 +5,5 @@ import { ScopeInstrument } from "./ScopeInstrument.tsx";
 
 export function register(host: ToolkitWebHost): void {
   // The same id the kit's Scope marks itself with: the adapter and the widget cannot drift.
-  host.registerInstrument(scopeWidget.id, ScopeInstrument, { size: "large" });
+  host.registerInstrument(scopeWidget.id, ScopeInstrument, { size: "large", resizable: true });
 }
