@@ -16,7 +16,7 @@ export function useCanvasSync(
 ) {
   // What the canvas was loaded as, and from which station: a station that comes back (restarted,
   // reconnected) doesn't overwrite what the user changed since.
-  const canvas = useRef({ engine: "", graph: "" });
+  const canvas = useRef({ engine: "", graph: "", opened: 0 });
   const current = useRef({ nodes, edges });
   current.current = { nodes, edges };
 
@@ -35,7 +35,8 @@ export function useCanvasSync(
   // (perhaps new) catalog, so a block that's gone shows as missing instead of vanishing.
   useEffect(() => {
     const now = current.current;
-    const edited = now.nodes.length > 0 && canvas.current.engine === state.engine && JSON.stringify(toGraph(now.nodes, now.edges)) !== canvas.current.graph;
+    // a file just opened (File › Open) takes the canvas whatever was on it
+    const edited = canvas.current.opened === state.opened && now.nodes.length > 0 && canvas.current.engine === state.engine && JSON.stringify(toGraph(now.nodes, now.edges)) !== canvas.current.graph;
     if (edited) {
       setNodes((ns) => resolveBlocks(ns, now.edges, state.blocks));
       return;
@@ -43,7 +44,7 @@ export function useCanvasSync(
     const g = state.loaded ? fromGraph(state.loaded, state.blocks) : { nodes: [], edges: [] };
     setNodes(g.nodes);
     setEdges(g.edges);
-    canvas.current = { engine: state.engine, graph: JSON.stringify(toGraph(g.nodes, g.edges)) };
+    canvas.current = { engine: state.engine, graph: JSON.stringify(toGraph(g.nodes, g.edges)), opened: state.opened };
     requestAnimationFrame(() => fitView());
-  }, [state.loaded, state.blocks, state.engine, setNodes, setEdges, fitView]);
+  }, [state.loaded, state.opened, state.blocks, state.engine, setNodes, setEdges, fitView]);
 }
