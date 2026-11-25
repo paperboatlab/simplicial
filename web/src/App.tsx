@@ -2,13 +2,23 @@
 // mode, the Console, Panels and theme keys), the page rail in Navigator, the three pages laid out by the view
 // mode, the Variables card, the run dock, the Console window and the floating search. The parts are the kit's
 // (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash.
+// The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them.
 import {
   AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
   isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, writeStored,
   type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useUndo } from "@paperboatlab/ui/canvas";
+import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useEngine } from "./engine.ts";
+import { useCanvasSync } from "./flow/canvasSync.ts";
+import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
+import { FlowEditor, type FlowControls } from "./flow/FlowEditor.tsx";
+import { toGraph } from "./flow/flowGraph.ts";
+import { canArrangeFlow } from "./flow/flowLayout.ts";
+import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
+import { isPortType } from "./flow/portBlocks.ts";
 import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
 import type { RunSettings } from "./protocol.ts";
 
@@ -39,6 +49,10 @@ function sketch(mode: Mode, station: boolean): Record<string, PaneRect> {
   return out;
 }
 const PANE_NAME: Record<Pane, [string, string?]> = { r: ["Variables", "Ctrl Alt B"], st: ["Station"], fl: ["Flow"], bd: ["Board", "Ctrl J"] };
+/** The Flow fitted with room round it; in Navigator the run dock and the minimap float over its foot. */
+const FIT: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "56px" }, maxZoom: 1.2 };  // clear of the canvas tools
+const FIT_DOCK: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "128px" }, maxZoom: 1.2 };  // clear of the dock and the minimap
+const LOCKED = "A run is in progress: cancel it to edit the flow";
 const fmt = (v: unknown) => (typeof v === "number" ? String(Number(v.toPrecision(4))).replace("-", "−") : String(v));
 
 /** How long and how fast the next run goes, beside Run (legacy RunOptions): the station's defaults until changed; 0 s runs until stopped. */
@@ -88,6 +102,25 @@ export function App() {
   const flowBody = useRef<HTMLDivElement>(null);
   const mouse = useRef<{ x: number; y: number } | null>(null);
 
+  const running = state.run?.status === "running";
+  const lock = running ? LOCKED : "";
+  // The Flow canvas: its blocks and wires (what a run sends), the level open on it, undo, and what its menus do.
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Wire>([]);
+  const [level, setLevel] = useState<string | null>(null);
+  const flow = useRef<FlowControls | null>(null);
+  const { fitView } = useReactFlow();
+  const fit = mode === "navigator" ? FIT_DOCK : FIT;
+  const fitFlow = useCallback(() => void fitView(fit), [fitView, fit]);
+  useCanvasSync(state, nodes, edges, setNodes, setEdges, fitFlow);
+  const history = useUndo(nodes, edges, setNodes, setEdges, state.loaded, !lock);
+  const runStates = useMemo(() => ({
+    active: new Set(state.active), failed: new Set(state.failed), queued: new Set(state.queued), cached: new Set(state.cached), progress: state.progress,
+  }), [state.active, state.failed, state.queued, state.cached, state.progress]);
+  // A plate drawn `when` its block's latest value is on (a lit Lamp).
+  const onKey = Object.entries(state.latest).filter(([, v]) => (typeof v === "number" ? v > 0.5 : false)).map(([k]) => k).join("\n");
+  const onBlocks = useMemo(() => new Set(onKey ? onKey.split("\n") : []), [onKey]);
+
   useEffect(() => {
     if (!booted) return;
     const f = requestAnimationFrame(() => requestAnimationFrame(() => setStill(false)));
@@ -103,24 +136,31 @@ export function App() {
   const toggle = (p: Pane, show = hid(p)) => setHidden((h) => ({ ...h, [mode]: show ? h[mode].filter((x) => x !== p) : [...h[mode], p] }));
   const go = (p: Page) => { if (p === "station" && !station) return; setMode("navigator"); setPage(p); };
 
-  const running = state.run?.status === "running";
-  const whyNot = running ? "A run is in progress" : state.connection !== "open" ? "Not connected to a station" : !state.loaded ? "The station sent no flow to run" : "";
+  const missing = nodes.some((n) => isBlock(n) && n.data.missing);
+  const whyNot = running ? "A run is in progress" : state.connection !== "open" ? "Not connected to a station"
+    : !nodes.length ? "The flow is empty: add a block (/)" : missing ? "A block this station doesn't have is on the flow: replace or delete it" : "";
   const run = () => {
-    if (whyNot || !state.loaded) return;
+    if (whyNot) return;
     if (mode === "commander" && hid("bd")) toggle("bd", true);  // a run is watched on the Board
     send({
-      type: "graph.run", graph: state.loaded, ...(state.station ? { station: state.station } : {}),
+      type: "graph.run", graph: toGraph(nodes, edges, state.loaded?.flow), ...(state.station ? { station: state.station } : {}),
       ...(Object.keys(runSettings).length ? { settings: runSettings } : {}), variables: state.variables,
     });
   };
   const cancel = () => send({ type: "run.cancel" });
   const errors = state.logs.filter((l) => l.level === "error").length;
 
+  const picked = nodes.some((n) => n.selected && !(isBlock(n) && n.data.def.linked));
   const commands = registry(
-    { mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot },
+    {
+      mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
+      flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
+    },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
       run, cancel, report: () => window.open(ISSUES, "_blank", "noopener"),
+      undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
+      all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(),
     },
   );
   useShortcuts(booted ? commands : []);
@@ -128,10 +168,10 @@ export function App() {
   /** Quick add at a point: the cursor over the Flow, else a third down its middle; only where the Flow is in view. */
   const quickAdd = (at?: { x: number; y: number }) => {
     const r = flowBody.current?.getBoundingClientRect();
-    const inView = r && r.width > 0 && (mode !== "navigator" || shownPage === "flow") && !(mode === "lookout" && hid("fl"));
-    if (!inView) return;
+    if (!r || !flowInView || lock) return;
     setSearch({ at: at ?? mouse.current ?? { x: r.left + r.width / 2 - 200, y: r.top + r.height / 3 } });
   };
+  const flowInView = (mode !== "navigator" || shownPage === "flow") && !(mode === "lookout" && hid("fl"));
   // Esc cancels a run (once nothing floats: menus, the Console and the search take Esc first); / is quick add
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -147,7 +187,7 @@ export function App() {
   const blocks = useMemo(() => state.blocks.filter((b) => !b.linked).sort((a, b) => (a.group ?? "").localeCompare(b.group ?? "")), [state.blocks]);
   const blockItems: SearchItem[] = blocks.map((b) => ({
     id: `b:${b.type}`, label: b.label, detail: `${b.kind} · ${b.group ?? b.type}`, group: b.group ?? "Blocks", scope: "Blocks", icon: b.kind === "monitor" ? "a-board" : "a-flow",
-    run: () => {},  // adding a block comes with the canvas (M2)
+    run: () => { if (search?.at) flow.current?.place(b, search.at); },
   }));
   const searchItems: SearchItem[] = search?.at ? blockItems : [
     ...commands.filter((c) => !c.quiet).sort((a, b) => Number(!isEnabled(a)) - Number(!isEnabled(b))).map((c): SearchItem => ({  // what can't run goes last
@@ -182,9 +222,18 @@ export function App() {
         }} />
       )} />
   );
+  const vars = useMemo(() => ({ list: state.variables, values: state.varValues, show: () => toggle("r", true) }), [state.variables, state.varValues]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** The Console's block: picked on the canvas, on its level, in view. */
+  const pick = (id: string) => {
+    const n = nodes.find((x) => x.id === id);
+    if (!n) return;
+    setNodes((ns) => ns.map((x) => (x.id === id ? { ...x, selected: true } : x.selected ? { ...x, selected: false } : x)));
+    setLevel(n.parentId && nodes.some((g) => g.id === n.parentId && g.type === "frame" && (g as FlowNode & { type: "frame" }).data.kind !== "visual") ? n.parentId : null);
+    window.setTimeout(() => void fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.2, padding: 0.6 }), 520);  // once the page has slid in
+  };
   const drawer = (p: Pane, on: boolean) => (on ? { hidden: hid(p), onHidden: (h: boolean) => toggle(p, !h) } : {});
   const inert = (p: Page) => mode === "navigator" && p !== shownPage;
-  const graph = state.loaded;
+  const blockCount = nodes.filter((n) => isBlock(n) && !isPortType(n.data.def.type)).length;
   const objects = state.station?.objects.length ?? Object.keys(state.entities).length;
 
   return (
@@ -234,14 +283,28 @@ export function App() {
                 </div>
               )}
               <div className="pg pg-flow" inert={inert("flow")}>
-                <Panel name="Flow" side="right" width={480} icon="a-flow" count={graph?.nodes.length ?? 0} {...drawer("fl", mode === "lookout")}
-                  head={<><small className="sum">{graph ? `${graph.nodes.length} ${graph.nodes.length === 1 ? "block" : "blocks"} · ${graph.edges.length} ${graph.edges.length === 1 ? "wire" : "wires"}` : "no flow"}</small><Tools>
-                    <Later what="Arrange the blocks along their wires" />
-                    <Key size="sm" kind="quiet" icon="add" shortcut="/" title="Add a block (/ or double-click the canvas)"
-                      onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setSearch({ at: { x: r.right - 400, y: r.bottom + 6 } }); }}>Add block</Key>
+                <Panel name="Flow" side="right" width={480} icon="a-flow" count={blockCount} {...drawer("fl", mode === "lookout")}
+                  head={<><small className="sum">{`${blockCount} ${blockCount === 1 ? "block" : "blocks"} · ${edges.length} ${edges.length === 1 ? "wire" : "wires"}`}</small><Tools>
+                    <span title={lock || "Arrange the blocks along their wires"}>
+                      <Key size="sm" kind="quiet" disabled={!!lock || !canArrangeFlow(nodes, level)} onClick={() => flow.current?.arrange()}>Arrange</Key>
+                    </span>
+                    <span title={lock || "Add a block (/ or double-click the canvas)"}>
+                      <Key size="sm" kind="quiet" icon="add" shortcut="/" disabled={!!lock}
+                        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setSearch({ at: { x: r.right - 400, y: r.bottom + 6 } }); }}>Add block</Key>
+                    </span>
                   </Tools></>}>
-                  <div ref={flowBody} className="page-body" onDoubleClick={(e) => quickAdd({ x: e.clientX, y: e.clientY })}
-                    onPointerMove={(e) => (mouse.current = { x: e.clientX, y: e.clientY })} onPointerLeave={() => (mouse.current = null)} />
+                  <div ref={flowBody} className="page-body"
+                    onPointerMove={(e) => (mouse.current = { x: e.clientX, y: e.clientY })} onPointerLeave={() => (mouse.current = null)}>
+                    <RunStates.Provider value={runStates}>
+                    <OnBlocks.Provider value={onBlocks}>
+                    <Vars.Provider value={vars}>
+                      <FlowEditor blocks={state.blocks} connectors={state.connectors} nodes={nodes} edges={edges} setNodes={setNodes} setEdges={setEdges}
+                        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} active={booted && flowInView} minimap={mode === "navigator" && shownPage === "flow"}
+                        level={level} setLevel={setLevel} lock={lock} controls={flow} onQuickAdd={quickAdd} fit={fit} />
+                    </Vars.Provider>
+                    </OnBlocks.Provider>
+                    </RunStates.Provider>
+                  </div>
                 </Panel>
               </div>
               <div className="pg pg-board" inert={inert("board")}>
@@ -266,7 +329,7 @@ export function App() {
       </>}
 
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
-        onBlock={booted ? () => { setConsoleOpen(false); go("flow"); } : undefined} />}  {/* picking the block on the canvas comes with M2 */}
+        onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
         scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables"]}
         placeholder={search.at ? "Add a block here" : "Search commands, blocks and variables"} />}
@@ -275,7 +338,7 @@ export function App() {
 }
 
 const Tools = ({ children }: { children: ReactNode }) => <span className="tools">{children}</span>;
-/** Arrange, greyed until the canvas comes; the span carries the why (a disabled key takes no hover). */
+/** The Board's Arrange, greyed until the Board comes; the span carries the why (a disabled key takes no hover). */
 const Later = ({ what }: { what: string }) => <span title={`${what}: not in v0.1 yet`}><Key size="sm" kind="quiet" disabled>Arrange</Key></span>;
 
 /** The station's variables, read-only in v0.1: by group, the value in a well (a formula's, with ƒ and its expression), the unit. */

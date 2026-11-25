@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MENUS, registry, type Do, type View } from "../src/menus.ts";
 
-const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "" };
+const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "",
+  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true } };
 const calls: string[] = [];
 const act = new Proxy({} as Do, { get: (_, k) => (...a: unknown[]) => calls.push(`${String(k)}(${a.join(",")})`) });
 const find = (cs: ReturnType<typeof registry>, id: string) => cs.find((c) => c.id === id)!;
@@ -41,4 +42,18 @@ test("the drawers follow the mode; Alt M steps through the modes", () => {
   calls.length = 0;
   find(registry({ ...view, mode: "lookout" }, act), "view.next").run();
   assert.deepEqual(calls, ["setMode(navigator)"]);
+});
+
+test("the Flow's edits: in the Edit menu with the canvas's keys (no chord: a field keeps its own), greyed with why during a run", () => {
+  const cs = registry(view, act);
+  assert.equal(find(cs, "edit.undo").shortcut, "Ctrl Z");
+  assert.equal(find(cs, "edit.undo").chord, undefined);
+  assert.equal(on(find(cs, "edit.redo")), false);
+  assert.equal(find(cs, "edit.paste").why, "Nothing copied yet");
+  const run = registry({ ...view, flow: { ...view.flow, lock: "A run is in progress" } }, act);
+  for (const id of ["edit.undo", "edit.cut", "edit.paste", "view.arrange"]) assert.equal(find(run, id).why, "A run is in progress");
+  assert.equal(on(find(run, "edit.copy")), true, "copying changes nothing");
+  calls.length = 0;
+  find(cs, "view.arrange").run();
+  assert.deepEqual(calls, ["arrange()"]);
 });
