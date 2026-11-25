@@ -6,9 +6,11 @@
 // The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them. The
 // Board (board/Board.tsx) shows an instrument for each monitor block among them, laid out by the user's layout (kept
 // per station in the browser) or the station's.
+// Background news (the station lost and back, a run's fault) comes as toasts (news.ts), kept by the bar's
+// Notifications key.
 import {
-  AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
-  isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, writeStored,
+  AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
+  Toasts, isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, useToasts, writeStored,
   type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
@@ -18,6 +20,7 @@ import { Board } from "./board/Board.tsx";
 import { loadSaved, save } from "./board/boardLayout.ts";
 import { useBoardWiring } from "./board/boardWiring.ts";
 import { useEngine } from "./engine.ts";
+import { useNews } from "./news.ts";
 import { StationPicker } from "./StationPicker.tsx";
 import { remember } from "./stations.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
@@ -88,6 +91,8 @@ function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; valu
 
 export function App() {
   const { state, send, log } = useEngine(URL_);
+  const notes = useToasts();
+  useNews(state, notes.show);
   const [theme, setTheme] = useState<Theme>(() => readStored("paperboat.theme", isTheme) ?? "system");
   useTheme(theme);
   useEffect(() => writeStored("paperboat.theme", theme), [theme]);
@@ -286,6 +291,7 @@ export function App() {
             <PanelsKey layout={sketch(mode, station)} onToggle={(id) => toggle(id as Pane)}
               panels={PANES[mode].filter((p) => station || p !== "st").map((p) => ({ id: p, label: PANE_NAME[p][0], keys: PANE_NAME[p][1], shown: !hid(p) }))} />
             <span className="lsep" />
+            <Notifications {...notes} />
             <ThemePicker theme={theme} onChange={setTheme} />
           </span>
         </>}
@@ -368,6 +374,7 @@ export function App() {
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
         scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables"]}
         placeholder={search.at ? "Add a block here" : "Search commands, blocks and variables"} />}
+      <Toasts toasts={notes.toasts} onDismiss={notes.dismiss} />
     </div>
   );
 }
