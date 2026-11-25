@@ -44,10 +44,12 @@ export type EngineState = {
   loaded: Graph | null;
   /** Counts the flow files opened (File › Open): the canvas takes an opened file's flow over the user's edits. */
   opened: number;
-  /** Last station the station asked the UI to load. */
+  /** The Station as it is now: the station's (station.load), then the page's edits (station.set). */
   station: Station | null;
-  /** The station's default variables (#36), from variables.load. */
+  /** The variables as they are now: the station's defaults (#36, variables.load), then the page's edits. */
   variables: Variables;
+  /** What the station started with, before any edit: what New project goes back to. */
+  starter: { graph: Graph | null; station: Station | null; variables: Variables };
   /** Live variables from Squero MX (variables.remote); not part of the project. */
   remoteVariables: Variables;
   /** What the variables come to (variables.values), and why not when they don't hold. */
@@ -102,6 +104,7 @@ export const initial: EngineState = {
   opened: 0,
   station: null,
   variables: [],
+  starter: { graph: null, station: null, variables: [] },
   remoteVariables: [],
   varValues: {},
   varError: null,
@@ -144,7 +147,9 @@ export type ReplayAction =
 /** A flow file opened from File › Open: the page's own, not the station's. */
 export type OpenAction = { type: "file.open"; psf: StationFlow };
 
-export type Action = ServerMsg | ReplayAction | OpenAction | { type: "signals"; list: SignalMsg[] } | { type: "reset" } | { type: "connection"; value: EngineState["connection"] };
+export type Action = ServerMsg | ReplayAction | OpenAction | { type: "signals"; list: SignalMsg[] } | { type: "reset" } | { type: "connection"; value: EngineState["connection"] }
+  /** The page's own edit of what the station keeps without sending back. */
+  | { type: "edit"; station?: Station; variables?: Variables };
 
 /** Max Console lines kept in memory. */
 export const MAX_LOGS = 200;
@@ -226,18 +231,20 @@ export function reduce(s: EngineState, m: Action): EngineState {
     case "scene":
       return { ...s, entities: Object.fromEntries(m.entities.map((e) => [e.id, e])), view: m.view ?? s.view };
     case "graph.load":
-      return { ...s, loaded: m.graph };
+      return { ...s, loaded: m.graph, starter: { ...s.starter, graph: m.graph } };
     case "station.load":
-      return { ...s, station: m.station };
+      return { ...s, station: m.station, starter: { ...s.starter, station: m.station } };
     case "variables.load":
-      return { ...s, variables: m.variables };
+      return { ...s, variables: m.variables, starter: { ...s.starter, variables: m.variables } };
+    case "edit":
+      return { ...s, ...(m.station ? { station: m.station } : {}), ...(m.variables ? { variables: m.variables } : {}) };
     case "variables.remote":
       // A message without a list (or a malformed one) means none, never `undefined`.
       return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [] };
     case "psf.load":  // the flow file the station was started with (--psf): it holds its objects and variables too
       return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables };
-    case "file.open":
-      return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables, opened: s.opened + 1 };
+    case "file.open":  // a file without variables has none (an empty list is left out of it)
+      return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? [], opened: s.opened + 1 };
     case "variables.values":
       return { ...s, varValues: m.values, varError: m.error ? { text: m.error, at: m.at } : null };
     case "variables.patch":
@@ -486,8 +493,8 @@ export function useEngine(url: string) {
   const send = useCallback((m: ClientMsg) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
     // The station keeps the list it is told and doesn't send it back: the page holds it too.
-    if (m.type === "variables.set" && !m.source) dispatch({ type: "variables.load", variables: m.variables });
-    if (m.type === "station.set") dispatch({ type: "station.load", station: m.station });
+    if (m.type === "variables.set" && !m.source) dispatch({ type: "edit", variables: m.variables });
+    if (m.type === "station.set") dispatch({ type: "edit", station: m.station });
   }, []);
 
   /** Hear every message from the station; returns the unsubscribe. */
@@ -506,7 +513,7 @@ export function useEngine(url: string) {
     dispatch({ type: "file.open", psf });
     const tell = (m: ClientMsg) => socket.current?.readyState === WebSocket.OPEN && socket.current.send(JSON.stringify(m));
     if (psf.station_objects) tell({ type: "station.set", station: psf.station_objects });
-    if (psf.variables) tell({ type: "variables.set", variables: psf.variables });
+    tell({ type: "variables.set", variables: psf.variables ?? [] });
   }, []);
 
   /** The replay's controls (#284): the app's own, not sent to the station. */

@@ -29,6 +29,6 @@ test("a flow file opens; anything else says why", () => {
   assert.throws(() => parseFlow("nope"), /not JSON/);
   assert.throws(() => parseFlow("{}"), /isn't a flow file/);
   assert.throws(() => parseFlow(JSON.stringify({ paperboat: 1, station: "x", flow: {} })), /newer Simplicial/);
-  assert.throws(() => parseFlow(JSON.stringify({ paperboat: 0, station: "x" })), /no station or flow/);
+  assert.throws(() => parseFlow(JSON.stringify({ paperboat: 0, station: "x" })), /flow must be an object/);
   assert.equal(stem("projects/pendulum/pendulum.psf"), "pendulum");
 });

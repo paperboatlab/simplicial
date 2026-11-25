@@ -25,3 +25,11 @@ and stations each holds. A flow opened from a hub, or saved into one, puts Simpl
 the bar shows the hub's selector and the file's path in it, and **Save** (Ctrl S) writes it back
 there. Without Malachite there are no hubs, and Open goes straight to the browser's picker. For now
 Simplicial opens flows; a station opens from its own command.
+
+A flow file holds everything you made on the station: the Flow, the Station's objects, the
+variables, your Board layout and the run settings you changed. A dot after its name in the bar
+means there are changes not saved, and opening another file or starting a new one asks first.
+**File › New project** goes back to what the station started with. **Open recent**, in the File
+menu, lists the last five files you opened or saved; one in a hub is read again from there. The
+browser also keeps unsaved work as you go: after a reload Simplicial offers it back (**Restore
+your last session?**).
