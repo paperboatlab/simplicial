@@ -1,4 +1,4 @@
-# The engine and its tests (C++), and the protocol types the page uses.
+# The engine and its tests (C++), the protocol types and the page (web/).
 name: ci
 
 on:
@@ -31,3 +31,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: python3 protocol/gen_ts.py --check
+
+  web:
+    name: Page (typecheck, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
