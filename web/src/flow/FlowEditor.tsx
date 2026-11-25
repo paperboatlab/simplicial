@@ -1,7 +1,7 @@
 // The Flow canvas (React Flow): blocks as the kit's plates and cards, wires routed square, groups and their
 // levels, the selection dialog, the canvas tools, the minimap (Navigator) and the empty canvas's hint. The canvas
 // state is the app's (App.tsx: it runs it, counts it and undoes it); this fills `controls` with what the menus do.
-import { useCanvasHotkeys, CanvasTools, CANVAS_GESTURES, SNAP, WireDragContext, type Point } from "@paperboatlab/ui/canvas";
+import { useCanvasHotkeys, CanvasTools, ConnectionLine, CANVAS_GESTURES, SNAP, WireDragContext, type Point } from "@paperboatlab/ui/canvas";
 import {
   Background, BackgroundVariant, MiniMap, Panel, ReactFlow, SelectionMode, useNodesInitialized, useReactFlow, useStore, useStoreApi, useUpdateNodeInternals,
   type FitViewOptions, type OnEdgesChange, type OnNodesChange,
@@ -272,6 +272,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
       >
         <WireDragContext.Provider value={wireDrag}>
           <ReactFlow
+            connectionLineComponent={ConnectionLine}
             nodes={shown.nodes}
             edges={shown.edges}
             nodeTypes={nodeTypes}
