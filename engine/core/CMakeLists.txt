@@ -23,6 +23,7 @@ add_library(paperboat_core ${PAPERBOAT_LIB_TYPE}
   src/session.cpp
   src/analysis.cpp
   src/serve.cpp
+  src/hubs.cpp
   src/record.cpp
   src/main.cpp
   ${PAPERBOAT_PROCESS_SOURCE}

@@ -27,7 +27,9 @@ come back out of process over `paperboat-runtime/0` (#7).
   Optional toolkits install into `engine/toolkit/<name>/` and are picked up at configure time.
 - `engine/core/`: `paperboat::core`, the graph compiler (`graph.cpp`: sort, loops), the run loop and
   executors, the cache, the record, the `paperboat/0` session and server (`session.cpp`, `serve.cpp`),
-  `ProcessRunner` and the `StationManager`.
+  `ProcessRunner` and the `StationManager`. `hubs.cpp`: the hubs for the page server (`serve_files`):
+  `paperboat hub list --json` (no shell, a timeout), a hub's tree (no dot entries), a path kept inside its hub;
+  the hub routes answer this computer only, and write only `.psf` with the page's own header.
 - `engine/tools/`: the `paperboat` CLI, `paperboat-catalog`, `paperboat-toolkit` and `paperboat new`.
 - `engine/scratchpad/`: the scratchpad station (the built-in toolkits, no domain).
 - `engine/tests/`: the Catch2 suite (`paperboat_tests`, run by `ctest`), its fixtures and the SDK test
@@ -54,6 +56,12 @@ come back out of process over `paperboat-runtime/0` (#7).
   - `src/Variables.tsx`: the Variables card on the kit's `VariableList`: + Variable, an open row edits a variable;
     `variableEdits.ts` (pure, tested) is what an edit does to the list. The page sends the list (`variables.set`) and
     keeps it as the state's (`engine.ts`), since the station doesn't send it back.
+  - `src/hubs.ts`: File › Open… and Save as… (paperboat#16). The hubs come from the page's server
+    (`/__paperboat/hubs`, which runs `paperboat hub list --json`: no Malachite, no hub), so does a hub's tree and
+    its `.psf` files (`/__paperboat/hub/files`, `/__paperboat/hub/file`). With hubs, Open and Save as are the
+    kit's `OpenFile`/`SaveFile`; without, the browser's picker and a download. The file decides the hub: one
+    opened from or saved in a hub shows the kit's `HubSelector` in the bar and the file's path in the hub. An
+    opened file is `file.open` in `engine.ts` (its flow, objects and variables; the canvas takes it over edits).
   - `src/StationPicker.tsx`, `src/stations.ts`: finding a station (the recent ones, the open one, the station ports);
     `useStations` feeds the picker and Ctrl K's Stations.
   - `src/flow/`: the Flow canvas on React Flow, ported from legacy's `FlowEditor`. Pure, and tested: `flowModel.ts`

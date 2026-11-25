@@ -8,12 +8,15 @@
 // per station in the browser) or the station's.
 // Background news (the station lost and back, a run's fault) comes as toasts (news.ts), kept by the bar's
 // Notifications key.
+// File › Open… and Save as… go through the kit's OpenFile and SaveFile when Malachite knows hubs (hubs.ts), else straight
+// to the system's: the file decides the hub, and the bar then shows the hub's selector and the file's path in it.
 import {
   About, AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
   Toasts, isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, useToasts, writeStored,
   type Credit, type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
+import { HubSelector, OpenFile, SaveFile, type Hub } from "@paperboatlab/ui/hub";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Board } from "./board/Board.tsx";
@@ -30,12 +33,13 @@ import { openStation, remember } from "./stations.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
 import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
 import { FlowEditor, type FlowControls } from "./flow/FlowEditor.tsx";
-import { toGraph } from "./flow/flowGraph.ts";
+import { toFlow, toGraph } from "./flow/flowGraph.ts";
 import { canArrangeFlow } from "./flow/flowLayout.ts";
 import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
 import { isPortType } from "./flow/portBlocks.ts";
 import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
-import type { BoardLayout, RunSettings } from "./protocol.ts";
+import { listHub, listHubs, parseFlow, readFlow, stem, TYPES, writeFlow, type OpenedFile } from "./hubs.ts";
+import type { BoardLayout, RunSettings, StationFlow } from "./protocol.ts";
 
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
 const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
@@ -108,7 +112,7 @@ function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; valu
 }
 
 export function App() {
-  const { state, send, log } = useEngine(URL_);
+  const { state, send, log, open: openFlow } = useEngine(URL_);
   const notes = useToasts();
   useNews(state, notes.show);
   const [theme, setTheme] = useState<Theme>(() => readStored("paperboat.theme", isTheme) ?? "system");
@@ -156,6 +160,66 @@ export function App() {
   const saveBoard = (next: BoardLayout | undefined) => { setSaved(next); save(state.engine, next); };
   const layout = saved ?? state.board;
   const [arranging, setArranging] = useState(false);
+
+  // The flow file: open from a hub or this computer, saved back where it came from. The file decides the hub.
+  const [hubs, setHubs] = useState<Hub[]>([]);
+  const [file, setFile] = useState<OpenedFile | null>(null);
+  const [filePick, setFilePick] = useState<"open" | "save" | null>(null);
+  const sysOpen = useRef<HTMLInputElement>(null);
+  const hub = file?.hub ? hubs.find((h) => h.id === file.hub) : undefined;
+  const fileName = file ? file.path.slice(file.path.lastIndexOf("/") + 1) : "";
+  const flowFile = (): StationFlow => ({
+    paperboat: 0, station: state.engine, flow: toFlow(nodes, edges, state.loaded?.flow),
+    ...(state.station ? { station_objects: state.station } : {}),
+    ...(state.variables.length ? { variables: state.variables } : {}),
+    ...(saved ? { board: saved } : {}),
+    ...(Object.keys(runSettings).length ? { run: runSettings } : {}),
+  });
+  const failed = (title: string, err: unknown) => notes.show({ title, detail: err instanceof Error ? err.message : String(err), state: "failed" });
+  const take = (psf: StationFlow, at: OpenedFile, inHub?: Hub) => {
+    openFlow(psf);
+    setRunSettings(psf.run ?? {});
+    if (psf.board) saveBoard(psf.board);
+    setFile(at);
+    const other = psf.station !== state.engine ? `made on ${psf.station}, opened on ${state.engine}` : "";
+    notes.show({ title: `Opened ${at.path.slice(at.path.lastIndexOf("/") + 1)}`, detail: [inHub && `Simplicial now works in ${inHub.name}`, other].filter(Boolean).join(" · ") || undefined, state: "done" });
+  };
+  /** This computer's Save as: the browser's download, named after the file. */
+  const download = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(flowFile(), null, 2)], { type: "application/json" }));
+    a.download = `${file ? stem(file.path) : state.engine || "flow"}.psf`;
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setFile({ path: a.download });
+  };
+  // No Malachite, or no hubs: straight to the system's picker.
+  const openFile = async () => {
+    const known = await listHubs();
+    setHubs(known);
+    if (known.length) setFilePick("open"); else sysOpen.current?.click();
+  };
+  const saveFileAs = async () => {
+    const known = await listHubs();
+    setHubs(known);
+    if (known.length) setFilePick("save"); else download();
+  };
+  const saveFile = () => {
+    if (!file?.hub) return void saveFileAs();
+    writeFlow(file.hub, file.path, flowFile()).then(() => notes.show({ title: `Saved ${fileName}`, state: "done" }), (e) => failed(`Can't save ${fileName}`, e));
+  };
+  const openFromHub = (h: Hub, path: string) => {
+    setFilePick(null);
+    if (!path.endsWith(".psf")) return void notes.show({ title: `Can't open ${path.slice(path.lastIndexOf("/") + 1)} yet`, detail: "Simplicial opens flows (.psf) for now; stations (.pst) come later", state: "failed" });
+    readFlow(h, path).then((psf) => take(psf, { hub: h.id, path }, h), (e) => failed(`Can't open ${path}`, e));
+  };
+  const saveInHub = (h: Hub, path: string) => {
+    setFilePick(null);
+    writeFlow(h, path, flowFile()).then(() => {
+      setFile({ hub: h.id, path });
+      notes.show({ title: `Saved ${path.slice(path.lastIndexOf("/") + 1)}`, detail: `Simplicial now works in ${h.name}`, state: "done" });
+    }, (e) => failed(`Can't save ${path}`, e));
+  };
   const runStates = useMemo(() => ({
     active: new Set(state.active), failed: new Set(state.failed), queued: new Set(state.queued), cached: new Set(state.cached), progress: state.progress,
   }), [state.active, state.failed, state.queued, state.cached, state.progress]);
@@ -203,11 +267,11 @@ export function App() {
     {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
       flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
-      board: arranging,
+      board: arranging, unsaved: state.engine ? "" : "Not connected to a station",
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
+      run, cancel, station: () => setPicker(true), open: () => void openFile(), save: saveFile, saveAs: () => void saveFileAs(), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -300,9 +364,12 @@ export function App() {
       <header className="bar">
         <span className="lk"><AppMark app="simplicial" size={26} idle paused={!booted} label="Simplicial" /><span className="wm">Simplicial</span></span>
         {booted && <>
+          {hub && <HubSelector hub={hub} hubs={hubs} app="Simplicial" onSwitch={() => setFilePick("open")} onDisconnect={() => setFile(null)}
+            onNew={() => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" })} />}
           <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme" }} />
-          <span className="proj" title={Object.keys(runSettings).length ? `${state.engine} · changes not saved` : state.engine}>
-            {state.engine}{Object.keys(runSettings).length > 0 && <i className="dirty" />}
+          <span className="proj" title={[file ? (hub ? `${hub.name}/${file.path}` : file.path) : "", state.engine, Object.keys(runSettings).length ? "changes not saved" : ""].filter(Boolean).join(" · ")}>
+            {file ? <>{file.path.includes("/") && `${file.path.slice(0, file.path.lastIndexOf("/"))}/`}<u>{fileName}</u></> : state.engine}
+            {Object.keys(runSettings).length > 0 && <i className="dirty" />}
           </span>
           <span className="bend">
             <span className="modes" title="View mode (Alt M steps through them)">
@@ -413,6 +480,15 @@ export function App() {
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
         scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables", "Stations"]}
         placeholder={search.at ? "Add a block here" : "Search commands, blocks, variables and stations"} />}
+      {filePick === "open" && <OpenFile what="a flow or a station" types={TYPES} hubs={hubs} list={listHub} onOpen={openFromHub}
+        onComputer={() => sysOpen.current?.click()} onClose={() => setFilePick(null)} />}
+      {filePick === "save" && <SaveFile what="the flow" types={TYPES} hubs={hubs} list={listHub} name={file ? stem(file.path) : state.engine}
+        onSave={saveInHub} onComputer={download} onClose={() => setFilePick(null)} />}
+      <input ref={sysOpen} type="file" accept=".psf" hidden onChange={(e) => {
+        const f = e.target.files?.[0];
+        e.target.value = "";
+        if (f) f.text().then((t) => take(parseFlow(t), { path: f.name })).catch((err: unknown) => failed(`Can't open ${f.name}`, err));
+      }} />
       <Toasts toasts={notes.toasts} onDismiss={notes.dismiss} />
     </div>
   );

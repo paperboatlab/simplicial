@@ -37,6 +37,8 @@ export type View = {
   flow: { lock: string; undo: boolean; redo: boolean; copy: boolean; paste: boolean; arrange: boolean };
   /** The Board is being arranged (its instruments moved and sized, decorations and tabs edited). */
   board: boolean;
+  /** Why the flow can't be saved now; "" when it can. */
+  unsaved: string;
 };
 export type Do = {
   setMode: (m: Mode) => void;
@@ -49,6 +51,10 @@ export type Do = {
   cancel: () => void;
   /** Choose a station: the page opens on the one picked. */
   station: () => void;
+  /** File › Open…, Save and Save as… : a flow file (.psf), from a hub or this computer. */
+  open: () => void;
+  save: () => void;
+  saveAs: () => void;
   report: () => void;
   about: () => void;
   /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
@@ -74,9 +80,9 @@ export function registry(v: View, a: Do): Command[] {
     ({ id: `view.${p}`, label, menu: "view", group: "panels", shortcut, chord, checked: !v.hidden(p), run: () => a.toggle(p) });
   return [
     later("file.new", "New project…", "file", "open", "Ctrl N"),
-    later("file.open", "Open…", "file", "open", "Ctrl O"),
-    later("file.save", "Save", "file", "save", "Ctrl S"),
-    later("file.saveas", "Save as…", "file", "save", "Ctrl Shift S"),
+    { id: "file.open", label: "Open…", menu: "file", group: "open", shortcut: "Ctrl O", chord: { key: "o", ctrl: true }, run: a.open },
+    { id: "file.save", label: "Save", menu: "file", group: "save", shortcut: "Ctrl S", chord: { key: "s", ctrl: true }, enabled: !v.unsaved, why: v.unsaved, run: a.save },
+    { id: "file.saveas", label: "Save as…", menu: "file", group: "save", shortcut: "Ctrl Shift S", chord: { key: "s", ctrl: true, shift: true }, enabled: !v.unsaved, why: v.unsaved, run: a.saveAs },
     { id: "file.station", label: "Choose a station…", menu: "file", group: "station", run: a.station },
     later("file.export", "Export station…", "file", "station"),
     later("file.settings", "Settings…", "file", "settings", "Ctrl ,"),

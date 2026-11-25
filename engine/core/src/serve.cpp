@@ -3,6 +3,7 @@
 // file that knows sockets.
 
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -19,6 +20,7 @@
 
 #include "paperboat/toolkit/installer.hpp"
 #include "paperboat/toolkit/platform.hpp"
+#include "paperboat/core/hubs.hpp"
 #include "paperboat/core/server.hpp"
 #include "paperboat/core/station_manager.hpp"
 
@@ -81,6 +83,64 @@ ix::HttpResponsePtr http(const Station& station, const ix::HttpRequestPtr& reque
   return respond(200, content_type(file), body.str());
 }
 
+// One query parameter, decoded (`?hub=…&path=…`); "" when it isn't there.
+std::string query(const std::string& uri, const std::string& name) {
+  const auto q = uri.find('?');
+  if (q == std::string::npos) return "";
+  std::stringstream in(uri.substr(q + 1));
+  for (std::string pair; std::getline(in, pair, '&');) {
+    if (pair.starts_with(name + "=")) return decode(pair.substr(name.size() + 1));
+  }
+  return "";
+}
+
+// The hubs for the page's File › Open and Save as (paperboat#16): GET /__paperboat/hubs, a hub's files
+// (GET /__paperboat/hub/files?hub=<id>), and one .psf in it (GET to read, POST to write:
+// /__paperboat/hub/file?hub=<id>&path=<in the hub>). Only for this computer, and a write only from the page
+// itself (its own header, which a cross-site form can't send). Nothing when `path` isn't a hub route.
+ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr& request, const std::string& remote) {
+  if (!path.starts_with("/__paperboat/hub")) return nullptr;
+  if (remote != "127.0.0.1" && remote != "::1" && remote != "::ffff:127.0.0.1")
+    return respond(403, "text/plain", "hubs are only for this computer\n");
+  const char* env = std::getenv("PAPERBOAT");  // the paperboat CLI (Malachite adds `hub`); a stand-in for tests
+  const std::string cli = env && *env ? env : "paperboat";
+  if (path == "/__paperboat/hubs") return respond(200, "application/json", hubs::list(cli).dump());
+  const std::string id = query(request->uri, "hub");
+  fs::path root;
+  for (const auto& h : hubs::known(cli)) {
+    if (h.value("id", "") == id) root = h.value("path", "");
+  }
+  std::error_code ec;
+  if (root.empty() || !fs::is_directory(root, ec)) return respond(404, "text/plain", "no such hub\n");
+  if (path == "/__paperboat/hub/files") return respond(200, "application/json", hubs::files(root).dump());
+  if (path != "/__paperboat/hub/file") return respond(404, "text/plain", "not found\n");
+  const auto file = hubs::inside(root, query(request->uri, "path"));
+  if (!file || file->extension() != ".psf") return respond(400, "text/plain", "not a .psf in the hub\n");
+  if (request->method == "GET") {
+    std::ifstream in(*file, std::ios::binary);
+    if (!in) return respond(404, "text/plain", "not found\n");
+    std::stringstream body;
+    body << in.rdbuf();
+    return respond(200, "application/json", body.str());
+  }
+  if (request->method != "POST" || request->headers.find("X-Paperboat-Page") == request->headers.end())
+    return respond(405, "text/plain", "POST from the page writes a file\n");
+  // to a temp file, then renamed: a sync client never sees half a file
+  fs::create_directories(file->parent_path(), ec);
+  const fs::path tmp = file->string() + ".saving";
+  {
+    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+    out << request->body;
+    if (!out) return respond(500, "text/plain", "can't write " + file->filename().string() + "\n");
+  }
+  fs::rename(tmp, *file, ec);
+  if (ec) {
+    fs::remove(tmp, ec);
+    return respond(500, "text/plain", "can't write " + file->filename().string() + "\n");
+  }
+  return respond(200, "application/json", "{}");
+}
+
 }  // namespace
 
 int serve_files(const fs::path& dir, int port, const std::string& host) {
@@ -88,8 +148,9 @@ int serve_files(const fs::path& dir, int port, const std::string& host) {
   std::error_code ec;
   const fs::path root = fs::weakly_canonical(dir, ec);
   ix::HttpServer server(port, host);
-  server.setOnConnectionCallback([&root](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>&) {
+  server.setOnConnectionCallback([&root](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>& conn) {
     std::string path = decode(request->uri.substr(0, request->uri.find('?')));
+    if (auto hub = hub_route(path, request, conn->getRemoteIp())) return hub;
     // The Station dialog lists what is running, like `paperboat list --json` does.
     if (path == "/__paperboat/stations") {
       nlohmann::json out = nlohmann::json::array();

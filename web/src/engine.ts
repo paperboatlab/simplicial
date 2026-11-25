@@ -2,7 +2,7 @@ import type { Entity as StageEntity } from "@paperboatlab/ui/stage";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { TraceStore } from "./traces.ts";
 import { ReplayStore, type ReplayRecord, type ReplayState } from "./replay.ts";
-import type { AnalysisDef, BlockDef, ClientMsg, Connectors, BoardLayout, Entity, FlowType, Graph, MonitorState, ObjectDef, RunSettings, RunStatus, ServerMsg, Station, StationView, ToolkitStatus, Variables, VectorComponent, View } from "./protocol.ts";
+import type { AnalysisDef, BlockDef, ClientMsg, Connectors, BoardLayout, Entity, FlowType, Graph, MonitorState, ObjectDef, RunSettings, RunStatus, ServerMsg, Station, StationFlow, StationView, ToolkitStatus, Variables, VectorComponent, View } from "./protocol.ts";
 
 /** The run the station is on, or last ran. */
 export type RunState = {
@@ -40,8 +40,10 @@ export type EngineState = {
   analyses: AnalysisDef[];
   entities: Record<string, Entity>;
   view: View;
-  /** Last graph the station asked the UI to load. */
+  /** Last graph the station asked the UI to load, or the flow file opened. */
   loaded: Graph | null;
+  /** Counts the flow files opened (File › Open): the canvas takes an opened file's flow over the user's edits. */
+  opened: number;
   /** Last station the station asked the UI to load. */
   station: Station | null;
   /** The station's default variables (#36), from variables.load. */
@@ -97,6 +99,7 @@ export const initial: EngineState = {
   entities: {},
   view: { mode: "3d" },
   loaded: null,
+  opened: 0,
   station: null,
   variables: [],
   remoteVariables: [],
@@ -138,7 +141,10 @@ export type ReplayAction =
   | { type: "replay.advance"; dt: number }
   | { type: "replay.load"; record: ReplayRecord };
 
-export type Action = ServerMsg | ReplayAction | { type: "signals"; list: SignalMsg[] } | { type: "reset" } | { type: "connection"; value: EngineState["connection"] };
+/** A flow file opened from File › Open: the page's own, not the station's. */
+export type OpenAction = { type: "file.open"; psf: StationFlow };
+
+export type Action = ServerMsg | ReplayAction | OpenAction | { type: "signals"; list: SignalMsg[] } | { type: "reset" } | { type: "connection"; value: EngineState["connection"] };
 
 /** Max Console lines kept in memory. */
 export const MAX_LOGS = 200;
@@ -228,8 +234,10 @@ export function reduce(s: EngineState, m: Action): EngineState {
     case "variables.remote":
       // A message without a list (or a malformed one) means none, never `undefined`.
       return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [] };
-    case "psf.load":
-      return s;
+    case "psf.load":  // the flow file the station was started with (--psf): it holds its objects and variables too
+      return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables };
+    case "file.open":
+      return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables, opened: s.opened + 1 };
     case "variables.values":
       return { ...s, varValues: m.values, varError: m.error ? { text: m.error, at: m.at } : null };
     case "variables.patch":
@@ -493,6 +501,14 @@ export function useEngine(url: string) {
     dispatch({ type: "log", level, text, ...(node ? { node } : {}) });
   }, []);
 
+  /** Open a flow file: the canvas, the station's objects and the variables become the file's; the station is told. */
+  const open = useCallback((psf: StationFlow) => {
+    dispatch({ type: "file.open", psf });
+    const tell = (m: ClientMsg) => socket.current?.readyState === WebSocket.OPEN && socket.current.send(JSON.stringify(m));
+    if (psf.station_objects) tell({ type: "station.set", station: psf.station_objects });
+    if (psf.variables) tell({ type: "variables.set", variables: psf.variables });
+  }, []);
+
   /** The replay's controls (#284): the app's own, not sent to the station. */
   const replay = {
     start: () => dispatch({ type: "replay.start" }),
@@ -504,7 +520,7 @@ export function useEngine(url: string) {
     load: (record: ReplayRecord) => dispatch({ type: "replay.load", record }),
   };
 
-  return { state, send, subscribe, log, replay };
+  return { state, send, subscribe, log, replay, open };
 }
 
 /** The Station's scene as the kit's stage draws it: at the replay playhead, else live. The page never asks for binary

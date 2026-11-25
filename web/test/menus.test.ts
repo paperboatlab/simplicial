@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { MENUS, registry, type Do, type View } from "../src/menus.ts";
 
 const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "",
-  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false };
+  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false, unsaved: "" };
 const calls: string[] = [];
 const act = new Proxy({} as Do, { get: (_, k) => (...a: unknown[]) => calls.push(`${String(k)}(${a.join(",")})`) });
 const find = (cs: ReturnType<typeof registry>, id: string) => cs.find((c) => c.id === id)!;
@@ -68,4 +68,14 @@ test("a run length: seconds, or ∞ / inf for a run until cancelled", async () =
   assert.equal(parseLength("-1"), undefined);
   assert.equal(parseLength(""), undefined);
   assert.equal(parseLength("abc"), undefined);
+});
+
+test("File opens and saves a flow; Save says why it can't without a station", () => {
+  const cs = registry(view, act);
+  assert.equal(find(cs, "file.open").chord?.key, "o");
+  assert.ok(on(find(cs, "file.save")) && on(find(cs, "file.saveas")));
+  const off = registry({ ...view, unsaved: "Not connected to a station" }, act);
+  assert.equal(on(find(off, "file.save")), false);
+  assert.equal(find(off, "file.saveas").why, "Not connected to a station");
+  assert.ok(on(find(off, "file.open")));
 });
