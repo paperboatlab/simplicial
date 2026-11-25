@@ -40,23 +40,15 @@ test("lamp: the condition in the caption, with the block's defaults where a para
 test("lamp: label and tone", () => {
   assert.equal(lampView(1, { label: "  Over 10 mm " }).label, "Over 10 mm");
   assert.equal(lampView(1).label, "");
-  assert.equal(lampView(1).tone, "signal");
+  assert.equal(lampView(1).tone, "accent");
   assert.equal(lampView(1, { color: "danger" }).tone, "danger");
-  assert.equal(lampView(1, { color: "green" }).tone, "signal"); // only the design's two colours
+  assert.equal(lampView(1, { color: "green" }).tone, "accent"); // only the design's two colours
 });
 
-test("lamp: the instrument says its state in words and uses only design tokens", () => {
+test("lamp: registers the kind the C++ block names", () => {
   const dir = path.dirname(fileURLToPath(import.meta.url));
-  const tsx = fs.readFileSync(path.join(dir, "LampInstrument.tsx"), "utf8");
-  assert.match(tsx, /\{v\.word\}/); // the state is text, not colour alone
-  assert.match(tsx, /aria-label=/);
-  const css = fs.readFileSync(path.join(dir, "lamp.css"), "utf8");
-  assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i, "no raw hex: colours come from tokens");
-  assert.doesNotMatch(css, /--signal/, "the accent, never the retired --signal");
-  assert.match(css, /var\(--accent\)/);
-  assert.match(css, /var\(--danger\)/);
   const index = fs.readFileSync(path.join(dir, "index.tsx"), "utf8");
-  assert.match(index, /registerInstrument\("lamp"/); // the kind the C++ block names
+  assert.match(index, /registerInstrument\("lamp"/);
   const cpp = fs.readFileSync(path.join(dir, "..", "lamp.cpp"), "utf8");
   assert.match(cpp, /\.instrument = "lamp"/);
 });

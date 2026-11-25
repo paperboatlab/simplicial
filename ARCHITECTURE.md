@@ -22,7 +22,8 @@ come back out of process over `paperboat-runtime/0` (#7).
 - `engine/toolkit/`: `paperboat::toolkit`, the SDK (`Block`, `Step`, `StationObject`, `Model`,
   value types), the descriptor loader, variables and expressions, the solvers (RK*, SUNDIALS cvode and
   ida behind `PAPERBOAT_WITH_SUNDIALS`), the plugin loader, the toolkit and app installers, and the
-  built-in toolkits in `src/<package>/` (one folder per block, each with its `web/` instruments).
+  built-in toolkits in `src/<package>/` (one folder per block, each with its `web/` instrument adapter); their home is
+  here (the `simplicial-toolkit-base` repository is retired).
   Optional toolkits install into `engine/toolkit/<name>/` and are picked up at configure time.
 - `engine/core/`: `paperboat::core`, the graph compiler (`graph.cpp`: sort, loops), the run loop and
   executors, the cache, the record, the `paperboat/0` session and server (`session.cpp`, `serve.cpp`),
@@ -60,9 +61,11 @@ come back out of process over `paperboat-runtime/0` (#7).
     on the Flow are the instruments: kind, what feeds them, + tap), `Board.tsx` (the grid, Arrange: drag or arrow
     keys, sizes, decorations, tabs), `host.ts` (the instrument registry and `InstrumentProps`, imported by the
     toolkits as `@paperboat/host`), `toolkits.ts` (calls each toolkit web part's `register(host)`). The user's layout
-    is kept per station in the browser, else the station's (`catalog.board`). Every instrument is drawn in the kit's
-    `Instrument` frame (`@paperboatlab/ui/plot`); the Scope is the kit's.
-  - Toolkit web parts: `engine/toolkit/src/<package>/<block>/web/index.tsx` exports `register(host)`. The build
+    is kept per station in the browser, else the station's (`catalog.board`). Every instrument's face is the kit's
+    (`@paperboatlab/ui/plot`: graph, display, lamp, switch, choice, speaker in its `Instrument` frame; `/scope`: the
+    Scope); only view3d draws its own until the Station's 3D view lands.
+  - Toolkit web parts: `engine/toolkit/src/<package>/<block>/web/index.tsx` exports `register(host)` and adapts its
+    block to a kit face (reads the block's params and the run, hands the face plain values). The build
     gathers every built-in one into the bundle (`toolkit-web` in `scripts/build.ts`), `tsc` checks them with the page,
     and their `*.test.ts` run with `npm test`; the page names no instrument kind.
 
