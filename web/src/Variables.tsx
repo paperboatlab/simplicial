@@ -1,8 +1,8 @@
 // The Variables card (rebrand: Julix's `.vrow`, the kit's VariableList): a row per variable, by group, its type line under
-// its name and its value at the right. + Variable adds one and opens it; an open row edits its name, type, value or
+// its name and its value at the right. + Variable (in its head) adds one and opens it; an open row edits its name, type, value or
 // formula, unit and tunable, and removes it. A rename follows the variable into other formulas and the Flow's bound
 // params. The list is the session's: the page tells the station (variables.set), which checks it and resolves the formulas.
-import { Key, NumberField, RemoveKey, Segmented, Switch, VariableGroup, VariableList, VariableRow, typeLine, valueText } from "@paperboatlab/ui";
+import { Key, NumberField, Panel, RemoveKey, Segmented, Switch, VariableGroup, VariableList, VariableRow, typeLine, valueText } from "@paperboatlab/ui";
 import { badName, emptyOf } from "@paperboatlab/ui/canvas";
 import { useState } from "react";
 import type { Variable, Variables as List } from "./protocol.ts";
@@ -11,7 +11,9 @@ import { newVariable, withVariable } from "./variableEdits.ts";
 const TYPES: Variable["type"][] = ["number", "boolean", "text", "enum", "matrix"];
 
 
-export function Variables({ list, values, error, locked, onChange, onRename }: {
+export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename }: {
+  hidden: boolean;
+  onHidden: (hidden: boolean) => void;
   list: List;
   /** What the station resolved them to (a formula's value). */
   values: Record<string, unknown>;
@@ -31,10 +33,10 @@ export function Variables({ list, values, error, locked, onChange, onRename }: {
     setOpen(v.name);
   };
   return (
-    <>
-      <div className="vadd">
+    <Panel name="Variables" side="right" width={312} icon="a-variables" count={list.length} hidden={hidden} onHidden={onHidden}
+      head={<span className="tools">
         <Key size="sm" kind="quiet" icon="add" disabled={locked} title={locked ? "Wait for the run to end" : "A new variable, to bind to blocks' params"} onClick={add}>Variable</Key>
-      </div>
+      </span>}>
       {!list.length && <p className="vnone">No variables yet: add one, then bind a block's param to it</p>}
       <VariableList>
         {[...groups].map(([g, vs]) => (
@@ -58,7 +60,8 @@ export function Variables({ list, values, error, locked, onChange, onRename }: {
         ))}
       </VariableList>
       {error && !error.at && <p className="verr">{error.text}</p>}
-    </>
+      <div className="vfoot">Shared by the Station and the Flow</div>
+    </Panel>
   );
 }
 
@@ -77,14 +80,14 @@ function Editor({ v, list, locked, onChange, onRemove }: { v: Variable; list: Li
     <div className="vedit" inert={locked}>
       <label>
         <span>name</span>
-        <input className="well mono" value={name} aria-invalid={!!nameError} onChange={(e) => setName(e.target.value)}
+        <input className={`well mono sm${nameError ? " error" : ""}`} value={name} aria-invalid={!!nameError} onChange={(e) => setName(e.target.value)}
           onBlur={() => (nameError || name === v.name ? setName(v.name) : set({ name }))}
           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { setName(v.name); e.currentTarget.blur(); } }} />
       </label>
-      {nameError && <p className="vedit-why">{nameError}</p>}
+      {nameError && <p className="field-error">{nameError}</p>}
       <label>
         <span>type</span>
-        <select className="well" value={v.type} onChange={(e) => retype(e.target.value as Variable["type"])}>
+        <select className="well sm" value={v.type} onChange={(e) => retype(e.target.value as Variable["type"])}>
           {TYPES.map((t) => <option key={t}>{t}</option>)}
         </select>
       </label>
@@ -96,25 +99,25 @@ function Editor({ v, list, locked, onChange, onRemove }: { v: Variable; list: Li
       <label>
         <span>{formula ? "ƒ" : "value"}</span>
         {formula ? (
-          <input className="well mono" defaultValue={v.expr} key={`f${v.name}`} placeholder="kp / 5" onBlur={(e) => set({ expr: e.target.value })}
+          <input className="well mono sm" defaultValue={v.expr} key={`f${v.name}`} placeholder="kp / 5" onBlur={(e) => set({ expr: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
         ) : v.type === "number" ? (
-          <NumberField className="well mono" value={typeof v.value === "number" ? v.value : 0} onChange={(n) => set({ value: n })} />
+          <NumberField className="well mono sm" value={typeof v.value === "number" ? v.value : 0} onChange={(n) => set({ value: n })} />
         ) : v.type === "boolean" ? (
           <Switch label={`${v.name}: ${v.value ? "on" : "off"}`} checked={!!v.value} onChange={(on) => set({ value: on })} />
         ) : v.type === "enum" ? (
-          <select className="well" value={String(v.value ?? "")} onChange={(e) => set({ value: e.target.value })}>
+          <select className="well sm" value={String(v.value ?? "")} onChange={(e) => set({ value: e.target.value })}>
             {(v.options ?? []).map((o) => <option key={o}>{o}</option>)}
           </select>
         ) : (
-          <input className="well mono" defaultValue={String(v.value ?? "")} key={`v${v.name}${v.type}`} placeholder={v.type === "matrix" ? "1 0; 0 1" : ""}
+          <input className="well mono sm" defaultValue={String(v.value ?? "")} key={`v${v.name}${v.type}`} placeholder={v.type === "matrix" ? "1 0; 0 1" : ""}
             onBlur={(e) => set({ value: e.target.value })} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
         )}
       </label>
       {v.type === "enum" && (
         <label>
           <span>options</span>
-          <input className="well mono" defaultValue={(v.options ?? []).join(", ")} key={`o${v.name}`} placeholder="slow, fast"
+          <input className="well mono sm" defaultValue={(v.options ?? []).join(", ")} key={`o${v.name}`} placeholder="slow, fast"
             onBlur={(e) => {
               const options = e.target.value.split(",").map((o) => o.trim()).filter(Boolean);
               if (options.length) set({ options, value: options.includes(String(v.value)) ? v.value : options[0] });
@@ -124,15 +127,15 @@ function Editor({ v, list, locked, onChange, onRemove }: { v: Variable; list: Li
       {v.type === "number" && (
         <label>
           <span>unit</span>
-          <input className="well mono" defaultValue={v.unit ?? ""} key={`u${v.name}`} placeholder="m, N, rad"
+          <input className="well mono sm" defaultValue={v.unit ?? ""} key={`u${v.name}`} placeholder="m, N, rad"
             onBlur={(e) => set({ unit: e.target.value.trim() || undefined })} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} />
         </label>
       )}
       <div className="vedit-foot">
         {(v.type === "number" || v.type === "boolean") && !formula && (
-          <label className="vedit-check" title="It can change during a run: blocks bound to it take the new value live">
-            <input type="checkbox" checked={!!v.tunable} onChange={(e) => set({ tunable: e.target.checked || undefined })} /> tunable
-          </label>
+          <span className="vedit-tunable" title="It can change during a run: blocks bound to it take the new value live">
+            <Switch label="tunable" checked={!!v.tunable} onChange={(on) => set({ tunable: on || undefined })} />tunable
+          </span>
         )}
         <span className="grow" />
         <RemoveKey label={`Remove ${v.name}`} onClick={onRemove} />

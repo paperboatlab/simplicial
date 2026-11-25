@@ -103,8 +103,8 @@ function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; valu
     <span className="run-options" title="The next run's length and speed (the station's defaults until changed; ∞ runs until cancelled)">
       <i className="dock-sep" />for
       <input aria-label="Run length, s (∞: until cancelled)" value={draft} size={4} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />s
-      <button type="button" className={`run-forever${duration === 0 ? " on" : ""}`} aria-pressed={duration === 0}
-        title={duration === 0 ? `Back to ${finite.current} s` : "Run until cancelled (∞)"} onClick={() => set({ duration: duration === 0 ? finite.current : 0 })}>∞</button>
+      <Key size="sm" kind="quiet" className="run-forever" aria-pressed={duration === 0} aria-label="Run until cancelled"
+        title={duration === 0 ? `Back to ${finite.current} s` : "Run until cancelled (∞)"} onClick={() => set({ duration: duration === 0 ? finite.current : 0 })}>∞</Key>
       <label>at</label>
       <select aria-label="Speed" value={speed} title="Times real time; during a run, it changes the run at once" onChange={(e) => set({ speed: Number(e.target.value) })}>
         {SPEEDS.map((x) => <option key={x} value={x}>{x === 0 ? "max" : `${x}×`}</option>)}
@@ -491,13 +491,10 @@ export function App() {
             </div>
             {mode !== "lookout" && dock}
           </div>
-          <Panel name="Variables" side="right" width={312} icon="a-variables" count={state.variables.length} hidden={hid("r")} onHidden={(h) => toggle("r", !h)}>
-            <Variables list={state.variables} values={state.varValues} error={state.varError} locked={running}
+          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running}
               onChange={(variables) => send({ type: "variables.set", variables })}
               onRename={(from, to) => setNodes((ns) => ns.map((n) => (isBlock(n) && Object.values(n.data.params).some((p) => JSON.stringify(p).includes(from))
                 ? { ...n, data: { ...n.data, params: Object.fromEntries(Object.entries(n.data.params).map(([k, p]) => [k, renameRef(p, from, to)])) } } : n)))} />
-            <div className="vfoot">Shared by the Station and the Flow</div>
-          </Panel>
         </div>
       </>}
 

@@ -2,49 +2,39 @@
    (agent-docs/rebrand/apps/simplicial). Roles and component tokens only. */
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
-body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 var(--font-sans); }
+body { background: var(--surface-ground); color: var(--text); font: var(--size-sm)/1.45 var(--font-sans); }
 
 /* the window: the bar on top, the page rail at the left (Navigator only), the pages and the Variables card */
 .win { height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: var(--bar-height) minmax(0, 1fr); gap: var(--gutter); padding: var(--gutter); }
 .win > .splash-stage { grid-column: 1 / -1; }
-.bar { grid-column: 1 / -1; position: relative; display: flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-3) 0 var(--space-4); background: var(--surface-panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.lk { display: inline-flex; align-items: center; gap: 8px; }
-.wm { font: 600 17px var(--font-display); letter-spacing: -0.01em; white-space: nowrap; }
+/* the bar is the kit's (.win > .bar): the lockup, the menus, the open file centred, the right end */
+.bar { grid-column: 1 / -1; }
 .bar .menubar { margin-left: var(--space-2); }
 .bar .menu { min-width: 250px; }
 .bar .menu-item { white-space: nowrap; }
-.proj { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; font: 12.5px var(--font-mono); color: var(--text-muted); white-space: nowrap; }
-.proj u { text-decoration: none; color: var(--text); }
-.proj .dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
-.bend { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 .modes { margin-right: var(--space-2); }
-.lsep { width: 1px; height: 18px; background: var(--line); }
-/* icon keys in the bar are rounded squares (the theme key's shape); the Console key's count of errors in red */
+/* icon keys in the bar are rounded squares (the theme key's shape), pressed as every kit key; the Console key's count of errors in red */
 .bar-key.round { border-radius: var(--radius-md); }
-.bar-key[aria-pressed="true"] { background: var(--surface-sunken); }
 .bar-key .badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--danger); font: 600 10px/14px var(--font-mono); color: var(--danger-text); text-align: center; }
 
 /* the page rail steps aside in Commander and Lookout (every page is in view there), gap and all */
 .page-rail.aside { margin-right: calc(-1 * var(--gutter)); }
 .main { display: flex; gap: var(--gutter); min-height: 0; min-width: 0; }
 .main > .panel.side { height: 100%; }
-/* The Variables card (Variables.tsx) on the kit's VariableList: + Variable, and an open row's editor. */
-.vadd { display: flex; justify-content: flex-end; padding: 6px var(--space-3) 2px; }
+/* The Variables card (Variables.tsx) on the kit's VariableList: + Variable in its head, and an open row's editor. */
 .vedit { display: grid; gap: 8px; }
 .vedit label { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: center; font: var(--size-2xs) var(--font-sans); color: var(--text-muted); }
 .vedit { min-width: 0; }
-.vedit .well { min-height: 26px; height: 26px; padding: 0 8px; font-size: 12.5px; width: 100%; min-width: 0; box-sizing: border-box; }
+.vedit .well { width: 100%; min-width: 0; }
 .vedit .mono { font-family: var(--font-mono); }
-.vedit input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--danger); }
-.vedit-why { margin: -4px 0 0 52px; font: var(--size-2xs) var(--font-sans); color: var(--danger-text); }
+.vedit .field-error { margin: -4px 0 0 52px; }
 .vedit-foot { display: flex; align-items: center; gap: 8px; }
 .vedit-foot .grow { flex: 1; }
-.vedit-check { display: flex !important; gap: 6px; align-items: center; color: var(--text) !important; }
-.vfoot { padding: 8px var(--space-3) 8px var(--panel-pad); border-top: 1px solid var(--line); font-size: 12px; color: var(--text-muted); }
+.vedit-tunable { display: flex; gap: 8px; align-items: center; color: var(--text); }
+.vfoot { padding: 8px var(--space-3) 8px var(--panel-pad); border-top: 1px solid var(--line); font-size: var(--size-2xs); color: var(--text-muted); }
 .main > .panel.side .panel-body { display: flex; flex-direction: column; }
 
-/* a page's head: its name (15 px, as the mockup), its count, then its tools at the right end, its hide key last */
-.panel-head > b { font-size: 15px; }
+/* a page's head: its name, its count, then its tools at the right end, its hide key last */
 .pg .panel-head > small:not(.sum) { display: none; }  /* a page's count is for its slim bar; its head says it in words */
 .panel-head > small { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .panel-head > .tools { order: 2; margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
@@ -53,10 +43,10 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
 .panel-head > .tools ~ .hide-key, .panel-head > .tools ~ small + .hide-key { margin-left: 0; }
 .panel-head > .tabs { height: 100%; border: 0; padding: 0; margin-left: var(--space-4); }
 .panel-head .seg { padding: 2px; }
-.panel-head .seg button { padding: 2px 10px; font-size: 12px; }
-.bread { display: flex; align-items: center; gap: 14px; margin-left: var(--space-4); font: 12px var(--font-mono); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.panel-head .seg button { padding: 2px 10px; font-size: var(--size-2xs); }
+.bread { display: flex; align-items: center; gap: 14px; margin-left: var(--space-4); font: var(--size-2xs) var(--font-mono); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
 .bread b { font-weight: 500; color: var(--text); }
-.bread small { margin-left: 6px; font-size: 12px; color: var(--text-muted); }
+.bread small { margin-left: 6px; font-size: var(--size-2xs); color: var(--text-muted); }
 .page-body { height: 100%; }
 
 /* the pages: one column that slides to the page picked (Navigator); a wrapper per page holds its card */
@@ -85,18 +75,15 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
 .dock .dock-sep { width: 1px; height: 18px; background: var(--line); margin-right: 4px; }
 .dock .run-options input { width: 64px; text-align: right; }
 .dock .run-options select { appearance: none; width: 52px; text-align: right; cursor: pointer; }
-/* ∞: runs until cancelled. Chosen: raised and outlined, never a fill. */
-.dock .run-forever { all: unset; box-sizing: border-box; height: 24px; min-width: 24px; display: inline-grid; place-items: center; border-radius: var(--radius-md); font: 15px var(--font-mono); color: var(--text-muted); cursor: pointer; }
-.dock .run-forever:hover { color: var(--text); background: var(--surface-raised); }
-.dock .run-forever.on { color: var(--accent-text); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--accent-select); }
-.dock .run-forever:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.dock .run-status { display: inline-flex; align-items: center; gap: 7px; font: 12.5px var(--font-mono); padding-left: 4px; }
+/* ∞: runs until cancelled; a kit key, pressed while chosen */
+.dock .run-forever { min-width: 24px; padding: 0 6px; justify-content: center; font: var(--size-md) var(--font-mono); }
+.dock .run-status { display: inline-flex; align-items: center; gap: 7px; font: var(--size-xs) var(--font-mono); padding-left: 4px; }
 .dock .run-status.status-running { color: var(--accent-text); }
 .dock .run-status.status-failed { color: var(--danger-text); }
 
 /* Variables: shared by the Station and the Flow, so a card beside the pages, never a page */
 .vnone { flex: 1; }
-.vnone, .verr { margin: 0; padding: 12px var(--panel-pad); font-size: 12px; color: var(--text-muted); }
+.vnone, .verr { margin: 0; padding: 12px var(--panel-pad); font-size: var(--size-2xs); color: var(--text-muted); }
 .verr { color: var(--danger-text); }
 
 /* nothing moves at start-up: the saved layout is simply there */
@@ -107,67 +94,67 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
   --xy-background-color-default: var(--surface-panel); --xy-selection-background-color-default: color-mix(in srgb, var(--accent) 8%, transparent);
   --xy-selection-border-default: 1px dashed var(--line-ink); --xy-connectionline-stroke-default: var(--line-ink); --xy-connectionline-stroke-width-default: 1.2;
   --xy-resize-background-color-default: var(--line-ink); }
-.flow-canvas .react-flow__node { font: 12px var(--font-sans); color: var(--text); }
+.flow-canvas .react-flow__node { font: var(--size-2xs) var(--font-sans); color: var(--text); }
 .flow-canvas .react-flow__node.selectable:focus-visible { outline: none; }
 .flow-canvas .react-flow__node:focus-visible > :first-child { outline: 2px solid var(--focus); outline-offset: 3px; }
 .flow-canvas.locked .react-flow__handle { cursor: default; }
 .wire-hit { fill: none; stroke: transparent; stroke-width: 14px; pointer-events: none; }
 .wire-remove { position: absolute; pointer-events: all; }
-.canvas-empty { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; font-size: 13px; color: var(--text-muted); pointer-events: none; }
+.canvas-empty { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; font-size: var(--size-sm); color: var(--text-muted); pointer-events: none; }
 .canvas-empty .kbd { margin-right: 6px; }
 /* the minimap: Navigator only, bottom-right; a sunken well, blocks grey, running in the accent, failed red, the view the clear window */
 .flow-canvas .react-flow__minimap { width: 160px; height: 100px; margin: 12px; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
 .flow-canvas .react-flow__minimap svg { display: block; width: 160px; height: 100px; }
 /* the selection dialog: floats above what is picked; its groups unfold as menus */
-.selection-dialog { display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: 12px; white-space: nowrap; }
+.selection-dialog { display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: var(--size-2xs); white-space: nowrap; }
 .selection-dialog .sel-what { padding: 0 8px; color: var(--text-muted); }
 .selection-dialog .sel-sep { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
 .selection-dialog .key.sm .pb-icon { width: 12px; height: 12px; }
 .sel-menu { position: relative; }
 .sel-menu .sel-pop { position: absolute; top: calc(100% + 6px); left: 0; min-width: 210px; }
 /* a bound param's binding, under the card's head: the variable, Show, Unbind */
-.binding { display: flex; align-items: center; gap: 6px; font: 12px var(--font-mono); color: var(--text-muted); }
+.binding { display: flex; align-items: center; gap: 6px; font: var(--size-2xs) var(--font-mono); color: var(--text-muted); }
 .binding > span:first-child { margin-right: auto; }
 .binding b { font-weight: 500; color: var(--text); }
 .block-under .binding + textarea { margin-top: 6px; }
 /* a subsystem's dashed + ports, shown while a wire is dragged; its empty body says what to do */
 .react-flow__handle.ghost-port { opacity: 0; pointer-events: none; width: 12px; height: 12px; border: 1.5px dashed var(--line-ink); background: var(--surface-raised); }
 .react-flow__handle.ghost-port.on { opacity: 1; pointer-events: all; }
-.react-flow__handle.ghost-port::before { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font: 600 12px/1 var(--font-mono); color: var(--text); }
-.group-empty { margin: 4px 10px 12px; font-size: 12px; color: var(--text-muted); }
+.react-flow__handle.ghost-port::before { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font: 600 var(--size-2xs)/1 var(--font-mono); color: var(--text); }
+.group-empty { margin: 4px 10px 12px; font-size: var(--size-2xs); color: var(--text-muted); }
 /* a frame: a dashed box round its blocks, its head a strip on top */
 .frame { width: 100%; height: 100%; box-sizing: border-box; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface-sunken) 40%, transparent); }
-.frame.selected { outline: 2px solid var(--accent-select); outline-offset: 3px; }
+.frame.selected { outline: var(--select-outline); outline-offset: var(--select-offset); }
 .frame-head { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 6px; }
 .frame-toggle { all: unset; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; }
 .frame-toggle:hover { color: var(--text); background: var(--surface-sunken); }
-.frame-label { min-width: 0; flex: 0 1 auto; width: 14ch; height: 22px; padding: 0 4px; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--text); border-radius: var(--radius-sm); }
+.frame-label { min-width: 0; flex: 0 1 auto; width: 14ch; height: 22px; padding: 0 4px; border: 0; background: none; font: 600 var(--size-sm) var(--font-sans); color: var(--text); border-radius: var(--radius-sm); }
 .frame-label:focus { outline: 2px solid var(--focus); background: var(--surface-well); }
-.frame-kind { margin-right: auto; font: 12px var(--font-mono); color: var(--text-muted); }
+.frame-kind { margin-right: auto; font: var(--size-2xs) var(--font-mono); color: var(--text-muted); }
 /* In and Out: a group's ports inside it (pills), and where wires from outside a level come and go */
-.port-pill, .boundary { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; white-space: nowrap; background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 14px; font-size: 12px; }
-.port-pill.selected { outline: 2px solid var(--accent-select); outline-offset: 3px; }
-.port-pill-tag, .boundary-tag { font: 600 12px var(--font-sans); color: var(--text-muted); }
-.port-pill-name, .boundary-name { font: 12px var(--font-mono); color: var(--text); }
+.port-pill, .boundary { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; box-sizing: border-box; white-space: nowrap; background: var(--surface-sunken); border: 1px solid var(--line-strong); border-radius: 14px; font-size: var(--size-2xs); }
+.port-pill.selected { outline: var(--select-outline); outline-offset: var(--select-offset); }
+.port-pill-tag, .boundary-tag { font: 600 var(--size-2xs) var(--font-sans); color: var(--text-muted); }
+.port-pill-name, .boundary-name { font: var(--size-2xs) var(--font-mono); color: var(--text); }
 input.port-pill-name { width: auto; height: 20px; padding: 0 4px; border: 0; background: var(--surface-well); box-shadow: var(--well-shadow); border-radius: var(--radius-sm); }
 input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .port-pill .react-flow__handle.outer { opacity: 0; pointer-events: none; }
 /* the breadcrumb when a subsystem or story is open: Flow › its name (editable), its kind */
-.react-flow__panel.crumbs { display: flex; align-items: center; gap: 4px; margin: 12px; padding: 3px 10px 3px 6px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: 13px; }
+.react-flow__panel.crumbs { display: flex; align-items: center; gap: 4px; margin: 12px; padding: 3px 10px 3px 6px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: var(--size-sm); }
 .crumb { all: unset; padding: 2px 4px; border-radius: var(--radius-sm); color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .crumb:hover { color: var(--text); }
 .crumb-step { display: inline-flex; align-items: center; gap: 4px; }
 .crumb-sep { color: var(--text-muted); }
-.crumb-here { height: 22px; padding: 0 4px; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--text); border-radius: var(--radius-sm); }
+.crumb-here { height: 22px; padding: 0 4px; border: 0; background: none; font: 600 var(--size-sm) var(--font-sans); color: var(--text); border-radius: var(--radius-sm); }
 .crumb-here:focus { outline: 2px solid var(--focus); background: var(--surface-well); }
-.crumb-kind { margin-left: 6px; font: 12px var(--font-mono); color: var(--text-muted); }
+.crumb-kind { margin-left: 6px; font: var(--size-2xs) var(--font-mono); color: var(--text-muted); }
 /* what dropping a dragged card would do: where it lands, the port it joins, in words */
 .drop-hint { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
 .drop-outline { position: absolute; border: 1.5px dashed var(--line-ink); border-radius: var(--radius-md); }
 .drop-wire { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .drop-wire line { stroke: var(--line-ink); stroke-width: 1.2; stroke-dasharray: 4 3; }
 .drop-wire circle { fill: none; stroke: var(--line-ink); stroke-width: 1.5; }
-.drop-label { position: absolute; padding: 2px 8px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-1); font: 12px var(--font-mono); white-space: nowrap; }
+.drop-label { position: absolute; padding: 2px 8px; background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow-1); font: var(--size-2xs) var(--font-mono); white-space: nowrap; }
 /* the selection dialog steps aside while a plate's card floats over it */
 .flow-canvas:has(.compact-block.open) .selection-dialog { visibility: hidden; }
 
@@ -175,7 +162,7 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .board { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .board-grid { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-auto-rows: var(--row); gap: var(--gap); align-content: start; }
 .board.docked .board-grid { padding-bottom: 90px; }  /* clear of the run dock floating over the Board */
-.board-empty { margin: auto; max-width: 420px; padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); }
+.board-empty { margin: auto; max-width: 420px; padding: 24px; text-align: center; font-size: var(--size-sm); color: var(--text-muted); }
 .cell { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .cell > .instrument { flex: 1; height: auto; }
 .arranging .cell { cursor: grab; }
@@ -186,48 +173,48 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .drop { z-index: 2; border-radius: var(--radius-md); box-shadow: 0 0 0 2px var(--accent-select); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
 .cell-tools { position: absolute; top: 6px; right: 6px; z-index: 3; }
 .cell-tools .seg { padding: 2px; box-shadow: var(--shadow-1); }
-.cell-tools .seg button { padding: 1px 7px; font: 12px var(--font-mono); }
+.cell-tools .seg button { padding: 1px 7px; font: var(--size-2xs) var(--font-mono); }
 
 /* decorations: a section frames cells, a rule sits in the gap, a label and the Console take cells */
 .deco { position: relative; min-width: 0; min-height: 0; }
 .deco-section { margin: -7px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.deco-title { position: absolute; top: -9px; left: 10px; max-width: calc(100% - 20px); padding: 0 6px; background: var(--surface-panel); font: 600 12px/18px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deco-title { position: absolute; top: -9px; left: 10px; max-width: calc(100% - 20px); padding: 0 6px; background: var(--surface-panel); font: 600 var(--size-2xs)/18px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .deco-hline { align-self: start; height: 1px; margin-top: calc(var(--gap) / -2 - 1px); background: var(--line-strong); }
 .deco-vline { justify-self: start; width: 1px; margin-left: calc(var(--gap) / -2 - 1px); background: var(--line-strong); }
 .arranging .deco-hline { height: 9px; margin-top: calc(var(--gap) / -2 - 5px); background: linear-gradient(var(--line-strong), var(--line-strong)) center / 100% 1px no-repeat; cursor: grab; }
 .arranging .deco-vline { width: 9px; margin-left: calc(var(--gap) / -2 - 5px); background: linear-gradient(var(--line-strong), var(--line-strong)) center / 1px 100% no-repeat; cursor: grab; }
 .deco-label { align-self: end; padding: 0 2px 6px; }
 .deco-label > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.deco-label.heading { font: 600 15px/1.3 var(--font-display); border-bottom: 1px solid var(--line); }
-.deco-label.note { align-self: start; font-size: 12px; color: var(--text-muted); }
+.deco-label.heading { font: 600 var(--size-md)/1.3 var(--font-display); border-bottom: 1px solid var(--line); }
+.deco-label.note { align-self: start; font-size: var(--size-2xs); color: var(--text-muted); }
 .deco-val { font-family: var(--font-mono); color: var(--text); font-variant-numeric: tabular-nums; }
 .deco-val.idle { color: var(--text-muted); }
 .deco-frame { position: absolute; inset: 0; display: flex; flex-direction: column; border-radius: var(--radius-md); overflow: hidden; }
 .deco-frame > .logs { flex: 1; margin: 0; }
-.deco-later { display: grid; place-items: center; padding: 12px; text-align: center; border: 1px dashed var(--line-strong); font-size: 12px; color: var(--text-muted); }
+.deco-later { display: grid; place-items: center; padding: 12px; text-align: center; border: 1px dashed var(--line-strong); font-size: var(--size-2xs); color: var(--text-muted); }
 .arranging .deco-label, .arranging .deco-section, .arranging .deco-console { cursor: grab; }
-.deco.picked { outline: 1.5px solid var(--accent-select); outline-offset: 3px; border-radius: var(--radius-sm); }
+.deco.picked { outline: var(--select-outline); outline-offset: var(--select-offset); border-radius: var(--radius-sm); }
 .deco-tools { position: absolute; top: -14px; right: -8px; z-index: 4; display: flex; align-items: center; gap: 6px; }
 .deco-tools .seg { padding: 2px; box-shadow: var(--shadow-1); }
-.deco-tools .seg button { padding: 1px 8px; font-size: 12px; }
+.deco-tools .seg button { padding: 1px 8px; font-size: var(--size-2xs); }
 .deco-grip, .cell-grip { position: absolute; right: -6px; bottom: -6px; z-index: 4; width: 10px; height: 10px; border-radius: 3px; background: var(--surface-raised); box-shadow: 0 0 0 1.5px var(--accent-select); cursor: nwse-resize; touch-action: none; }
 .deco-grip.grip-hline { top: calc(50% - 5px); bottom: auto; cursor: ew-resize; }
 .deco-grip.grip-vline { left: calc(50% - 5px); right: auto; cursor: ns-resize; }
 .deco-edit { all: unset; box-sizing: border-box; width: 100%; font: inherit; color: var(--text); border-bottom: 1px solid var(--accent-select); }
 
 /* Arrange's bar over the grid, and the values a label can show while one is edited */
-.arrange-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-muted); }
+.arrange-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 16px; border-bottom: 1px solid var(--line); font-size: var(--size-2xs); color: var(--text-muted); }
 .arrange-bar .hint { flex: 1 1 260px; }
 .arrange-bar .group { display: inline-flex; align-items: center; gap: 4px; }
-.arrange-bar .tab-name { width: 112px; height: 26px; padding: 0 8px; font: 12.5px var(--font-sans); color: var(--text); border: 0; }
+.arrange-bar .tab-name { width: 112px; height: 26px; padding: 0 8px; font: var(--size-xs) var(--font-sans); color: var(--text); border: 0; }
 .arrange-bar .tab-drop { padding: 3px 8px; border: 1px dashed var(--accent-select); border-radius: var(--radius-md); color: var(--text); }
-.deco-vars { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 16px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.deco-vars { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 16px; border-bottom: 1px solid var(--line); font-size: var(--size-2xs); }
 .deco-vars .lbl { color: var(--text-muted); margin-right: 4px; }
-.deco-vars .chip { all: unset; cursor: pointer; padding: 1px 8px; border-radius: var(--radius-sm); background: var(--surface-sunken); font: 12px var(--font-mono); color: var(--text); }
+.deco-vars .chip { all: unset; cursor: pointer; padding: 1px 8px; border-radius: var(--radius-sm); background: var(--surface-sunken); font: var(--size-2xs) var(--font-mono); color: var(--text); }
 .deco-vars .chip.var { font-style: italic; }
 .deco-vars .chip:focus-visible { outline: 2px solid var(--focus); }
 /* an instrument no toolkit drew: its raw value */
-.instrument.fallback output { position: absolute; inset: 0; padding: 12px; font: 12.5px var(--font-mono); overflow: hidden; overflow-wrap: anywhere; }
+.instrument.fallback output { position: absolute; inset: 0; padding: 12px; font: var(--size-xs) var(--font-mono); overflow: hidden; overflow-wrap: anywhere; }
 /* Choose a station: the stations found, one row each (its name, its address in mono), then an address field */
 .stations-window { width: min(520px, 92vw); }
 .stations-list { display: flex; flex-direction: column; gap: 2px; min-height: 64px; max-height: 320px; overflow: auto; padding: 4px; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); }
@@ -235,9 +222,9 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .stations-row:hover { background: var(--surface-raised); }
 .stations-row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .stations-row[aria-selected="true"] { box-shadow: inset 0 0 0 1.5px var(--accent-select); }
-.stations-name { font: 500 13px var(--font-sans); }
-.stations-url { margin-left: auto; font: 12px var(--font-mono); color: var(--text-muted); }
-.stations-note { padding: 8px 10px; font-size: 12.5px; color: var(--text-muted); }
+.stations-name { font: 500 var(--size-sm) var(--font-sans); }
+.stations-url { margin-left: auto; font: var(--size-2xs) var(--font-mono); color: var(--text-muted); }
+.stations-note { padding: 8px 10px; font-size: var(--size-xs); color: var(--text-muted); }
 .stations-addr { display: flex; gap: var(--space-2); }
 .stations-addr .well { flex: 1; }
 .dialog-actions .grow { flex: 1; }
@@ -245,17 +232,17 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 /* The Station page (station/StationPage.tsx): the 3D view or the Graph fills it; the picked object's properties float
    over its top-left corner (mockup .fprops) and step aside when the view is narrow. */
 .station-body { position: relative; height: 100%; container-type: inline-size; }
-.page-later { margin: 0; padding: 24px var(--panel-pad); font-size: 12.5px; color: var(--text-muted); }
+.page-later { margin: 0; padding: 24px var(--panel-pad); font-size: var(--size-xs); color: var(--text-muted); }
 .fprops { position: absolute; left: 14px; top: 14px; z-index: 2; width: 260px; max-height: calc(100% - 28px); overflow: auto; background: var(--surface-float); backdrop-filter: var(--float-blur); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); font-size: var(--size-2xs); }
 .fprops .fh { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
 .fprops .fh b { font: 600 var(--size-sm) var(--font-sans); }
-.fprops .fid { font: 11px var(--font-mono); color: var(--text-muted); }
+.fprops .fid { font: var(--size-3xs) var(--font-mono); color: var(--text-muted); }
 .fprops .block-tag { margin-left: auto; }
-.fprops .fclose { all: unset; cursor: pointer; width: 18px; text-align: center; color: var(--text-muted); font-size: 15px; }
+.fprops .fclose { all: unset; cursor: pointer; width: 18px; text-align: center; color: var(--text-muted); font-size: var(--size-md); }
 .fprops .fclose:hover { color: var(--text); }
 .fprops .block-params { padding: 8px 12px 10px; }
 .fprops .flink { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; color: var(--text-muted); }
 .fprops .flink .well { height: 24px; min-width: 0; }
 .fprops .ffoot { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px 12px; border-top: 1px solid var(--line); color: var(--text-muted); }
-.fprops .ffoot code { font: 11px var(--font-mono); color: var(--text); }
+.fprops .ffoot code { font: var(--size-3xs) var(--font-mono); color: var(--text); }
 @container (max-width: 560px) { .fprops { display: none; } }
