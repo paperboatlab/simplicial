@@ -14,7 +14,6 @@ import {
   type Credit, type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
-import { SceneView } from "@paperboatlab/ui/stage";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Board } from "./board/Board.tsx";
@@ -26,6 +25,7 @@ import { useNews } from "./news.ts";
 import { StationPicker, useStations } from "./StationPicker.tsx";
 import { renameRef } from "./variableEdits.ts";
 import { Variables } from "./Variables.tsx";
+import { StationPage } from "./station/StationPage.tsx";
 import { openStation, remember } from "./stations.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
 import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
@@ -343,13 +343,8 @@ export function App() {
                       {sview === "3d" && <Key size="sm" kind="quiet" aria-pressed={gridOn} title="The floor grid" onClick={() => setFloor(!gridOn)}>Grid</Key>}
                       <Segmented label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} />
                     </Tools></>}>
-                    <div className="page-body">
-                      {sview === "3d" ? (
-                        // The kit's stage; its camera is placed from the view at mount, so a new view remounts it.
-                        <SceneView key={JSON.stringify(state.view)} view={state.view} grid={gridOn}
-                          entities={sceneOf(state)} />
-                      ) : <p className="page-later">The Graph view (objects, joints and the blocks linked to them) comes with #5</p>}
-                    </div>
+                    <StationPage station={state.station} defs={state.objects} scene={sceneOf(state)} view={state.view} grid={gridOn} mode={sview}
+                      locked={running} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }} />
                   </Panel>
                 </div>
               )}

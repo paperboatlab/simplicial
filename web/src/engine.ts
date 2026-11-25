@@ -479,6 +479,7 @@ export function useEngine(url: string) {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
     // The station keeps the list it is told and doesn't send it back: the page holds it too.
     if (m.type === "variables.set" && !m.source) dispatch({ type: "variables.load", variables: m.variables });
+    if (m.type === "station.set") dispatch({ type: "station.load", station: m.station });
   }, []);
 
   /** Hear every message from the station; returns the unsubscribe. */

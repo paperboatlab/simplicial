@@ -240,3 +240,21 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .stations-addr { display: flex; gap: var(--space-2); }
 .stations-addr .well { flex: 1; }
 .dialog-actions .grow { flex: 1; }
+
+/* The Station page (station/StationPage.tsx): the 3D view or the Graph fills it; the picked object's properties float
+   over its top-left corner (mockup .fprops) and step aside when the view is narrow. */
+.station-body { position: relative; height: 100%; container-type: inline-size; }
+.page-later { margin: 0; padding: 24px var(--panel-pad); font-size: 12.5px; color: var(--text-muted); }
+.fprops { position: absolute; left: 14px; top: 14px; z-index: 2; width: 260px; max-height: calc(100% - 28px); overflow: auto; background: var(--surface-float); backdrop-filter: var(--float-blur); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); font-size: var(--size-2xs); }
+.fprops .fh { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.fprops .fh b { font: 600 var(--size-sm) var(--font-sans); }
+.fprops .fid { font: 11px var(--font-mono); color: var(--text-muted); }
+.fprops .block-tag { margin-left: auto; }
+.fprops .fclose { all: unset; cursor: pointer; width: 18px; text-align: center; color: var(--text-muted); font-size: 15px; }
+.fprops .fclose:hover { color: var(--text); }
+.fprops .block-params { padding: 8px 12px 10px; }
+.fprops .flink { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; color: var(--text-muted); }
+.fprops .flink .well { height: 24px; min-width: 0; }
+.fprops .ffoot { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px 12px; border-top: 1px solid var(--line); color: var(--text-muted); }
+.fprops .ffoot code { font: 11px var(--font-mono); color: var(--text); }
+@container (max-width: 560px) { .fprops { display: none; } }
