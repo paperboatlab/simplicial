@@ -1,4 +1,4 @@
-"""Generate the shared protocol types (../paperboat-shared/src/protocol.ts) from the JSON Schema
+"""Generate the page's protocol types (web/src/protocol.ts) from the JSON Schema
 (protocol/schema/paperboat-0.schema.json), the source of truth for message shapes.
 
     python3 protocol/gen_ts.py           # write protocol.ts
@@ -15,8 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCHEMA = ROOT / "protocol" / "schema" / "paperboat-0.schema.json"
-# The types live in the sibling @paperboat/shared repo, which both apps consume.
-OUT = ROOT.parent / "paperboat-shared" / "src" / "protocol.ts"
+OUT = ROOT / "web" / "src" / "protocol.ts"
 
 
 def doc(text: str | None, indent: str = "") -> str:
@@ -89,7 +88,7 @@ def generate() -> str:
     defs = schema["$defs"]
     out = [
         "// Generated from protocol/schema/paperboat-0.schema.json by protocol/gen_ts.py.",
-        "// Do not edit: change the schema and run `npm run gen:protocol`.",
+        "// Do not edit: change the schema and run `python3 protocol/gen_ts.py`.",
         "",
     ]
     skip = {"toUI", "toStation"} | set(defs["toUI"]["properties"]["type"]["enum"]) | set(
@@ -111,11 +110,10 @@ def main() -> None:
     text = generate()
     if "--check" in sys.argv:
         if not OUT.exists() or OUT.read_text() != text:
-            sys.exit("../paperboat-shared/src/protocol.ts is out of date: run npm run gen:protocol")
+            sys.exit("web/src/protocol.ts is out of date: run python3 protocol/gen_ts.py")
         print("protocol.ts is current")
         return
-    if not OUT.parent.is_dir():
-        sys.exit(f"{OUT.parent} not found: clone paperboat-shared next to this repo")
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(text)
     print(f"wrote {OUT}")
 
