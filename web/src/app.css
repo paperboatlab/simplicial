@@ -201,7 +201,7 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .deco-tools { position: absolute; top: -14px; right: -8px; z-index: 4; display: flex; align-items: center; gap: 6px; }
 .deco-tools .seg { padding: 2px; box-shadow: var(--shadow-1); }
 .deco-tools .seg button { padding: 1px 8px; font-size: 12px; }
-.deco-grip { position: absolute; right: -6px; bottom: -6px; z-index: 4; width: 10px; height: 10px; border-radius: 3px; background: var(--surface-raised); box-shadow: 0 0 0 1.5px var(--accent-select); cursor: nwse-resize; touch-action: none; }
+.deco-grip, .cell-grip { position: absolute; right: -6px; bottom: -6px; z-index: 4; width: 10px; height: 10px; border-radius: 3px; background: var(--surface-raised); box-shadow: 0 0 0 1.5px var(--accent-select); cursor: nwse-resize; touch-action: none; }
 .deco-grip.grip-hline { top: calc(50% - 5px); bottom: auto; cursor: ew-resize; }
 .deco-grip.grip-vline { left: calc(50% - 5px); right: auto; cursor: ns-resize; }
 .deco-edit { all: unset; box-sizing: border-box; width: 100%; font: inherit; color: var(--text); border-bottom: 1px solid var(--accent-select); }

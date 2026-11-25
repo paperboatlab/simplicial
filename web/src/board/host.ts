@@ -55,6 +55,8 @@ export interface InstrumentMeta {
   size?: Size;
   /** Where it goes in the automatic order, lowest first (readouts 0, pictures 1, plots 2). Default 2. */
   order?: number;
+  /** It may take any span of cells, up to the grid's columns each way: Arrange shows a grip to drag (a plot, a picture). */
+  resizable?: boolean;
 }
 
 const renderers = new Map<string, { renderer: InstrumentRenderer; meta: InstrumentMeta }>();

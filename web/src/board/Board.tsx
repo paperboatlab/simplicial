@@ -3,7 +3,8 @@
 // labels with live values, the Console. Tabs (the panel's head shows them) each have their own grid. Where things
 // sit comes from the user's layout (kept per station in the browser), else the station's (`catalog.board`), else
 // the automatic order. While Arrange is on: drag an instrument or decoration to a cell (or move it with the arrow
-// keys), pick sizes, add and edit decorations and tabs.
+// keys), pick sizes (a plot or picture also by dragging its corner, up to the grid's columns each way), add and edit
+// decorations and tabs.
 import { Console, Key, RemoveKey, Segmented } from "@paperboatlab/ui";
 import { Instrument as Frame } from "@paperboatlab/ui/plot";
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
@@ -11,8 +12,8 @@ import type { EngineState } from "../engine.ts";
 import type { BoardLayout, ClientMsg, ParamValue, Variables } from "../protocol.ts";
 import {
   CELLS, DEFAULT_COLUMNS, SIZES, SIZE_LABEL, addDecoration, addTab, arrange as arrangeLayout, editDecoration, formatText, freshTabName,
-  moveDecoration, moveInstrument, moveToTab, removeDecoration, removeTab, renameTab, resizeDecoration, resizeInstrument, rowsOf, setSettings,
-  tabIsEmpty, type Arranged, type DecoKind, type Monitor, type PlacedDeco, type Size,
+  moveDecoration, moveInstrument, moveToTab, removeDecoration, removeTab, renameTab, resizeDecoration, resizeInstrument, rowsOf, setSettings, sizeOfSpan, spanInstrument,
+  tabIsEmpty, type Arranged, type DecoKind, type Monitor, type Placed, type PlacedDeco, type Size,
 } from "./boardLayout.ts";
 import { instrumentFor, vectorText, type InstrumentProps, type TapPort } from "./host.ts";
 import "./toolkits.ts";
@@ -130,6 +131,8 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
   const [editing, setEditing] = useState<number | null>(null); // the decoration whose text is edited
   const [sizing, setSizing] = useState<{ index: number; w: number; h: number } | null>(null);
   const sizingNow = useRef(sizing);
+  const [spanning, setSpanning] = useState<{ block: string; w: number; h: number } | null>(null); // an instrument's corner, dragged
+  const spanningNow = useRef(spanning);
   const editor = useRef<HTMLInputElement | null>(null);
 
   const cellAt = (e: { clientX: number; clientY: number }) => {
@@ -175,6 +178,11 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
     const c = cellAt(e);
     sizingNow.current = { index: d.index, w: Math.max(1, c.col - d.col + 1), h: Math.max(1, c.row - d.row + 1) };
     setSizing(sizingNow.current);
+  };
+  const spanPoint = (e: React.PointerEvent, p: Placed) => {
+    const c = cellAt(e);
+    spanningNow.current = { block: p.block, w: Math.min(Math.max(1, c.col - p.col + 1), columns - p.col), h: Math.min(Math.max(1, c.row - p.row + 1), columns) };
+    setSpanning(spanningNow.current);
   };
   const insertValue = (name: string) => {
     const el = editor.current;
@@ -250,23 +258,41 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
               </div>
             );
           })}
-          {placed.map((p) => {
+          {placed.map((raw) => {
+            const p = spanning?.block === raw.block ? { ...raw, w: spanning.w, h: spanning.h, size: sizeOfSpan(spanning.w, spanning.h) } : raw;
             const m = monitors[p.block];
             const value = latestOf(state, p.block);
             const Renderer = instrumentFor(m.kind) ?? Fallback;
             return (
               <div key={p.block} style={area(p)} className={`cell size-${p.size}${dragging?.kind === "instrument" && dragging.id === p.block ? " dragging" : ""}`}
-                draggable={canEdit} tabIndex={canEdit ? 0 : undefined} aria-label={canEdit ? `${p.block}: drag or use the arrow keys to move it` : undefined}
+                draggable={canEdit && !spanning} tabIndex={canEdit ? 0 : undefined} aria-label={canEdit ? `${p.block}: drag or use the arrow keys to move it` : undefined}
                 onKeyDown={(e) => canEdit && arrow(e, { kind: "instrument", id: p.block, dx: 0, dy: 0 }, p)}
-                onDragStart={(e) => startDrag(e, { kind: "instrument", id: p.block, col: p.col, row: p.row })} onDragEnd={stop}>
+                onDragStart={(e) => (spanning ? e.preventDefault() : startDrag(e, { kind: "instrument", id: p.block, col: p.col, row: p.row }))} onDragEnd={stop}>
                 <Renderer name={p.block} kind={m.kind} latest={value} idle={value === undefined} vector={vectorText(value, state.vectorComponents[p.block])}
                   state={state} send={send} params={m.params as Record<string, ParamValue> | undefined} size={p.size} inputs={m.inputs ?? []} sources={m.sources ?? {}}
                   settings={p.settings} onSettings={(next) => commit(setSettings(arranged, p.block, next))} taps={taps} onTap={(id) => onTap(p.block, id)} />
                 {canEdit && (
                   <span className="cell-tools" onClick={(e) => e.stopPropagation()}>
-                    <Segmented label={`Size of ${p.block}`} value={p.size} onChange={(s: Size) => commit(resizeInstrument(arranged, p.block, s))}
-                      options={SIZES.map((s) => ({ value: s, label: SIZE_LABEL[s], hint: `${CELLS[s][0]} × ${CELLS[s][1]} cells` }))} />
+                    <Segmented<Size | "custom"> label={`Size of ${p.block}`} value={p.span || spanning?.block === p.block ? "custom" : p.size}
+                      onChange={(s) => s !== "custom" && commit(resizeInstrument(arranged, p.block, s))}
+                      options={[
+                        ...SIZES.map((s) => ({ value: s, label: SIZE_LABEL[s], hint: `${CELLS[s][0]} × ${CELLS[s][1]} cells` })),
+                        ...(p.span || spanning?.block === p.block ? [{ value: "custom" as const, label: `${p.w}×${p.h}`, hint: "Its own size: drag the corner, or pick a size" }] : []),
+                      ]} />
                   </span>
+                )}
+                {canEdit && m.resizable && (
+                  <span className="cell-grip" title={`Drag to resize (up to ${columns} × ${columns} cells)`} draggable={false}
+                    onMouseDown={(e) => e.preventDefault()} onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); spanPoint(e, raw); }}
+                    onPointerMove={(e) => spanningNow.current && e.buttons && spanPoint(e, raw)}
+                    onPointerUp={(e) => {
+                      const last = spanningNow.current;
+                      if (last) commit(spanInstrument(arranged, raw.block, last.w, last.h));
+                      spanningNow.current = null;
+                      setSpanning(null);
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }} />
                 )}
               </div>
             );

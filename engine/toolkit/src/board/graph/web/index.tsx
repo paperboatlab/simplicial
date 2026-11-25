@@ -8,5 +8,5 @@ function Graph({ name, state, idle, inputs, sources }: InstrumentProps) {
 }
 
 export function register(host: ToolkitWebHost): void {
-  host.registerInstrument("graph", Graph);
+  host.registerInstrument("graph", Graph, { resizable: true });
 }

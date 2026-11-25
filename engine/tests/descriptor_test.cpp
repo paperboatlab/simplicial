@@ -298,6 +298,7 @@ instruments = [
   { block = "graph-theta", size = "large", at = [0, 0] },
   { block = "speed" },
   { block = "camera", size = "xlarge" },
+  { block = "scope", span = [5, 4] },
 ]
 )", test_registry());
   const auto msg = nlohmann::json::parse(tk::catalog_message(catalog));
@@ -305,6 +306,7 @@ instruments = [
   CHECK(msg["board"]["instruments"][0] == nlohmann::json{{"block", "graph-theta"}, {"size", "large"}, {"at", {0, 0}}});
   CHECK(msg["board"]["instruments"][2]["size"] == "xlarge");
   CHECK(msg["board"]["instruments"][1] == nlohmann::json{{"block", "speed"}});
+  CHECK(msg["board"]["instruments"][3]["span"] == nlohmann::json{5, 4});
   CHECK_FALSE(nlohmann::json::parse(tk::catalog_message(tk::load_descriptor("domain = \"test\"\n", test_registry())))
                   .contains("board"));
 
@@ -320,6 +322,8 @@ instruments = [
   fails_with("instruments = [{ block = \"a\", at = [1] }]", "[column, row]");
   fails_with("instruments = [{ block = \"a\", at = [-1, 0] }]", "[column, row]");
   fails_with("instruments = [{ block = \"a\" }, { block = \"a\" }]", "placed twice");
+  fails_with("instruments = [{ block = \"a\", span = [0, 2] }]", "[columns, rows]");
+  fails_with("instruments = [{ block = \"a\", span = [2] }]", "[columns, rows]");
 }
 
 TEST_CASE("[board] decorations and tabs: sections, separators, labels, pages") {

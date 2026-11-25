@@ -300,7 +300,7 @@ void load_board(const json& doc, Catalog& catalog) {
   for (std::size_t i = 0; i < list.size(); ++i) {
     const auto& e = list[i];
     const auto at = "board.instruments[" + std::to_string(i) + "]";
-    only_fields(e, {"block", "size", "at", "tab", "settings"}, at);
+    only_fields(e, {"block", "size", "at", "span", "tab", "settings"}, at);
     if (!e.contains("block") || !e["block"].is_string()) throw DescriptorError(at + ": needs \"block\", a monitor block's id");
     if (!seen.insert(e["block"].get<std::string>()).second)
       throw DescriptorError(at + ": block \"" + e["block"].get<std::string>() + "\" is placed twice");
@@ -314,6 +314,12 @@ void load_board(const json& doc, Catalog& catalog) {
     if (e.contains("at")) {
       check_at(e["at"], at);
       item["at"] = e["at"];
+    }
+    if (e.contains("span")) {  // a custom size in cells, [columns, rows]
+      const json& sp = e["span"];
+      if (!sp.is_array() || sp.size() != 2 || !sp[0].is_number_integer() || !sp[1].is_number_integer() || sp[0].get<int>() < 1 || sp[1].get<int>() < 1)
+        throw DescriptorError(at + ": span must be [columns, rows], whole numbers from 1");
+      item["span"] = sp;
     }
     check_tab(e, at);
     if (e.contains("tab")) item["tab"] = e["tab"];
