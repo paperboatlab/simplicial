@@ -49,9 +49,9 @@ function sketch(mode: Mode, station: boolean): Record<string, PaneRect> {
   return out;
 }
 const PANE_NAME: Record<Pane, [string, string?]> = { r: ["Variables", "Ctrl Alt B"], st: ["Station"], fl: ["Flow"], bd: ["Board", "Ctrl J"] };
-/** The Flow fitted with room round it; in Navigator the run dock floats over its foot. */
-const FIT: FitViewOptions = { padding: "32px", maxZoom: 1.2 };
-const FIT_DOCK: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "88px" }, maxZoom: 1.2 };
+/** The Flow fitted with room round it; in Navigator the run dock and the minimap float over its foot. */
+const FIT: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "56px" }, maxZoom: 1.2 };  // clear of the canvas tools
+const FIT_DOCK: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "128px" }, maxZoom: 1.2 };  // clear of the dock and the minimap
 const LOCKED = "A run is in progress: cancel it to edit the flow";
 const fmt = (v: unknown) => (typeof v === "number" ? String(Number(v.toPrecision(4))).replace("-", "−") : String(v));
 
