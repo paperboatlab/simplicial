@@ -1,2 +1,0 @@
-/* The 3D view instrument (the frame is the kit's Instrument). */
-.view3d-empty { position: absolute; inset: 0; display: grid; place-items: center; padding: 12px; text-align: center; font: 12px var(--font-sans); color: var(--text-on-screen-muted); }

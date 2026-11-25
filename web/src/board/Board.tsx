@@ -8,7 +8,7 @@
 import { Console, Key, RemoveKey, Segmented } from "@paperboatlab/ui";
 import { Instrument as Frame } from "@paperboatlab/ui/plot";
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import type { EngineState } from "../engine.ts";
+import { sceneOf, type EngineState } from "../engine.ts";
 import type { BoardLayout, ClientMsg, ParamValue, Variables } from "../protocol.ts";
 import {
   CELLS, DEFAULT_COLUMNS, SIZES, SIZE_LABEL, addDecoration, addTab, arrange as arrangeLayout, editDecoration, formatText, freshTabName,
@@ -122,6 +122,7 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
     return out;
   }, [monitors, state]);
   const vars = useMemo(() => varValues(state.variables, state.varValues), [state.variables, state.varValues]);
+  const scene = sceneOf(state);
 
   const grid = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
@@ -269,7 +270,7 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
                 onKeyDown={(e) => canEdit && arrow(e, { kind: "instrument", id: p.block, dx: 0, dy: 0 }, p)}
                 onDragStart={(e) => (spanning ? e.preventDefault() : startDrag(e, { kind: "instrument", id: p.block, col: p.col, row: p.row }))} onDragEnd={stop}>
                 <Renderer name={p.block} kind={m.kind} latest={value} idle={value === undefined} vector={vectorText(value, state.vectorComponents[p.block])}
-                  state={state} send={send} params={m.params as Record<string, ParamValue> | undefined} size={p.size} inputs={m.inputs ?? []} sources={m.sources ?? {}}
+                  state={state} scene={scene} send={send} params={m.params as Record<string, ParamValue> | undefined} size={p.size} inputs={m.inputs ?? []} sources={m.sources ?? {}}
                   settings={p.settings} onSettings={(next) => commit(setSettings(arranged, p.block, next))} taps={taps} onTap={(id) => onTap(p.block, id)} />
                 {canEdit && (
                   <span className="cell-tools" onClick={(e) => e.stopPropagation()}>

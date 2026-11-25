@@ -1,3 +1,4 @@
+import type { Entity as StageEntity } from "@paperboatlab/ui/stage";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { TraceStore } from "./traces.ts";
 import { ReplayStore, type ReplayRecord, type ReplayState } from "./replay.ts";
@@ -504,3 +505,8 @@ export function useEngine(url: string) {
 
   return { state, send, subscribe, log, replay };
 }
+
+/** The Station's scene as the kit's stage draws it: at the replay playhead, else live. The page never asks for binary
+ *  frames (no ?binary=1), so a mesh's arrays are plain numbers, as the stage takes them. */
+export const sceneOf = (s: EngineState): Record<string, StageEntity> =>
+  (s.replay?.active ? s.sceneHistory.entitiesAt(s.replay.time) : s.entities) as Record<string, StageEntity>;
