@@ -9,6 +9,8 @@ Visual flow, station and block-diagram simulation: a C++20/Python/Julia engine, 
 
 **Status:** being rebuilt from the ground up on the new platform ([paperboat](https://github.com/paperboatlab/paperboat): runtimes in containers; [paperboat-ui](https://github.com/paperboatlab/paperboat-ui): the rebrand). The previous version, to copy from: [paperboat-legacy](https://github.com/paperboatlab/paperboat-legacy) (engine and `apps/web`).
 
+**Docs:** <https://paperboatlab.github.io/apps/simplicial/> (sources in [`docs/`](docs/))
+
 ## The page
 
 ```sh
