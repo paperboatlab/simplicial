@@ -12,21 +12,10 @@ export function StationPicker({ current, wait, onClose }: {
   wait?: boolean;
   onClose: () => void;
 }) {
-  const [found, setFound] = useState<Found[]>([]);
-  const [looking, setLooking] = useState(true);
   const [round, setRound] = useState(0);
+  const { found, looking } = useStations(true, round, current);
   const [typed, setTyped] = useState("");
   const address = toAddress(typed);
-
-  useEffect(() => {
-    let live = true;
-    setFound([]);
-    setLooking(true);
-    const all = candidates(recent());
-    void Promise.all(all.map((u) => probe(u).then((f) => { if (f && live) setFound((l) => [...l, f].sort((a, b) => all.indexOf(a.url) - all.indexOf(b.url))); })))
-      .then(() => { if (live) setLooking(false); });
-    return () => { live = false; };
-  }, [round]);
 
   return (
     <Dialog title="Choose a station" wait={wait} className="stations-window" onClose={() => { if (!wait) onClose(); }}
@@ -53,4 +42,21 @@ export function StationPicker({ current, wait, onClose }: {
       </form>
     </Dialog>
   );
+}
+
+/** The stations that answer (the recent ones and this machine's station ports), in that order, while `active`; a new `round` looks again. */
+export function useStations(active: boolean, round = 0, current?: string): { found: Found[]; looking: boolean } {
+  const [found, setFound] = useState<Found[]>([]);
+  const [looking, setLooking] = useState(active);
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    setFound([]);
+    setLooking(true);
+    const all = candidates(current ? [current, ...recent()] : recent());
+    void Promise.all(all.map((u) => probe(u).then((f) => { if (f && live) setFound((l) => [...l, f].sort((a, b) => all.indexOf(a.url) - all.indexOf(b.url))); })))
+      .then(() => { if (live) setLooking(false); });
+    return () => { live = false; };
+  }, [active, round, current]);
+  return { found, looking };
 }

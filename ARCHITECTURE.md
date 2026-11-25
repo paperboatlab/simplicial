@@ -46,6 +46,11 @@ come back out of process over `paperboat-runtime/0` (#7).
     hidden panes kept per mode); the Variables card; the run dock; the Console window; the floating
     search and quick add. It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
     kit's `useUndo`) and the open level. `app.css` draws only what the kit doesn't.
+  - `src/Variables.tsx`: the Variables card on the kit's `VariableList`: + Variable, an open row edits a variable;
+    `variableEdits.ts` (pure, tested) is what an edit does to the list. The page sends the list (`variables.set`) and
+    keeps it as the state's (`engine.ts`), since the station doesn't send it back.
+  - `src/StationPicker.tsx`, `src/stations.ts`: finding a station (the recent ones, the open one, the station ports);
+    `useStations` feeds the picker and Ctrl K's Stations.
   - `src/flow/`: the Flow canvas on React Flow, ported from legacy's `FlowEditor`. Pure, and tested: `flowModel.ts`
     (blocks, wires, missing and linked blocks), `flowGraph.ts` (canvas ⇄ `Graph`), `groups.ts` (subsystems, stories,
     frames and what each level shows), `portBlocks.ts` (In and Out), `flowLayout.ts` (Arrange, on the kit's graph

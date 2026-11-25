@@ -476,6 +476,8 @@ export function useEngine(url: string) {
 
   const send = useCallback((m: ClientMsg) => {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify(m));
+    // The station keeps the list it is told and doesn't send it back: the page holds it too.
+    if (m.type === "variables.set" && !m.source) dispatch({ type: "variables.load", variables: m.variables });
   }, []);
 
   /** Hear every message from the station; returns the unsubscribe. */
