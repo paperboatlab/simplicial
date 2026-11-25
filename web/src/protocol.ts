@@ -384,6 +384,8 @@ export type BoardLayout = {
     size?: "compact" | "normal" | "large" | "xlarge";
     /** Top-left cell: [column, row]. */
     at?: [number, number];
+    /** A custom size in cells, [columns, rows], each at most the grid's columns; it overrides `size`. Only an instrument that can be resized takes one (the Scope, the Graph). */
+    span?: [number, number];
     /** The tab it is on (one of `tabs`); absent: the first. */
     tab?: string;
     settings?: InstrumentSettings;

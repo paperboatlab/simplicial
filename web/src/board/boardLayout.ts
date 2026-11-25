@@ -6,6 +6,10 @@ export type Size = "compact" | "normal" | "large" | "xlarge";
 /** What an instrument occupies, in grid cells (columns x rows). */
 export const CELLS: Record<Size, [number, number]> = { compact: [1, 1], normal: [2, 1], large: [2, 2], xlarge: [3, 3] };
 export const SIZES: Size[] = ["compact", "normal", "large", "xlarge"];
+/** The preset a w x h span reads as (a card's readouts and a Scope's caption follow it): the biggest that fits in it. */
+export function sizeOfSpan(w: number, h: number): Size {
+  return w >= 3 && h >= 3 ? "xlarge" : w >= 2 && h >= 2 ? "large" : w >= 2 ? "normal" : "compact";
+}
 /** What the size picker shows. */
 export const SIZE_LABEL: Record<Size, string> = { compact: "S", normal: "M", large: "L", xlarge: "XL" };
 
@@ -27,6 +31,8 @@ export type Monitor = {
   size?: Size;
   /** Where it goes in the automatic order, lowest first (readouts, then pictures, then plots). Absent: last. */
   order?: number;
+  /** Its toolkit lets it take any span of cells (a plot, a picture): Arrange shows a grip to drag. */
+  resizable?: boolean;
   /** Its inputs, and what is wired into each ("plant.θ", its unit). */
   inputs?: string[];
   sources?: Record<string, { label: string; unit?: string }>;
@@ -36,7 +42,7 @@ type Deco = NonNullable<BoardLayout["decorations"]>[number];
 export type DecoKind = Deco["kind"];
 
 /** An instrument on the grid. `tab` is its tab's name, "" when the layout has no tabs. */
-export type Placed = { block: string; size: Size; col: number; row: number; w: number; h: number; tab: string; settings?: InstrumentSettings };
+export type Placed = { block: string; size: Size; col: number; row: number; w: number; h: number; tab: string; span?: [number, number]; settings?: InstrumentSettings };
 
 /**
  * A decoration on the grid (a section, a separator, a label), by its place in the layout's
@@ -122,16 +128,22 @@ export function arrange(monitors: Record<string, Monitor>, layout: BoardLayout |
     const labels = decorations.filter((d) => d.tab === tab && takesCells(d.kind));
     const mine = [...saved.values()].filter((i) => tabOf(i.tab) === tab);
     const sized = (block: string) => {
+      const span = monitors[block].resizable ? saved.get(block)?.span : undefined;
+      if (span) {
+        // A custom span: at most the grid's columns each way.
+        const w = Math.min(Math.max(1, span[0]), columns), h = Math.min(Math.max(1, span[1]), columns);
+        return { size: sizeOfSpan(w, h), w, h, span };
+      }
       const size = saved.get(block)?.size ?? defaultSize(monitors[block]);
       return { size, w: Math.min(CELLS[size][0], columns), h: CELLS[size][1] };
     };
     const putInstrument = (block: string, c: number, r: number) => {
-      const { size, w, h } = sized(block);
+      const { size, w, h, span } = sized(block);
       const [col, row] = spot(c, r, w, h);
       claim(col, row, w, h);
       const entry = saved.get(block);
       const settings = entry?.settings ?? (entry as { scope?: InstrumentSettings } | undefined)?.scope; // `scope` is what layouts saved before settings were generic called it
-      instruments.push({ block, size, col, row, w, h, tab, ...(settings ? { settings } : {}) });
+      instruments.push({ block, size, col, row, w, h, tab, ...(span ? { span } : {}), ...(settings ? { settings } : {}) });
     };
     if (!narrowed) {
       for (const l of labels) claim(l.col, l.row, l.w, l.h); // a label is where it says, and takes its cells
@@ -182,6 +194,7 @@ export function layoutOf(a: Arranged, first?: string): BoardLayout {
   const instruments = a.instruments.map((p) => ({
     block: p.block,
     size: p.size,
+    ...(p.span ? { span: p.span } : {}),
     ...(p.col >= 0 ? { at: [p.col, p.row] as [number, number] } : {}),
     ...(tabbed ? { tab: p.tab } : {}),
     ...(p.settings ? { settings: p.settings } : {}),
@@ -233,7 +246,18 @@ export const moveInstrument = (a: Arranged, block: string, col: number, row: num
 
 export const resizeInstrument = (a: Arranged, block: string, size: Size) =>
   edit(a, (m) => {
-    m.instruments.find((q) => q.block === block)!.size = size;
+    const p = m.instruments.find((q) => q.block === block)!;
+    p.size = size;
+    delete p.span;
+    return block;
+  });
+
+/** A resizable instrument to w x h cells: each at least 1 and at most the grid's columns, and no wider than fits from its column. */
+export const spanInstrument = (a: Arranged, block: string, w: number, h: number) =>
+  edit(a, (m) => {
+    const p = m.instruments.find((q) => q.block === block)!;
+    p.span = [Math.min(Math.max(1, w), m.columns - p.col), Math.min(Math.max(1, h), m.columns)];
+    p.size = sizeOfSpan(...p.span);
     return block;
   });
 

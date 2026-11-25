@@ -2511,6 +2511,16 @@
                 "maxItems": 2,
                 "description": "Top-left cell: [column, row]."
               },
+              "span": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minItems": 2,
+                "maxItems": 2,
+                "description": "A custom size in cells, [columns, rows], each at most the grid's columns; it overrides `size`. Only an instrument that can be resized takes one (the Scope, the Graph)."
+              },
               "tab": {
                 "type": "string",
                 "description": "The tab it is on (one of `tabs`); absent: the first."
