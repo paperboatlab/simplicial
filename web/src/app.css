@@ -27,9 +27,20 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
 .page-rail.aside { margin-right: calc(-1 * var(--gutter)); }
 .main { display: flex; gap: var(--gutter); min-height: 0; min-width: 0; }
 .main > .panel.side { height: 100%; }
+/* The Variables card (Variables.tsx) on the kit's VariableList: + Variable, and an open row's editor. */
+.vadd { display: flex; justify-content: flex-end; padding: 6px var(--space-3) 2px; }
+.vedit { display: grid; gap: 8px; }
+.vedit label { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: center; font: var(--size-2xs) var(--font-sans); color: var(--text-muted); }
+.vedit { min-width: 0; }
+.vedit .well { min-height: 26px; height: 26px; padding: 0 8px; font-size: 12.5px; width: 100%; min-width: 0; box-sizing: border-box; }
+.vedit .mono { font-family: var(--font-mono); }
+.vedit input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px var(--danger); }
+.vedit-why { margin: -4px 0 0 52px; font: var(--size-2xs) var(--font-sans); color: var(--danger-text); }
+.vedit-foot { display: flex; align-items: center; gap: 8px; }
+.vedit-foot .grow { flex: 1; }
+.vedit-check { display: flex !important; gap: 6px; align-items: center; color: var(--text) !important; }
 .vfoot { padding: 8px var(--space-3) 8px var(--panel-pad); border-top: 1px solid var(--line); font-size: 12px; color: var(--text-muted); }
 .main > .panel.side .panel-body { display: flex; flex-direction: column; }
-.vars { flex: 1; overflow: auto; padding-bottom: 8px; }
 
 /* a page's head: its name (15 px, as the mockup), its count, then its tools at the right end, its hide key last */
 .panel-head > b { font-size: 15px; }
@@ -78,14 +89,6 @@ body { background: var(--surface-ground); color: var(--text); font: 13px/1.45 va
 .dock .run-status.status-failed { color: var(--danger-text); }
 
 /* Variables: shared by the Station and the Flow, so a card beside the pages, never a page */
-.vg { font: 500 10.5px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); padding: 12px var(--panel-pad) 4px; }
-.vr { display: grid; grid-template-columns: minmax(0, 1fr) 84px 30px; gap: 8px; align-items: center; padding: 4px var(--space-3) 4px var(--panel-pad); margin: 0 6px; font: 12.5px var(--font-mono); border-radius: var(--radius-md); }
-.vr > span:first-child { overflow: hidden; text-overflow: ellipsis; }
-.vr .well { min-height: 24px; height: 24px; padding: 0 8px; justify-content: flex-end; font-size: 12.5px; }
-.vr .well .f { margin-right: auto; font-style: italic; color: var(--text-muted); }
-.vr .u { color: var(--text-muted); font-size: 12px; }
-.vr small { grid-column: 1 / -1; margin-top: -2px; font: 12px var(--font-sans); color: var(--text-muted); }
-.vr small code { font: 12px var(--font-mono); color: var(--text); }
 .vnone { flex: 1; }
 .vnone, .verr { margin: 0; padding: 12px var(--panel-pad); font-size: 12px; color: var(--text-muted); }
 .verr { color: var(--danger-text); }

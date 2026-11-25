@@ -21,8 +21,10 @@ import { loadSaved, save } from "./board/boardLayout.ts";
 import { useBoardWiring } from "./board/boardWiring.ts";
 import { useEngine } from "./engine.ts";
 import { useNews } from "./news.ts";
-import { StationPicker } from "./StationPicker.tsx";
-import { remember } from "./stations.ts";
+import { StationPicker, useStations } from "./StationPicker.tsx";
+import { renameRef } from "./variableEdits.ts";
+import { Variables } from "./Variables.tsx";
+import { openStation, remember } from "./stations.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
 import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
 import { FlowEditor, type FlowControls } from "./flow/FlowEditor.tsx";
@@ -229,12 +231,18 @@ export function App() {
     id: `b:${b.type}`, label: b.label, detail: `${b.kind} · ${b.group ?? b.type}`, group: b.group ?? "Blocks", scope: "Blocks", icon: b.kind === "monitor" ? "a-board" : "a-flow",
     run: () => { if (search?.at) flow.current?.place(b, search.at); },
   }));
+  // Ctrl K also lists the stations that answer: pick one to open the page on it.
+  const stations = useStations(!!search && !search.at, 0, URL_).found;
   const searchItems: SearchItem[] = search?.at ? blockItems : [
     ...commands.filter((c) => !c.quiet).sort((a, b) => Number(!isEnabled(a)) - Number(!isEnabled(b))).map((c): SearchItem => ({  // what can't run goes last
       id: c.id, label: c.label, group: "Commands", scope: "Commands", icon: c.id.startsWith("view.") && PAGES.includes(c.id.slice(5) as Page) ? "go" : "command",
       detail: MENUS.find((m) => m.id === c.menu)?.label, shortcut: c.shortcut, disabled: !isEnabled(c), why: c.why, run: c.run,
     })),
     ...blockItems.map((b) => ({ ...b, group: "Blocks" })),
+    ...stations.map((f): SearchItem => ({
+      id: `s:${f.url}`, label: `Station: ${f.name}`, group: "Stations", scope: "Stations", icon: "go",
+      detail: f.url === URL_ ? `${f.url} · open now` : f.url, disabled: f.url === URL_, why: "The page is on this station", run: () => openStation(f.url),
+    })),
     ...state.variables.map((v): SearchItem => ({
       id: `v:${v.name}`, label: v.name, group: "Variables", scope: "Variables", icon: "a-variables",
       detail: [v.expr ? `ƒ ${v.expr}` : fmt(v.value ?? state.varValues[v.name] ?? ""), v.unit, v.group].filter(Boolean).join(" · "),
@@ -373,7 +381,10 @@ export function App() {
             {mode !== "lookout" && dock}
           </div>
           <Panel name="Variables" side="right" width={312} icon="a-variables" count={state.variables.length} hidden={hid("r")} onHidden={(h) => toggle("r", !h)}>
-            <Variables state={state} />
+            <Variables list={state.variables} values={state.varValues} error={state.varError} locked={running}
+              onChange={(variables) => send({ type: "variables.set", variables })}
+              onRename={(from, to) => setNodes((ns) => ns.map((n) => (isBlock(n) && Object.values(n.data.params).some((p) => JSON.stringify(p).includes(from))
+                ? { ...n, data: { ...n.data, params: Object.fromEntries(Object.entries(n.data.params).map(([k, p]) => [k, renameRef(p, from, to)])) } } : n)))} />
             <div className="vfoot">Shared by the Station and the Flow</div>
           </Panel>
         </div>
@@ -386,8 +397,8 @@ export function App() {
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
-        scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables"]}
-        placeholder={search.at ? "Add a block here" : "Search commands, blocks and variables"} />}
+        scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables", "Stations"]}
+        placeholder={search.at ? "Add a block here" : "Search commands, blocks, variables and stations"} />}
       <Toasts toasts={notes.toasts} onDismiss={notes.dismiss} />
     </div>
   );
@@ -396,26 +407,3 @@ export function App() {
 const Tools = ({ children }: { children: ReactNode }) => <span className="tools">{children}</span>;
 
 /** The station's variables, read-only in v0.1: by group, the value in a well (a formula's, with ƒ and its expression), the unit. */
-function Variables({ state }: { state: ReturnType<typeof useEngine>["state"] }) {
-  const groups = new Map<string, typeof state.variables>();
-  for (const v of state.variables) groups.set(v.group ?? "", [...(groups.get(v.group ?? "") ?? []), v]);
-  if (!state.variables.length) return <p className="vnone">The station has no variables</p>;
-  return (
-    <div className="vars">
-      {[...groups].map(([g, vs]) => (
-        <div key={g}>
-          {g && <div className="vg">{g}</div>}
-          {vs.map((v) => (
-            <div key={v.name} className="vr" title={v.note}>
-              <span>{v.name}</span>
-              <span className="well">{v.expr && <span className="f">ƒ</span>}{fmt(v.value ?? state.varValues[v.name] ?? "")}</span>
-              <span className="u">{v.unit}</span>
-              {v.expr && <small>= <code>{v.expr}</code></small>}
-            </div>
-          ))}
-        </div>
-      ))}
-      {state.varError && <p className="verr">{state.varError.text}</p>}
-    </div>
-  );
-}
