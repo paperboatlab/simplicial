@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { Instrument } from "@paperboatlab/ui/plot";
 import type { InstrumentProps } from "@paperboat/host";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * Plays a PCM vector through Web Audio. The station sends one control step's samples per
- * signal message; the instrument queues them back to back. Browsers start an AudioContext
- * suspended, so the tile shows a "sound on" control until the user clicks it.
+ * Plays a PCM vector through Web Audio. The station sends one control step's samples per signal
+ * message; the instrument queues them back to back. Browsers start an AudioContext suspended, so the
+ * screen shows a Sound on key until it is pressed.
  */
-export function SpeakerInstrument({ latest, state, params }: InstrumentProps) {
+export function SpeakerInstrument({ name, latest, state, params }: InstrumentProps) {
   const context = useRef<AudioContext | null>(null);
   const nextTime = useRef(0);
   const [enabled, setEnabled] = useState(false);
@@ -14,23 +15,15 @@ export function SpeakerInstrument({ latest, state, params }: InstrumentProps) {
   const volume = typeof params?.volume === "number" ? params.volume : 0.8;
   const live = state.run?.status === "running";
 
-  useEffect(() => {
-    return () => {
-      void context.current?.close();
-      context.current = null;
-    };
-  }, []);
-
+  useEffect(() => () => { void context.current?.close(); context.current = null; }, []);
   const enable = async () => {
-    if (!context.current) context.current = new AudioContext({ sampleRate: rate });
+    context.current ??= new AudioContext({ sampleRate: rate });
     await context.current.resume();
     setEnabled(context.current.state === "running");
   };
-
   useEffect(() => {
     const ctx = context.current;
-    if (!ctx || ctx.state !== "running" || !live) return;
-    if (!Array.isArray(latest) || latest.length === 0) return;
+    if (!ctx || ctx.state !== "running" || !live || !Array.isArray(latest) || latest.length === 0) return;
     const buffer = ctx.createBuffer(1, latest.length, rate);
     const channel = buffer.getChannelData(0);
     for (let i = 0; i < latest.length; i++) {
@@ -47,21 +40,13 @@ export function SpeakerInstrument({ latest, state, params }: InstrumentProps) {
   }, [latest, live, rate, volume]);
 
   return (
-    <figure className={`instrument speaker-instrument${live ? "" : " idle"}`}>
-      <div className="screen speaker-screen">
-        <button type="button" className={`speaker-enable${enabled ? " on" : ""}`} onClick={enable}>
-          {enabled ? "SOUND ON" : "CLICK FOR SOUND"}
-        </button>
-        <div className="speaker-bars" aria-hidden="true">
-          {Array.from({ length: 18 }, (_, i) => (
-            <span key={i} style={{ opacity: enabled && live ? 0.35 + ((i * 7) % 10) / 10 : 0.15 }} />
-          ))}
-        </div>
-      </div>
-      <figcaption>
-        <span>Speaker</span>
-        <output>{Array.isArray(latest) ? `${latest.length} samples` : "waiting"}</output>
-      </figcaption>
-    </figure>
+    <Instrument name={name} detail="speaker" value={Array.isArray(latest) ? `${latest.length} samples` : "waiting"} idle={!live} className="speaker-instrument">
+      <span className="speaker-face">
+        <button type="button" aria-pressed={enabled} onClick={enable}>{enabled ? "Sound on" : "Sound off: press for sound"}</button>
+        <span className={`speaker-bars${enabled && live ? " on" : ""}`} aria-hidden="true">
+          {Array.from({ length: 18 }, (_, i) => <i key={i} style={{ height: `${30 + ((i * 7) % 10) * 7}%` }} />)}
+        </span>
+      </span>
+    </Instrument>
   );
 }

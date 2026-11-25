@@ -35,6 +35,8 @@ export type View = {
   whyNot: string;
   /** The Flow canvas: what its Edit items can do now, and why the flow can't be edited ("" when it can). */
   flow: { lock: string; undo: boolean; redo: boolean; copy: boolean; paste: boolean; arrange: boolean };
+  /** The Board is being arranged (its instruments moved and sized, decorations and tabs edited). */
+  board: boolean;
 };
 export type Do = {
   setMode: (m: Mode) => void;
@@ -54,6 +56,7 @@ export type Do = {
   paste: () => void;
   all: () => void;
   arrange: () => void;
+  arrangeBoard: () => void;
 };
 
 const later = (id: string, label: string, menu: string, group: string, shortcut?: string): Command =>
@@ -101,6 +104,7 @@ export function registry(v: View, a: Do): Command[] {
       id: `view.theme.${t}`, label: t[0].toUpperCase() + t.slice(1), menu: "view", group: "theme", checked: v.theme === t, run: () => a.setTheme(t),
     })),
     { id: "view.arrange", label: "Arrange blocks", menu: "view", group: "flow", enabled: !v.flow.lock && v.flow.arrange, why: v.flow.lock || "Nothing on this level to arrange", run: a.arrange },
+    { id: "view.board.arrange", label: "Arrange the Board", menu: "view", group: "flow", checked: v.board, run: a.arrangeBoard },
     { id: "view.search", label: "Command search…", menu: "view", group: "search", shortcut: "Ctrl K", chord: { key: "k", ctrl: true }, quiet: true, run: a.search },
 
     { id: "run.run", label: "Run", menu: "run", group: "run", shortcut: "Ctrl R", chord: { key: "r", ctrl: true }, enabled: !v.whyNot, why: v.whyNot, run: a.run },

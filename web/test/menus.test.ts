@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { MENUS, registry, type Do, type View } from "../src/menus.ts";
 
 const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "",
-  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true } };
+  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false };
 const calls: string[] = [];
 const act = new Proxy({} as Do, { get: (_, k) => (...a: unknown[]) => calls.push(`${String(k)}(${a.join(",")})`) });
 const find = (cs: ReturnType<typeof registry>, id: string) => cs.find((c) => c.id === id)!;

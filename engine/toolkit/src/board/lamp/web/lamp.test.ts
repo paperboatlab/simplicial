@@ -52,7 +52,8 @@ test("lamp: the instrument says its state in words and uses only design tokens",
   assert.match(tsx, /aria-label=/);
   const css = fs.readFileSync(path.join(dir, "lamp.css"), "utf8");
   assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b/i, "no raw hex: colours come from tokens");
-  assert.match(css, /var\(--signal\)/);
+  assert.doesNotMatch(css, /--signal/, "the accent, never the retired --signal");
+  assert.match(css, /var\(--accent\)/);
   assert.match(css, /var\(--danger\)/);
   const index = fs.readFileSync(path.join(dir, "index.tsx"), "utf8");
   assert.match(index, /registerInstrument\("lamp"/); // the kind the C++ block names

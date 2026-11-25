@@ -1,11 +1,18 @@
+import { Instrument } from "@paperboatlab/ui/plot";
 import type { Channel, InstrumentProps } from "@paperboat/host";
 
-/** A Graph: the glance. One trace, or one per component of a vector (a clock run), and the latest values. */
-function Plot({ name, channels, idle }: { name: string; channels: readonly Channel[]; idle: boolean }) {
-  const W = 300;
-  const H = 100;
-  // x runs from the least x of the samples: time, a list's index, or a point's x (#24).
-  let tMin = Infinity, tMax = -Infinity, vMin = 0, vMax = 0;
+const W = 300, H = 100;
+const fmt = (v: number, digits: number) => v.toFixed(digits).replace("-", "−");
+
+/**
+ * A Graph: the glance. One trace (or one per component of a vector), drawn to the screen's edges with no axes,
+ * and the latest value at the caption's end; the Scope is the one to study.
+ */
+export function GraphInstrument({ name, state, idle, inputs, sources }: InstrumentProps) {
+  const channels = state.traces.channels(name);
+  const source = sources[inputs[0] ?? "in"];
+  // x runs from the least x of the samples: time, a list's index, or a point's x.
+  let tMin = Infinity, tMax = -Infinity, vMin = Infinity, vMax = -Infinity;
   for (const c of channels)
     for (let i = 0; i < c.buf.n; i++) {
       tMin = Math.min(tMin, c.buf.t[i]);
@@ -13,43 +20,24 @@ function Plot({ name, channels, idle }: { name: string; channels: readonly Chann
       vMin = Math.min(vMin, c.buf.v[i]);
       vMax = Math.max(vMax, c.buf.v[i]);
     }
-  if (!Number.isFinite(tMin)) tMin = 0;
-  if (!Number.isFinite(tMax)) tMax = 0;
-  const span = vMax - vMin || 1;
-  const width = tMax - tMin || 1;
+  const span = vMax - vMin || 1, width = tMax - tMin || 1;
   const points = (c: Channel) => {
     let out = "";
-    for (let i = 0; i < c.buf.n; i++) out += `${((c.buf.t[i] - tMin) / width) * W},${H - ((c.buf.v[i] - vMin) / span) * H} `;
+    for (let i = 0; i < c.buf.n; i++) out += `${(((c.buf.t[i] - tMin) / width) * W).toFixed(1)},${(H - 6 - ((c.buf.v[i] - vMin) / span) * (H - 12)).toFixed(1)} `;
     return out;
   };
-  const lasts = channels.map((c) => c.buf.last);
-  const readout =
-    lasts[0] === undefined
-      ? "–"
-      : channels.length === 1
-        ? lasts[0].toFixed(3)
-        : channels.map((c, i) => `${c.label} ${lasts[i]?.toFixed(2)}`).join("  ");
+  const last = channels.map((c) => c.buf.last);
+  const unit = channels.length === 1 ? channels[0].unit ?? source?.unit : undefined;
+  const value = last[0] === undefined ? (idle ? "–" : undefined)
+    : channels.length === 1 ? `${fmt(last[0], 3)}${unit ? ` ${unit}` : ""}`
+    : channels.map((c, i) => `${c.label} ${fmt(last[i] ?? NaN, 2)}`).join("  ");
   return (
-    <figure className={`instrument graph${idle ? " idle" : ""}`}>
-      <div className="screen">
-        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-          <line className="zero" x1={0} x2={W} y1={H - (-vMin / span) * H} y2={H - (-vMin / span) * H} />
-          {channels.map((c, i) => (
-            <polyline key={c.id} className={`trace trace-${i % 4}`} points={points(c)} fill="none" vectorEffect="non-scaling-stroke">
-              {channels.length > 1 && <title>{c.label}</title>}
-            </polyline>
-          ))}
-        </svg>
-      </div>
-      <figcaption>
-        <span>{name}</span>
-        <output>{readout}</output>
-      </figcaption>
-    </figure>
+    <Instrument name={name} detail={source?.label} value={value} idle={idle} className="graph">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        {channels.map((c, i) => (
+          <polyline key={c.id} className={`trace trace-${i % 8}`} points={points(c)} fill="none" vectorEffect="non-scaling-stroke" />
+        ))}
+      </svg>
+    </Instrument>
   );
-}
-
-/** The Graph instrument: one trace per channel of the monitor, over time. */
-export function GraphInstrument({ name, state, idle }: InstrumentProps) {
-  return <Plot name={name} channels={state.traces.channels(name)} idle={idle} />;
 }

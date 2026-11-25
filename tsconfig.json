@@ -15,7 +15,8 @@
     "skipLibCheck": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": { "@paperboat/host": ["./web/src/board/host.ts"] }
   },
-  "include": ["web"]
+  "include": ["web", "engine/toolkit/src/*/*/web", "engine/toolkit/src/*/web"]
 }

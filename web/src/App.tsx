@@ -2,7 +2,9 @@
 // mode, the Console, Panels and theme keys), the page rail in Navigator, the three pages laid out by the view
 // mode, the Variables card, the run dock, the Console window and the floating search. The parts are the kit's
 // (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash.
-// The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them.
+// The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them. The
+// Board (board/Board.tsx) shows an instrument for each monitor block among them, laid out by the user's layout (kept
+// per station in the browser) or the station's.
 import {
   AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
   isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, writeStored,
@@ -11,6 +13,9 @@ import {
 import { useUndo } from "@paperboatlab/ui/canvas";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Board } from "./board/Board.tsx";
+import { loadSaved, save } from "./board/boardLayout.ts";
+import { useBoardWiring } from "./board/boardWiring.ts";
 import { useEngine } from "./engine.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
 import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
@@ -20,7 +25,7 @@ import { canArrangeFlow } from "./flow/flowLayout.ts";
 import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
 import { isPortType } from "./flow/portBlocks.ts";
 import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
-import type { RunSettings } from "./protocol.ts";
+import type { BoardLayout, RunSettings } from "./protocol.ts";
 
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
 const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:8765");
@@ -79,7 +84,7 @@ function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; valu
 }
 
 export function App() {
-  const { state, send } = useEngine(URL_);
+  const { state, send, log } = useEngine(URL_);
   const [theme, setTheme] = useState<Theme>(() => readStored("paperboat.theme", isTheme) ?? "system");
   useTheme(theme);
   useEffect(() => writeStored("paperboat.theme", theme), [theme]);
@@ -114,6 +119,13 @@ export function App() {
   const fitFlow = useCallback(() => void fitView(fit), [fitView, fit]);
   useCanvasSync(state, nodes, edges, setNodes, setEdges, fitFlow);
   const history = useUndo(nodes, edges, setNodes, setEdges, state.loaded, !lock);
+  // The Board: its instruments are the monitor blocks; its layout the user's for this station, else the station's.
+  const { monitors, taps, tap } = useBoardWiring(nodes, edges, setNodes, setEdges, log);
+  const [saved, setSaved] = useState<BoardLayout | undefined>();
+  useEffect(() => setSaved(state.engine ? loadSaved(state.engine) : undefined), [state.engine]);
+  const saveBoard = (next: BoardLayout | undefined) => { setSaved(next); save(state.engine, next); };
+  const layout = saved ?? state.board;
+  const [arranging, setArranging] = useState(false);
   const runStates = useMemo(() => ({
     active: new Set(state.active), failed: new Set(state.failed), queued: new Set(state.queued), cached: new Set(state.cached), progress: state.progress,
   }), [state.active, state.failed, state.queued, state.cached, state.progress]);
@@ -139,6 +151,12 @@ export function App() {
   const missing = nodes.some((n) => isBlock(n) && n.data.missing);
   const whyNot = running ? "A run is in progress" : state.connection !== "open" ? "Not connected to a station"
     : !nodes.length ? "The flow is empty: add a block (/)" : missing ? "A block this station doesn't have is on the flow: replace or delete it" : "";
+  /** Arrange the Board, in view: its page in Navigator, its drawer open in Commander. */
+  const arrangeBoard = () => {
+    if (!arranging && mode === "navigator") setPage("board");
+    if (!arranging && mode === "commander" && hid("bd")) toggle("bd", true);
+    setArranging((a) => !a);
+  };
   const run = () => {
     if (whyNot) return;
     if (mode === "commander" && hid("bd")) toggle("bd", true);  // a run is watched on the Board
@@ -155,12 +173,13 @@ export function App() {
     {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
       flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
+      board: arranging,
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
       run, cancel, report: () => window.open(ISSUES, "_blank", "noopener"),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
-      all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(),
+      all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
   );
   useShortcuts(booted ? commands : []);
@@ -203,8 +222,11 @@ export function App() {
   ];
 
   // the Board's tabs (the layout's; a strip only with two or more) and its latest readouts (the hidden drawer's head)
-  const tabs = state.board?.tabs ?? [];
-  const readouts = Object.entries(state.latest).filter(([, v]) => typeof v === "number").slice(0, 4);
+  const tabs = [...new Set(layout?.tabs ?? [])];
+  const readouts = Object.keys(monitors).flatMap((k) => {
+    const v = state.latest[k], m = monitors[k];
+    return typeof v === "number" && m.inputs?.length === 1 ? [[k, v, m.sources?.[m.inputs[0]]?.unit] as const] : [];  // one input: one reading
+  }).slice(0, 4);
   const duration = Number(runSettings.duration ?? state.runDefaults.duration ?? 0);
   const elapsed = !state.run ? "" : duration > 0 ? `${(state.run.progress * duration).toFixed(1)} / ${duration} s` : `${(state.run.simTime ?? 0).toFixed(1)} s`;
   const status = state.run?.status;
@@ -312,10 +334,17 @@ export function App() {
                   head={<>
                     {tabs.length > 1 && !(mode === "commander" && hid("bd")) && <Tabs label="Board tabs" value={tab || tabs[0]} onChange={setTab} tabs={tabs.map((t) => ({ value: t, label: t }))} />}
                     {mode === "commander" && hid("bd") && readouts.length > 0 && (
-                      <span className="bread">{readouts.map(([k, v]) => <span key={k}>{k} <b>{fmt(v)}</b></span>)}</span>
+                      <span className="bread">{readouts.map(([k, v, u]) => <span key={k}>{k} <b>{fmt(v)}</b>{u && <small>{u}</small>}</span>)}</span>
                     )}
-                    <Tools><Later what="Move and size the instruments" /></Tools>
-                  </>} />
+                    <Tools>
+                      <Key size="sm" kind="quiet" aria-pressed={arranging} title={arranging ? "Done arranging" : "Move and size the instruments, add decorations and tabs"} onClick={arrangeBoard}>
+                        {arranging ? "Done" : "Arrange"}
+                      </Key>
+                    </Tools>
+                  </>}>
+                  <Board state={state} send={send} monitors={monitors} layout={layout} custom={!!saved} onSave={saveBoard} arrange={arranging}
+                    tab={tab} onTab={setTab} onBlock={(id) => { go("flow"); pick(id); }} taps={taps} onTap={tap} dock={mode !== "commander"} />
+                </Panel>
                 {mode === "lookout" && dock}
               </div>
             </div>
@@ -338,8 +367,6 @@ export function App() {
 }
 
 const Tools = ({ children }: { children: ReactNode }) => <span className="tools">{children}</span>;
-/** The Board's Arrange, greyed until the Board comes; the span carries the why (a disabled key takes no hover). */
-const Later = ({ what }: { what: string }) => <span title={`${what}: not in v0.1 yet`}><Key size="sm" kind="quiet" disabled>Arrange</Key></span>;
 
 /** The station's variables, read-only in v0.1: by group, the value in a well (a formula's, with ƒ and its expression), the unit. */
 function Variables({ state }: { state: ReturnType<typeof useEngine>["state"] }) {
