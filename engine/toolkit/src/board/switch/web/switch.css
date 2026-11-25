@@ -1,9 +1,0 @@
-/* The switch instrument (the frame is the kit's Instrument): the kit's switch, or a hold key, on the screen. */
-.switch-face { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; font: 600 13px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-on-screen-muted); }
-.switch-instrument.idle .switch-face { color: var(--text-muted); }
-.switch-face .switch { transform: scale(1.25); }
-.switch-face .switch[aria-checked="true"] + b { color: var(--accent); }
-.switch-face .hold { all: unset; cursor: pointer; height: 28px; padding: 0 14px; border-radius: var(--radius-md); font: inherit; color: var(--text-on-screen); box-shadow: inset 0 0 0 1px var(--screen-line); user-select: none; touch-action: none; }
-.switch-face .hold.on, .switch-face .hold:active { background: color-mix(in srgb, var(--accent) 30%, var(--surface-screen)); box-shadow: inset 0 0 0 1px var(--accent); }
-.switch-face .hold:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.switch-instrument.idle .switch-face .switch + b { color: inherit; }

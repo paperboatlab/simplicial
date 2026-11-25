@@ -14,8 +14,8 @@ export interface LampView {
   label: string;
   /** Its condition, as the caption shows it: "> 10", "≤ var". */
   condition: string;
-  /** The colour it lights in: the signal colour, or red for a trip that means danger. */
-  tone: "signal" | "danger";
+  /** The colour it lights in: the accent, or red for a trip that means danger. */
+  tone: "accent" | "danger";
   latch: boolean;
 }
 
@@ -43,7 +43,7 @@ export function lampView(latest: unknown, params: Record<string, ParamValue> = {
     word,
     label: typeof params.label === "string" ? params.label.trim() : "",
     condition: `${op} ${show(params.threshold, "0.5")}`,
-    tone: params.color === "danger" ? "danger" : "signal",
+    tone: params.color === "danger" ? "danger" : "accent",
     latch,
   };
 }
