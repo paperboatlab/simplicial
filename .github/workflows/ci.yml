@@ -1,0 +1,33 @@
+# The engine and its tests (C++), and the protocol types the page uses.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: Engine (build and tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
+      - name: Configure
+        run: cmake -S engine -B engine/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build engine/build
+      - name: Test
+        run: ctest --test-dir engine/build --output-on-failure
+
+  protocol:
+    name: Protocol types current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 protocol/gen_ts.py --check
