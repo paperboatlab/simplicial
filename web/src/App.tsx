@@ -14,12 +14,13 @@ import {
   type Credit, type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
+import { SceneView } from "@paperboatlab/ui/stage";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Board } from "./board/Board.tsx";
 import { loadSaved, save } from "./board/boardLayout.ts";
 import { useBoardWiring } from "./board/boardWiring.ts";
-import { useEngine } from "./engine.ts";
+import { sceneOf, useEngine } from "./engine.ts";
 import { useNews } from "./news.ts";
 import { StationPicker, useStations } from "./StationPicker.tsx";
 import { renameRef } from "./variableEdits.ts";
@@ -117,6 +118,7 @@ export function App() {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [search, setSearch] = useState<null | { at?: { x: number; y: number } }>(null);
   const [sview, setSview] = useState<"3d" | "graph">("3d");
+  const [floor, setFloor] = useState<boolean | null>(null); // the user's grid choice wins over the station's view.grid
   const [tab, setTab] = useState("");
   const [runSettings, setRunSettings] = useState<RunSettings>({});
   const [booted, setBooted] = useState(false);   // the splash has handed over
@@ -286,6 +288,7 @@ export function App() {
   const inert = (p: Page) => mode === "navigator" && p !== shownPage;
   const blockCount = nodes.filter((n) => isBlock(n) && !isPortType(n.data.def.type)).length;
   const objects = state.station?.objects.length ?? Object.keys(state.entities).length;
+  const gridOn = floor ?? (state.view.mode !== "3d" || state.view.grid !== false);
 
   return (
     <div className={`win${still ? " still" : ""}${station ? "" : " nost"}${(["st", "fl", "bd"] as Pane[]).map((p) => (hid(p) ? ` hide-${p}` : "")).join("")}`} data-mode={mode}>
@@ -331,7 +334,18 @@ export function App() {
               {station && (
                 <div className="pg pg-station" inert={inert("station")}>
                   <Panel name="Station" side="left" width={380} icon="a-station" count={objects} {...drawer("st", mode === "lookout")}
-                    head={<><small className="sum">{`${state.engine} · ${objects} ${objects === 1 ? "object" : "objects"}`}</small><Tools><Segmented label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} /></Tools></>} />
+                    head={<><small className="sum">{`${state.engine} · ${objects} ${objects === 1 ? "object" : "objects"}`}</small><Tools>
+                      {sview === "3d" && <Key size="sm" kind="quiet" aria-pressed={gridOn} title="The floor grid" onClick={() => setFloor(!gridOn)}>Grid</Key>}
+                      <Segmented label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} />
+                    </Tools></>}>
+                    <div className="page-body">
+                      {sview === "3d" ? (
+                        // The kit's stage; its camera is placed from the view at mount, so a new view remounts it.
+                        <SceneView key={JSON.stringify(state.view)} view={state.view} grid={gridOn}
+                          entities={sceneOf(state)} />
+                      ) : <p className="page-later">The Graph view (objects, joints and the blocks linked to them) comes with #5</p>}
+                    </div>
+                  </Panel>
                 </div>
               )}
               <div className="pg pg-flow" inert={inert("flow")}>

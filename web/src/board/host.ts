@@ -4,6 +4,7 @@
 // instrument kind: a monitor block's `instrument` picks the renderer, and a kind nothing registered falls back
 // to its raw value (Board.tsx).
 import type { ComponentType } from "react";
+import type { Entity as StageEntity } from "@paperboatlab/ui/stage";
 import type { EngineState } from "../engine.ts";
 import type { ClientMsg, InstrumentSettings, ParamValue } from "../protocol.ts";
 import type { Size } from "./boardLayout.ts";
@@ -32,6 +33,8 @@ export interface InstrumentProps {
   /** A vector value as "id: value unit" text, when latest is an array. */
   vector?: string;
   state: EngineState;
+  /** The Station's scene as the kit's stage draws it (at the replay playhead when replaying): a 3D view's entities. */
+  scene: Record<string, StageEntity>;
   send?: (m: ClientMsg) => void;
   params?: Record<string, ParamValue>;
   /** The size of its cell. */
