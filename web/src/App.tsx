@@ -11,8 +11,8 @@
 // File › Open… and Save as… go through the kit's OpenFile and SaveFile when Malachite knows hubs (hubs.ts), else straight
 // to the system's: the file decides the hub, and the bar then shows the hub's selector and the file's path in it.
 import {
-  About, AppMark, ConsoleWindow, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
-  Toasts, isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, useToasts, writeStored,
+  About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
+  Toasts, ago, isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, useToasts, writeStored,
   type Credit, type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
@@ -38,6 +38,8 @@ import { canArrangeFlow } from "./flow/flowLayout.ts";
 import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
 import { isPortType } from "./flow/portBlocks.ts";
 import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
+import { buildProject } from "./project.ts";
+import { useProject } from "./projectSession.ts";
 import { listHub, listHubs, parseFlow, readFlow, stem, TYPES, writeFlow, type OpenedFile } from "./hubs.ts";
 import type { BoardLayout, RunSettings, StationFlow } from "./protocol.ts";
 
@@ -168,30 +170,51 @@ export function App() {
   const sysOpen = useRef<HTMLInputElement>(null);
   const hub = file?.hub ? hubs.find((h) => h.id === file.hub) : undefined;
   const fileName = file ? file.path.slice(file.path.lastIndexOf("/") + 1) : "";
-  const flowFile = (): StationFlow => ({
-    paperboat: 0, station: state.engine, flow: toFlow(nodes, edges, state.loaded?.flow),
-    ...(state.station ? { station_objects: state.station } : {}),
-    ...(state.variables.length ? { variables: state.variables } : {}),
-    ...(saved ? { board: saved } : {}),
-    ...(Object.keys(runSettings).length ? { run: runSettings } : {}),
+  const flowFile = (): StationFlow => buildProject({
+    station: state.engine, flow: toFlow(nodes, edges, state.loaded?.flow), station_objects: state.station, variables: state.variables, board: saved, run: runSettings,
   });
-  const failed = (title: string, err: unknown) => notes.show({ title, detail: err instanceof Error ? err.message : String(err), state: "failed" });
-  const take = (psf: StationFlow, at: OpenedFile, inHub?: Hub) => {
+  /** Put a project in place: the canvas, the station's objects, the variables, the Board and the run settings. */
+  const load = (psf: StationFlow, at: OpenedFile | null) => {
     openFlow(psf);
     setRunSettings(psf.run ?? {});
-    if (psf.board) saveBoard(psf.board);
+    saveBoard(psf.board);
     setFile(at);
+  };
+  // Whether the project is saved, a word before unsaved work is replaced, Open recent, and unsaved work kept for a reload.
+  const project = useProject(state.engine, flowFile, [nodes, edges, state.loaded, state.station, state.variables, saved, runSettings], file?.path ?? "Untitled",
+    (s) => load(s.project, s.name === "Untitled" ? null : { hub: s.hub, path: s.name }));
+  const failed = (title: string, err: unknown) => notes.show({ title, detail: err instanceof Error ? err.message : String(err), state: "failed" });
+  const take = (psf: StationFlow, at: OpenedFile, inHub?: Hub) => project.ask("Open this flow?", "Open", () => {
+    load(psf, at);
+    project.opened({ name: at.path, hub: at.hub, project: psf });
     const other = psf.station !== state.engine ? `made on ${psf.station}, opened on ${state.engine}` : "";
     notes.show({ title: `Opened ${at.path.slice(at.path.lastIndexOf("/") + 1)}`, detail: [inHub && `Simplicial now works in ${inHub.name}`, other].filter(Boolean).join(" · ") || undefined, state: "done" });
+  });
+  /** File › New project: the station's starter again, no file. */
+  const newProject = () => project.ask("Start a new project?", "New project", () => {
+    load(buildProject({
+      station: state.engine, flow: state.starter.graph ?? { nodes: [], edges: [] }, station_objects: state.starter.station, variables: state.starter.variables,
+    }), null);
+    project.opened();
+  });
+  /** File › Open recent: a hub's file read again (it may have changed), else the copy kept when it was last opened or saved. */
+  const openRecent = async (i: number) => {
+    const r = project.recent[i];
+    if (!r?.hub) return r && take(r.project, { path: r.name });
+    const known = await listHubs();
+    setHubs(known);
+    readFlow(r.hub, r.name).then((psf) => take(psf, { hub: r.hub, path: r.name }, known.find((h) => h.id === r.hub)), (e) => failed(`Can't open ${r.name}`, e));
   };
   /** This computer's Save as: the browser's download, named after the file. */
   const download = () => {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(flowFile(), null, 2)], { type: "application/json" }));
+    const psf = flowFile();
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(psf, null, 2)], { type: "application/json" }));
     a.download = `${file ? stem(file.path) : state.engine || "flow"}.psf`;
     a.click();
     window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setFile({ path: a.download });
+    project.saved({ name: a.download, project: psf });
   };
   // No Malachite, or no hubs: straight to the system's picker.
   const openFile = async () => {
@@ -206,7 +229,11 @@ export function App() {
   };
   const saveFile = () => {
     if (!file?.hub) return void saveFileAs();
-    writeFlow(file.hub, file.path, flowFile()).then(() => notes.show({ title: `Saved ${fileName}`, state: "done" }), (e) => failed(`Can't save ${fileName}`, e));
+    const psf = flowFile();
+    writeFlow(file.hub, file.path, psf).then(() => {
+      project.saved({ name: file.path, hub: file.hub, project: psf });
+      notes.show({ title: `Saved ${fileName}`, state: "done" });
+    }, (e) => failed(`Can't save ${fileName}`, e));
   };
   const openFromHub = (h: Hub, path: string) => {
     setFilePick(null);
@@ -215,8 +242,10 @@ export function App() {
   };
   const saveInHub = (h: Hub, path: string) => {
     setFilePick(null);
-    writeFlow(h, path, flowFile()).then(() => {
+    const psf = flowFile();
+    writeFlow(h, path, psf).then(() => {
       setFile({ hub: h.id, path });
+      project.saved({ name: path, hub: h.id, project: psf });
       notes.show({ title: `Saved ${path.slice(path.lastIndexOf("/") + 1)}`, detail: `Simplicial now works in ${h.name}`, state: "done" });
     }, (e) => failed(`Can't save ${path}`, e));
   };
@@ -232,7 +261,8 @@ export function App() {
     const f = requestAnimationFrame(() => requestAnimationFrame(() => setStill(false)));
     return () => cancelAnimationFrame(f);
   }, [booted]);
-  useEffect(() => { document.title = state.engine ? `${state.engine} · Simplicial` : "Simplicial"; }, [state.engine]);
+  const projectName = file ? stem(file.path) : state.engine;
+  useEffect(() => { document.title = projectName ? `${project.dirty ? "● " : ""}${projectName} · Simplicial` : "Simplicial"; }, [projectName, project.dirty]);
   useEffect(() => { if (state.stationView.view === "graph") setSview("graph"); }, [state.stationView.view]);
 
   const station = state.stationView.visible !== false;
@@ -267,11 +297,11 @@ export function App() {
     {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
       flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
-      board: arranging, unsaved: state.engine ? "" : "Not connected to a station",
+      board: arranging, unsaved: state.engine ? "" : "Not connected to a station", recent: project.recent.map((r) => ({ name: r.name, when: ago(r.savedAt, Date.now()) })),
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), open: () => void openFile(), save: saveFile, saveAs: () => void saveFileAs(), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
+      run, cancel, station: () => setPicker(true), newProject, open: () => void openFile(), openRecent: (i) => void openRecent(i), save: saveFile, saveAs: () => void saveFileAs(), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -366,10 +396,10 @@ export function App() {
         {booted && <>
           {hub && <HubSelector hub={hub} hubs={hubs} app="Simplicial" onSwitch={() => setFilePick("open")} onDisconnect={() => setFile(null)}
             onNew={() => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" })} />}
-          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme" }} />
-          <span className="proj" title={[file ? (hub ? `${hub.name}/${file.path}` : file.path) : "", state.engine, Object.keys(runSettings).length ? "changes not saved" : ""].filter(Boolean).join(" · ")}>
+          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme", recent: "Open recent" }} />
+          <span className="proj" title={[file ? (hub ? `${hub.name}/${file.path}` : file.path) : "", state.engine, project.dirty ? "changes not saved" : ""].filter(Boolean).join(" · ")}>
             {file ? <>{file.path.includes("/") && `${file.path.slice(0, file.path.lastIndexOf("/"))}/`}<u>{fileName}</u></> : state.engine}
-            {Object.keys(runSettings).length > 0 && <i className="dirty" />}
+            {project.dirty && <i className="dirty" />}
           </span>
           <span className="bend">
             <span className="modes" title="View mode (Alt M steps through them)">
@@ -489,6 +519,15 @@ export function App() {
         e.target.value = "";
         if (f) f.text().then((t) => take(parseFlow(t), { path: f.name })).catch((err: unknown) => failed(`Can't open ${f.name}`, err));
       }} />
+      {project.notice && (() => {
+        const n = project.notice, choose = (run?: () => void) => { project.close(); run?.(); };
+        return (
+          <Dialog title={n.title} wait onClose={() => choose(n.actions.at(-1)?.run)}
+            actions={n.actions.map((a) => <Key key={a.label} kind={a.primary ? "primary" : undefined} onClick={() => choose(a.run)}>{a.label}</Key>)}>
+            {n.text.map((t) => <p key={t}>{t}</p>)}
+          </Dialog>
+        );
+      })()}
       <Toasts toasts={notes.toasts} onDismiss={notes.dismiss} />
     </div>
   );

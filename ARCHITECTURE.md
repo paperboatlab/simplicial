@@ -62,6 +62,12 @@ come back out of process over `paperboat-runtime/0` (#7).
     kit's `OpenFile`/`SaveFile`; without, the browser's picker and a download. The file decides the hub: one
     opened from or saved in a hub shows the kit's `HubSelector` in the bar and the file's path in the hub. An
     opened file is `file.open` in `engine.ts` (its flow, objects and variables; the canvas takes it over edits).
+  - `src/project.ts` (pure, tested): the flow file (`StationFlow`): building one (empty parts left out), checking one
+    (`parseFlow`: what is wrong, and where), and what the browser keeps (Open recent, five files; the unsaved work, per
+    station). `src/projectSession.ts` (`useProject`): whether the project is saved (its snapshot against what was
+    last opened or saved, once the canvas settles), the word before unsaved work is replaced, Open recent, and the
+    restore offer after a reload. New project is the station's starter (`starter` in `engine.ts`: the first
+    `graph.load`, `station.load` and `variables.load`, before any edit).
   - `src/StationPicker.tsx`, `src/stations.ts`: finding a station (the recent ones, the open one, the station ports);
     `useStations` feeds the picker and Ctrl K's Stations.
   - `src/flow/`: the Flow canvas on React Flow, ported from legacy's `FlowEditor`. Pure, and tested: `flowModel.ts`

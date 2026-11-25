@@ -21,6 +21,7 @@ export const PANES: Record<Mode, Pane[]> = { navigator: ["r"], commander: ["bd",
 export const NO_STATION = "This station has no Station page";
 const LATER = "Not in v0.1 yet";
 const NOTHING = "Select blocks on the Flow first";
+const RUNNING = "A run is in progress";
 
 export type View = {
   mode: Mode;
@@ -39,6 +40,8 @@ export type View = {
   board: boolean;
   /** Why the flow can't be saved now; "" when it can. */
   unsaved: string;
+  /** Open recent: the files, newest first, and when each was last opened or saved ("5 min ago"). */
+  recent: { name: string; when: string }[];
 };
 export type Do = {
   setMode: (m: Mode) => void;
@@ -52,7 +55,10 @@ export type Do = {
   /** Choose a station: the page opens on the one picked. */
   station: () => void;
   /** File › Open…, Save and Save as… : a flow file (.psf), from a hub or this computer. */
+  newProject: () => void;
   open: () => void;
+  /** Reopen the recent file at this index. */
+  openRecent: (i: number) => void;
   save: () => void;
   saveAs: () => void;
   report: () => void;
@@ -79,8 +85,12 @@ export function registry(v: View, a: Do): Command[] {
   const drawer = (p: Pane, label: string, shortcut?: string, chord?: Command["chord"]): Command =>
     ({ id: `view.${p}`, label, menu: "view", group: "panels", shortcut, chord, checked: !v.hidden(p), run: () => a.toggle(p) });
   return [
-    later("file.new", "New project…", "file", "open", "Ctrl N"),
-    { id: "file.open", label: "Open…", menu: "file", group: "open", shortcut: "Ctrl O", chord: { key: "o", ctrl: true }, run: a.open },
+    // New has no key: the browser keeps Ctrl N for a new window
+    { id: "file.new", label: "New project", menu: "file", group: "open", enabled: !v.running, why: RUNNING, run: a.newProject },
+    { id: "file.open", label: "Open…", menu: "file", group: "open", shortcut: "Ctrl O", chord: { key: "o", ctrl: true }, enabled: !v.running, why: RUNNING, run: a.open },
+    ...v.recent.map((r, i): Command => ({
+      id: `file.recent.${i}`, label: r.name, menu: "file", group: "recent", meta: r.when, enabled: !v.running, why: RUNNING, run: () => a.openRecent(i),
+    })),
     { id: "file.save", label: "Save", menu: "file", group: "save", shortcut: "Ctrl S", chord: { key: "s", ctrl: true }, enabled: !v.unsaved, why: v.unsaved, run: a.save },
     { id: "file.saveas", label: "Save as…", menu: "file", group: "save", shortcut: "Ctrl Shift S", chord: { key: "s", ctrl: true, shift: true }, enabled: !v.unsaved, why: v.unsaved, run: a.saveAs },
     { id: "file.station", label: "Choose a station…", menu: "file", group: "station", run: a.station },

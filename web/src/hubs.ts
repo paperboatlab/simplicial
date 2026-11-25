@@ -5,6 +5,9 @@
 import type { FileEntry } from "@paperboatlab/ui/files";
 import { PLACE_NAMES, type Hub, type HubPlace } from "@paperboatlab/ui/hub";
 import type { StationFlow } from "./protocol.ts";
+import { parseFlow } from "./project.ts";
+
+export { parseFlow };
 
 /** What File › Open shows: flows and stations. Save as writes the first. */
 export const TYPES = ["psf", "pst"] as const;
@@ -32,16 +35,6 @@ export const toHub = (h: ServedHub): Hub => ({
 export const toEntries = (rows: readonly { path: string; kind: "file" | "folder" }[]): FileEntry[] =>
   rows.map((r) => ({ path: r.path, kind: r.kind, name: r.path.slice(r.path.lastIndexOf("/") + 1), depth: r.path.split("/").length - 1 }));
 
-/** A .psf's text as a flow file, or why not, in words. */
-export function parseFlow(text: string): StationFlow {
-  let f: unknown;
-  try { f = JSON.parse(text); } catch { throw new Error("it isn't a flow file (not JSON)"); }
-  const o = f as Partial<StationFlow> | null;
-  if (!o || typeof o !== "object" || typeof o.paperboat !== "number") throw new Error("it isn't a flow file");
-  if (o.paperboat > 0) throw new Error(`it was saved by a newer Simplicial (flow format ${o.paperboat})`);
-  if (typeof o.station !== "string" || !o.flow || typeof o.flow !== "object") throw new Error("it isn't a flow file (no station or flow)");
-  return o as StationFlow;
-}
 
 /** The file's name in the bar and Save as: "a/b/pendulum.psf" → "pendulum". */
 export const stem = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.psf$/i, "");
