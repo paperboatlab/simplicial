@@ -34,7 +34,16 @@ come back out of process over `paperboat-runtime/0` (#7).
 - `protocol/`: `schema/paperboat-0.schema.json` (the source of truth for every message) and
   `record-0.schema.json`; `gen_ts.py` writes `web/src/protocol.ts` from it (`--check` fails when stale);
   `smoke_test.py` and `golden.py`, the conformance checks for any station.
-- `web/` (coming in M1): the page, React on `@paperboatlab/ui`. Today only `web/src/protocol.ts`.
+- `web/`: the page, React on `@paperboatlab/ui` (the kit, pinned by commit in `package.json`), built
+  by esbuild (`web/scripts/build.ts`) into `web/dist/`. It connects to `ws://<its own host>` (the engine
+  serves the page and the socket on one port), or `?station=ws://host:port`.
+  - `src/engine.ts`: the one WebSocket and the reducer over every `ServerMsg` (`useEngine`), from legacy;
+    `traces.ts` (each monitor's history, outside React state) and `replay.ts` (a run's scene over time).
+  - `src/menus.ts`: the one command registry; the menu bar, Ctrl K and the shortcuts all read it.
+  - `src/App.tsx`: the frame. The splash until a station says hello; the bar; the page rail (Navigator
+    only); the Station, Flow and Board pages laid out by the view mode (Navigator, Commander, Lookout;
+    hidden panes kept per mode); the Variables card; the run dock; the Console window; the floating
+    search and quick add. `app.css` draws only what the kit doesn't.
 
 ## 3. Invariants
 
