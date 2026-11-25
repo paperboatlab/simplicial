@@ -15,7 +15,7 @@ jobs:
     name: Engine (build and tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ninja-build
       - name: Configure
@@ -29,5 +29,5 @@ jobs:
     name: Protocol types current
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: python3 protocol/gen_ts.py --check
