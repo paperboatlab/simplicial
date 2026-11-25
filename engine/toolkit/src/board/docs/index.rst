@@ -2,7 +2,7 @@ board
 =========
 
 The blocks the Board shows: monitors drawn as instruments, and controls the user works during a
-run. See the `Board <https://paperboatlab.github.io/paperboat/board.html>`_ for how instruments are laid out.
+run. See the `Board <https://paperboatlab.org/paperboat/board.html>`_ for how instruments are laid out.
 
 .. toctree::
    :maxdepth: 1

@@ -14,7 +14,7 @@ What joins what
 ---------------
 
 - ``numbers`` joins ``numbers`` and ``vector`` (a vector is a list of fixed length: one of another
-  length fails when it arrives) and an `elementwise <https://paperboatlab.github.io/paperboat/concepts.html#elementwise>`_ block's
+  length fails when it arrives) and an `elementwise <https://paperboatlab.org/paperboat/concepts.html#elementwise>`_ block's
   signal ports: that is the map. Range → ``function`` (``f = "x^2"``) → ``gain`` squares and
   scales every item. A list has one unit, every item's: a list in ``m`` into a port in ``rad`` is
   refused.
