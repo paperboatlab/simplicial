@@ -32,7 +32,7 @@ param (``"x v theta"``, space- or comma-separated) gives the ports, in order, an
 dimension and component labels; ``units`` (``"m m/s rad"``, ``-`` for none) gives each a unit by
 position, so units are checked on both sides. A name twice, one that isn't an identifier, ``y`` on
 a Mux or ``u`` on a Demux, or more than 64 names fail the run on the block. Between a Mux and a
-Demux any `elementwise <https://paperboatlab.github.io/paperboat/concepts.html#elementwise>`_ block works on the whole vector.
+Demux any `elementwise <https://paperboatlab.org/paperboat/concepts.html#elementwise>`_ block works on the whole vector.
 
 Time
 ----

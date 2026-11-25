@@ -5,8 +5,8 @@ Built-in packages (`base`, `signal`, `math`, `string`, `list`, `board`, `step`, 
 with the engine; optional toolkits (`control`, `optimization`, `opencv`, `meshop`) install into
 `engine/toolkit/<name>/` or `~/.local/share/paperboat/toolkits/<name>/` as plugins.
 
-**Docs:** <https://paperboatlab.github.io/#toolkits> and
-<https://paperboatlab.github.io/paperboat/descriptor.html> (sources in `src/<package>/docs/` and
+**Docs:** <https://paperboatlab.org/#toolkits> and
+<https://paperboatlab.org/paperboat/descriptor.html> (sources in `src/<package>/docs/` and
 paperboat-legacy's [`docs/api/descriptor.rst`](https://github.com/paperboatlab/paperboat-legacy/blob/dev/docs/api/descriptor.rst))
 
 ## Layout

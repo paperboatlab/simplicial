@@ -2,7 +2,7 @@ math
 ====
 
 Pointwise arithmetic and math on signals, special functions and matrices. All but the two random
-blocks and the matrix blocks are `elementwise <https://paperboatlab.github.io/paperboat/concepts.html#elementwise>`_: wire a vector in
+blocks and the matrix blocks are `elementwise <https://paperboatlab.org/paperboat/concepts.html#elementwise>`_: wire a vector in
 and each output is a vector.
 
 .. toctree::

@@ -3,7 +3,7 @@
 The C++20 engine and CLI of [Simplicial](../README.md): built-in toolkits, the generic station host,
 the `paperboat/0` WebSocket session server and the `paperboat` command-line tool.
 
-**Docs:** <https://paperboatlab.github.io/paperboat/cpp.html> (sources in paperboat-legacy's [`docs/api/`](https://github.com/paperboatlab/paperboat-legacy/tree/dev/docs/api))
+**Docs:** <https://paperboatlab.org/paperboat/cpp.html> (sources in paperboat-legacy's [`docs/api/`](https://github.com/paperboatlab/paperboat-legacy/tree/dev/docs/api))
 
 ## Layout
 
