@@ -50,6 +50,7 @@ export type Do = {
   /** Choose a station: the page opens on the one picked. */
   station: () => void;
   report: () => void;
+  about: () => void;
   /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
   undo: () => void;
   redo: () => void;
@@ -117,6 +118,6 @@ export function registry(v: View, a: Do): Command[] {
     later("help.docs", "Docs", "help", "docs", "F1"),
     later("help.keys", "Keyboard shortcuts", "help", "docs", "Ctrl /"),
     { id: "help.report", label: "Report an issue…", menu: "help", group: "docs", run: a.report },
-    later("help.about", "About Simplicial", "help", "about"),
+    { id: "help.about", label: "About Simplicial", menu: "help", group: "about", run: a.about },
   ];
 }
