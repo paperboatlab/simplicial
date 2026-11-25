@@ -57,3 +57,15 @@ test("the Flow's edits: in the Edit menu with the canvas's keys (no chord: a fie
   find(cs, "view.arrange").run();
   assert.deepEqual(calls, ["arrange()"]);
 });
+
+test("a run length: seconds, or ∞ / inf for a run until cancelled", async () => {
+  const { parseLength } = await import("../src/runLength.ts");
+  assert.equal(parseLength("∞"), 0);
+  assert.equal(parseLength(" Inf "), 0);
+  assert.equal(parseLength("infinity"), 0);
+  assert.equal(parseLength("0"), 0);
+  assert.equal(parseLength("12.5"), 12.5);
+  assert.equal(parseLength("-1"), undefined);
+  assert.equal(parseLength(""), undefined);
+  assert.equal(parseLength("abc"), undefined);
+});
