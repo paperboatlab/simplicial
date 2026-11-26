@@ -264,7 +264,7 @@ export function App() {
     const start = "where" in to ? startOf(to, open?.hub) : to;
     try {
       const port = "where" in to && to.port ? to.port : (await startStation(start!)).port;
-      if (open && !open.hub && doc) sessionStorage.setItem(STASH, JSON.stringify(doc));
+      if (open && !open.hub && doc) writeStored(STASH, doc);  // a new window sees it too
       const search = toSearch({ station: `ws://localhost:${port}`, open: open ?? undefined, use: o.use, start: start ?? undefined }, location.search);
       if (o.tab) o.tab.location.href = `${location.pathname}?${search}`;
       else location.search = search;
@@ -275,7 +275,7 @@ export function App() {
   };
   /** Open the flow without a station: read only, its blocks lost blocks, nothing runs. */
   const without = (doc: StationFlow | StationFlow0, at: OpenedFile) => {
-    if (!at.hub) sessionStorage.setItem(STASH, JSON.stringify(doc));
+    if (!at.hub) writeStored(STASH, doc);
     location.search = toSearch({ open: at, nostation: true }, location.search);
   };
   // E1: no station found anywhere it looked.
@@ -413,8 +413,8 @@ export function App() {
     const t = window.setTimeout(async () => {
       try {
         if (!o.hub) {
-          const kept = sessionStorage.getItem(STASH);
-          if (kept) await take(parseFlow(kept), { path: o.path }, undefined, OPENING.use);
+          const kept = readStored(STASH, (x): x is object => typeof x === "object" && x !== null);
+          if (kept) await take(parseFlow(JSON.stringify(kept)), { path: o.path }, undefined, OPENING.use);
           return;
         }
         const known = await listHubs();

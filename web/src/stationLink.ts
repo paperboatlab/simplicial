@@ -45,7 +45,7 @@ export const startOf = (p: Place, hub?: string): Which | null =>
   p.port ? null : (p.where === "path" || p.where === "workspace") && hub ? { hub, path: p.path } : { name: p.name, version: p.version };
 
 /** The page's address after a station switch: the station, the file to open on it (`<hub>:<path>`; no hub: this computer's,
- *  kept in sessionStorage), whether to take it on this station whatever it names (`use`), what started the station. */
+ *  kept in the browser), whether to take it on this station whatever it names (`use`), what started the station. */
 export type Opening = { station?: string; open?: { hub?: string; path: string }; use?: boolean; start?: Which; nostation?: boolean };
 
 export function toSearch(o: Opening, now = ""): string {
