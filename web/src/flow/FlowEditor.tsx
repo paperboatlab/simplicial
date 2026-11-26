@@ -11,14 +11,14 @@ import type { BlockDef, Connectors } from "../protocol.ts";
 import { Block } from "./Block.tsx";
 import { flipBlock, rotateBlock } from "./blockEdits.ts";
 import { BLOCK_SIZE, useCardDrop, type Hint } from "./cardDrop.ts";
-import { CommentedOutContext, ConnectorsContext, GroupActions, HotWire, IconWires, Lit, Lock, RunStates, SetBends, WireRoutes } from "./flowContexts.ts";
+import { Branch, CommentedOutContext, ConnectorsContext, GroupActions, HotWire, IconWires, Lit, Lock, RunStates, SetBends, WireRoutes } from "./flowContexts.ts";
 import { useFlowClipboard } from "./flowClipboard.ts";
 import { withBlock } from "./flowGraph.ts";
 import { useFlowGroups } from "./flowGroups.ts";
 import { arrangeFlowNodes, clearWireBends } from "./flowLayout.ts";
 import { useFlowLevels } from "./flowLevels.ts";
 import { hasStepPorts, inForm, isBlock, portType, type BlockNode, type FlowNode, type Wire } from "./flowModel.ts";
-import { commentedOutIds, iconWireCounts, routeCanvasWires } from "./flowWires.ts";
+import { commentedOutIds, iconWireCounts, nodeGeometry, routeCanvasWires } from "./flowWires.ts";
 import { Boundary, GroupBox } from "./Groups.tsx";
 import { display, isFrame, isLevel, type GroupData, type GroupNode } from "./groups.ts";
 import { useLitWires } from "./litWires.ts";
@@ -144,7 +144,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
   const { copied, copySelected, pasteCopied, duplicateSelected } = useFlowClipboard(store, latest, setNodes, setEdges, !lock);
 
   // ---- Drawing and moving wires; while one is dragged (#52), the port it would join is raised ----
-  const { wireDrag, handlers } = useWireDrag(rules, setEdges, store, screenToFlowPosition, actions.addPort);
+  const { wireDrag, handlers, branch } = useWireDrag(rules, setEdges, store, screenToFlowPosition, actions.addPort);
   const iconWires = useMemo(() => iconWireCounts(nodes, edges), [nodes, edges]);
   usePortDirections(wrap);
 
@@ -234,8 +234,9 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
 
   // A dragged card: plan what dropping it here would do, show that, and do it on drop.
   const { hint, setHint, onDragOver, onDrop } = useCardDrop(wrap, nodes, edges, level, defOf, setNodes, setEdges, screenToFlowPosition);
-  const nodeLookup = useStore((st) => st.nodeLookup);
-  const wireRoutes = useMemo(() => routeCanvasWires(nodeLookup, shown.edges), [shown.edges, nodeLookup]);
+  const geometry = useStore((st) => nodeGeometry(st.nodeLookup));
+  // `geometry` stands for the lookup, which React Flow changes in place
+  const wireRoutes = useMemo(() => routeCanvasWires(store.getState().nodeLookup, shown.edges), [shown.edges, geometry, store]);
   const setBends = useMemo(
     () => (lock ? null : (id: string, bends: Point[]) => setEdges((ws) => ws.map((w) => (w.id === id ? { ...w, data: { type: w.data?.type ?? "signal", ...w.data, points: bends } } : w)))),
     [lock, setEdges],
@@ -252,6 +253,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
     <Lit.Provider value={lit}>
     <WireRoutes.Provider value={wireRoutes}>
     <SetBends.Provider value={setBends}>
+    <Branch.Provider value={lock ? null : branch}>
     <ConnectorsContext.Provider value={connectors}>
     <IconWires.Provider value={iconWires}>
     <CommentedOutContext.Provider value={commentedOut}>
@@ -350,6 +352,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
     </CommentedOutContext.Provider>
     </IconWires.Provider>
     </ConnectorsContext.Provider>
+    </Branch.Provider>
     </SetBends.Provider>
     </WireRoutes.Provider>
     </Lit.Provider>
@@ -395,6 +398,7 @@ function DropHint({ hint, rel }: { hint: Hint; rel: (x: number, y: number) => { 
 /** What the canvas does with a pointer and keys (its ? key): every canvas's, then the Flow's own. */
 export const GESTURES: [string, string][] = [
   ...CANVAS_GESTURES,
+  ["Branch a wire", "`Ctrl`-drag or right-drag it to an input · or drag again from the output"],
   ["Act on a selection", "The dialog above it: comment, group, delete"],
   ["Inspect · edit a block", "Double-click its plate: the card floats over it · `Esc` or a click away closes it"],
   ["Unfold on the canvas", "unfold in the card's head (fold puts the plate back); what it covers moves aside"],

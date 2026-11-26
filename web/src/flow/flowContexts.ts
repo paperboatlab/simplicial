@@ -4,7 +4,7 @@
 import { createContext } from "react";
 import type { Connectors, Variables } from "../protocol.ts";
 import type { GroupData } from "./groups.ts";
-import type { Point as WirePoint, WireRoute } from "@paperboatlab/ui/canvas";
+import type { Anchor, Point as WirePoint, WireRoute } from "@paperboatlab/ui/canvas";
 
 /** What the last run said about blocks (`node.state`): where a Step flow is, which failed. */
 export const RunStates = createContext<{
@@ -37,6 +37,8 @@ export const Lit = createContext<ReadonlySet<string> | null>(null);
 /** Whole-canvas routed wire geometries computed in one pass. */
 export const WireRoutes = createContext<Map<string, WireRoute> | null>(null);
 export const CommentedOutContext = createContext<ReadonlySet<string>>(new Set());
+/** A branch pulled out of a wire (Ctrl-drag or right-drag on it): start one; the one being drawn. null when locked. */
+export const Branch = createContext<{ start: (wire: string, output: Anchor, from: WirePoint) => void; line: { wire: string; from: WirePoint; to: WirePoint } | null } | null>(null);
 /** Save a wire's dragged bends; null when the canvas is locked (wires don't move). */
 export const SetBends = createContext<((id: string, bends: WirePoint[]) => void) | null>(null);
 

@@ -2,7 +2,7 @@
 // which dangle from a port its `if` hides, and the routes they take round the blocks.
 
 import { Position, type ReactFlowState } from "@xyflow/react";
-import { iconValid, placeIconPorts, routeWires, type Obstacle, type RouteInput } from "@paperboatlab/ui/canvas";
+import { branchPoints, iconValid, placeIconPorts, routeWires, squareUp, type Obstacle, type RouteInput } from "@paperboatlab/ui/canvas";
 import { isBlock, type FlowNode, type Wire } from "./flowModel.ts";
 
 /** Icon ports: wires per port (3 or more draw a junction dot) and ports hidden by their `if`, whose wires stay as missing. */
@@ -27,7 +27,23 @@ export function iconWireCounts(nodes: FlowNode[], edges: Wire[]) {
 export const commentedOutIds = (nodes: FlowNode[]) =>
   new Set(nodes.filter(isBlock).filter((n) => n.data.commented && n.data.commentMode !== "through").map((n) => n.id));
 
-/** Route every wire shown round the blocks, from where React Flow has measured the nodes and their ports. */
+/**
+ * Where the blocks and their ports are, as one string: React Flow changes its node lookup in place (the
+ * same Map), so the routes are worked out again when this changes, not when the lookup does.
+ */
+export const nodeGeometry = (nodeLookup: ReactFlowState["nodeLookup"]) =>
+  [...nodeLookup.values()]
+    .map((n) => {
+      const { positionAbsolute: at, handleBounds: h } = n.internals;
+      const ports = [...(h?.source ?? []), ...(h?.target ?? [])].map((p) => `${p.id}@${p.x},${p.y}`).join(" ");
+      return `${n.id}@${at.x},${at.y},${n.measured?.width},${n.measured?.height}[${ports}]`;
+    })
+    .join(";");
+
+/**
+ * Route every wire shown round the blocks, from where React Flow has measured the nodes and their ports;
+ * then mark where wires out of one port branch off each other, as drawn (along their saved bends, if any).
+ */
 export function routeCanvasWires(nodeLookup: ReactFlowState["nodeLookup"], shownEdges: Wire[]) {
   const obstacles: Obstacle[] = [];
   for (const n of nodeLookup.values()) {
@@ -65,20 +81,29 @@ export function routeCanvasWires(nodeLookup: ReactFlowState["nodeLookup"], shown
       return "right";
     };
 
+    // Whole pixels: a port measured a hair off another (zoom) would put a jog in a straight wire.
     routeInputs.push({
       id: w.id,
       source: w.source,
       sourceHandle: w.sourceHandle,
       target: w.target,
       targetHandle: w.targetHandle,
-      sx,
-      sy,
-      tx,
-      ty,
+      sx: Math.round(sx),
+      sy: Math.round(sy),
+      tx: Math.round(tx),
+      ty: Math.round(ty),
       sourcePosition: toSide(sh?.position),
       targetPosition: toSide(th?.position ?? Position.Left),
       step: w.data?.type === "step",
     });
   }
-  return routeWires(routeInputs, obstacles);
+  const routes = routeWires(routeInputs, obstacles);
+  const drawn = shownEdges.flatMap((w) => {
+    const r = routes.get(w.id);
+    if (!r) return [];
+    const points = w.data?.points ? squareUp(r.points[0], w.data.points, r.points[r.points.length - 1]) : r.points;
+    return [{ id: w.id, from: `${w.source}:${w.sourceHandle ?? ""}`, points }];
+  });
+  for (const [id, at] of branchPoints(drawn)) routes.set(id, { ...routes.get(id)!, branches: at });
+  return routes;
 }

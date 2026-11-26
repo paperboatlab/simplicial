@@ -1,11 +1,12 @@
 // A wire on the Flow canvas: routed square round the blocks (the kit's router, one pass for the canvas), or along
 // the bends the user dragged; a step wire 2 px with its arrowhead, an image wire dashed, the selected one 3 px with
-// its remove key and its movable segments (the kit's styles and bends).
+// its remove key and its movable segments (the kit's styles and bends). Wires out of one port run as one line and
+// branch off it at a dot; Ctrl-drag or right-drag on a wire pulls a new branch out of it.
 import { RemoveKey } from "@paperboatlab/ui";
-import { middleOf, orthoPoints, roundedPolyline, squareUp, useWireBends, type Point } from "@paperboatlab/ui/canvas";
+import { middleOf, nearestOnRoute, orthoPoints, roundedPolyline, squareUp, useWireBends, type Point } from "@paperboatlab/ui/canvas";
 import { BaseEdge, EdgeLabelRenderer, Position, useReactFlow, type EdgeProps } from "@xyflow/react";
-import { useContext } from "react";
-import { CommentedOutContext, HotWire, IconWires, Lit, Lock, SetBends, WireRoutes } from "./flowContexts.ts";
+import { useContext, type PointerEvent as ReactPointerEvent } from "react";
+import { Branch, CommentedOutContext, HotWire, IconWires, Lit, Lock, SetBends, WireRoutes } from "./flowContexts.ts";
 import type { Wire } from "./flowModel.ts";
 
 const sideOf = (p: Position): "left" | "right" | "top" | "bottom" => (p === Position.Left ? "left" : p === Position.Top ? "top" : p === Position.Bottom ? "bottom" : "right");
@@ -23,7 +24,8 @@ function stepArrow(points: readonly Point[]): string | null {
 }
 
 export function WireEdge({ id, data, selected, markerEnd, ...geometry }: EdgeProps<Wire>) {
-  const { deleteElements } = useReactFlow();
+  const { deleteElements, screenToFlowPosition } = useReactFlow();
+  const branch = useContext(Branch);
   const hot = useContext(HotWire) === id;
   const lit = useContext(Lit);
   const follow = lit ? (lit.has(id) ? " lit" : " dim") : "";
@@ -43,7 +45,27 @@ export function WireEdge({ id, data, selected, markerEnd, ...geometry }: EdgePro
     ? squareUp(from, data.points, to)
     : (route?.points ?? orthoPoints(from, sideOf(geometry.sourcePosition), to, sideOf(geometry.targetPosition)));
   const { points, handles } = useWireBends(routed, !!selected && !!setBends, (bends) => setBends?.(id, bends));
-  const path = roundedPolyline(points, 8);
+  const dots = route?.branches ?? [];
+  const path = roundedPolyline(points, 8, dots);
+  // Ctrl-drag or right-drag pulls a branch out of the wire, once the pointer has moved (a Ctrl-click still picks it).
+  const grab = (e: ReactPointerEvent) => {
+    if (!branch || !(e.ctrlKey || e.metaKey || e.button === 2)) return;
+    e.preventDefault(); // no pan, no box
+    const down = { x: e.clientX, y: e.clientY };
+    const move = (m: PointerEvent) => {
+      if (Math.hypot(m.clientX - down.x, m.clientY - down.y) < 4) return;
+      off();
+      const at = screenToFlowPosition(down);
+      branch.start(id, { nodeId: geometry.source, handleId: geometry.sourceHandleId ?? null, type: "source" }, nearestOnRoute(points, [at.x, at.y]));
+    };
+    const off = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", off);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", off);
+  };
+  const pulled = branch?.line?.wire === id ? branch.line : null;
   const arrow = data?.type === "step" ? stepArrow(points) : null;
   const [x, y] = route && !data?.points && points === routed ? [route.labelX, route.labelY] : middleOf(points);
   return (
@@ -52,8 +74,10 @@ export function WireEdge({ id, data, selected, markerEnd, ...geometry }: EdgePro
       <path d={path} className={`wire-casing${follow}${look}`} />
       <BaseEdge id={id} path={path} markerEnd={markerEnd} className={`wire-${data?.type ?? "signal"}${hot ? " lit" : ""}${follow}${look}`} />
       {arrow && <polygon className={`wire-arrow${follow}${look}`} points={arrow} />}
-      {/* What a dropped card finds under the pointer: a wide, invisible stroke tagged with the wire. */}
-      <path d={path} className="wire-hit" data-wire={id} />
+      {dots.map(([cx, cy]) => <circle key={`${cx},${cy}`} cx={cx} cy={cy} r={3.5} className={`wire-dot${follow}${look}`} />)}
+      {/* Where a branch is grabbed: a wide, invisible stroke (nokey: Ctrl here is a branch, not a selection box). */}
+      <path d={path} className="wire-hit nokey" data-wire={id} onPointerDown={grab} onContextMenu={(e) => branch && e.preventDefault()} />
+      {pulled && <path className="wire-branching" d={roundedPolyline([pulled.from, [pulled.from[0], pulled.to[1]], pulled.to], 8)} />}
       {selected && !lock && (
         <EdgeLabelRenderer>
           <span className="wire-remove nodrag nopan" style={{ transform: `translate(-50%, -50%) translate(${x}px, ${y - 16}px)` }}>
