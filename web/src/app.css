@@ -15,7 +15,6 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .modes { margin-right: var(--space-2); }
 /* icon keys in the bar are rounded squares (the theme key's shape), pressed as every kit key; the Console key's count of errors in red */
 .bar-key.round { border-radius: var(--radius-md); }
-.bar-key .badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--danger); font: 600 10px/14px var(--font-mono); color: var(--danger-text); text-align: center; }
 
 /* the page rail steps aside in Commander and Lookout (every page is in view there), gap and all */
 .page-rail.aside { margin-right: calc(-1 * var(--gutter)); }
@@ -34,16 +33,10 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .vfoot { padding: 8px var(--space-3) 8px var(--panel-pad); border-top: 1px solid var(--line); font-size: var(--size-2xs); color: var(--text-muted); }
 .main > .panel.side .panel-body { display: flex; flex-direction: column; }
 
-/* a page's head: its name, its count, then its tools at the right end, its hide key last */
+/* a page's head: its name, its sum in words; its tools (Panel tools) at the right end, the hide key last */
 .pg .panel-head > small:not(.sum) { display: none; }  /* a page's count is for its slim bar; its head says it in words */
 .panel-head > small { margin-left: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.panel-head > .tools { order: 2; margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
-.panel-head > .hide-key { order: 3; }
-.panel-head > .hide-key, .panel-head > small + .hide-key { margin-left: auto; }
-.panel-head > .tools ~ .hide-key, .panel-head > .tools ~ small + .hide-key { margin-left: 0; }
 .panel-head > .tabs { height: 100%; border: 0; padding: 0; margin-left: var(--space-4); }
-.panel-head .seg { padding: 2px; }
-.panel-head .seg button { padding: 2px 10px; font-size: var(--size-2xs); }
 .bread { display: flex; align-items: center; gap: 14px; margin-left: var(--space-4); font: var(--size-2xs) var(--font-mono); color: var(--text-muted); white-space: nowrap; overflow: hidden; }
 .bread b { font-weight: 500; color: var(--text); }
 .bread small { margin-left: 6px; font-size: var(--size-2xs); color: var(--text-muted); }
@@ -72,7 +65,7 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .win[data-mode="lookout"].hide-st .pcol { --stw: 38px; }
 .win[data-mode="lookout"].hide-fl .pcol { --flw: 38px; }
 .win[data-mode="lookout"].nost .pcol { grid-template-columns: minmax(0, 1fr) var(--flw); grid-template-areas: "bd fl"; }
-.dock .dock-sep { width: 1px; height: 18px; background: var(--line); margin-right: 4px; }
+.dock .sep { margin-right: 4px; }
 .dock .run-options input { width: 64px; text-align: right; }
 .dock .run-options select { appearance: none; width: 52px; text-align: right; cursor: pointer; }
 /* ∞: runs until cancelled; a kit key, pressed while chosen */
@@ -109,7 +102,7 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 /* the selection dialog: floats above what is picked; its groups unfold as menus */
 .selection-dialog { display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-1); font-size: var(--size-2xs); white-space: nowrap; }
 .selection-dialog .sel-what { padding: 0 8px; color: var(--text-muted); }
-.selection-dialog .sel-sep { width: 1px; height: 16px; background: var(--line); margin: 0 2px; }
+.selection-dialog .sep { height: 16px; margin: 0 2px; }
 .selection-dialog .key.sm .pb-icon { width: 12px; height: 12px; }
 .sel-menu { position: relative; }
 .sel-menu .sel-pop { position: absolute; top: calc(100% + 6px); left: 0; min-width: 210px; }
@@ -173,8 +166,7 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .slot { border: 1px dashed var(--line); border-radius: var(--radius-md); pointer-events: none; }
 .drop { z-index: 2; border-radius: var(--radius-md); box-shadow: 0 0 0 2px var(--accent-select); background: color-mix(in srgb, var(--accent) 8%, transparent); pointer-events: none; }
 .cell-tools { position: absolute; top: 6px; right: 6px; z-index: 3; }
-.cell-tools .seg { padding: 2px; box-shadow: var(--shadow-1); }
-.cell-tools .seg button { padding: 1px 7px; font: var(--size-2xs) var(--font-mono); }
+.cell-tools .seg { box-shadow: var(--shadow-1); }
 
 /* decorations: a section frames cells, a rule sits in the gap, a label and the Console take cells */
 .deco { position: relative; min-width: 0; min-height: 0; }
@@ -196,8 +188,7 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .arranging .deco-label, .arranging .deco-section, .arranging .deco-console { cursor: grab; }
 .deco.picked { outline: var(--select-outline); outline-offset: var(--select-offset); border-radius: var(--radius-sm); }
 .deco-tools { position: absolute; top: -14px; right: -8px; z-index: 4; display: flex; align-items: center; gap: 6px; }
-.deco-tools .seg { padding: 2px; box-shadow: var(--shadow-1); }
-.deco-tools .seg button { padding: 1px 8px; font-size: var(--size-2xs); }
+.deco-tools .seg { box-shadow: var(--shadow-1); }
 .deco-grip, .cell-grip { position: absolute; right: -6px; bottom: -6px; z-index: 4; width: 10px; height: 10px; border-radius: 3px; background: var(--surface-raised); box-shadow: 0 0 0 1.5px var(--accent-select); cursor: nwse-resize; touch-action: none; }
 .deco-grip.grip-hline { top: calc(50% - 5px); bottom: auto; cursor: ew-resize; }
 .deco-grip.grip-vline { left: calc(50% - 5px); right: auto; cursor: ns-resize; }
@@ -239,8 +230,6 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .fprops .fh b { font: 600 var(--size-sm) var(--font-sans); }
 .fprops .fid { font: var(--size-3xs) var(--font-mono); color: var(--text-muted); }
 .fprops .block-tag { margin-left: auto; }
-.fprops .fclose { all: unset; cursor: pointer; width: 18px; text-align: center; color: var(--text-muted); font-size: var(--size-md); }
-.fprops .fclose:hover { color: var(--text); }
 .fprops .block-params { padding: 8px 12px 10px; }
 .fprops .flink { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; color: var(--text-muted); }
 .fprops .flink .well { height: 24px; min-width: 0; }

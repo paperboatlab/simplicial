@@ -2,7 +2,7 @@
 // picks the object a part belongs to and its properties float over the view's corner; the Graph view shows the objects
 // and joints as the kit's cards with their link slots as ports, a wire from an object's body fills a slot. Props, links
 // and places are edited here and sent to the station (`station.set`). A linked object's block is on the Flow.
-import { Key } from "@paperboatlab/ui";
+import { Key, RemoveKey } from "@paperboatlab/ui";
 import { BlockCard, ParamRow, PortHandle } from "@paperboatlab/ui/canvas";
 import { SceneView, type Entity, type View } from "@paperboatlab/ui/stage";
 import {
@@ -63,7 +63,7 @@ function Properties({ object, def, station, locked, onChange, onBlock, onClose }
       <div className="fh">
         <b>{def?.label ?? object.type}</b><span className="fid">{object.id}</span>
         <span className="block-tag">{def?.role === "joint" ? "joint" : def ? "object" : "missing"}</span>
-        <button type="button" className="fclose" aria-label="Close" title="Close (click the empty scene)" onClick={onClose}>×</button>
+        <RemoveKey label="Close (click the empty scene)" onClick={onClose} />
       </div>
       <div className="block-params">
         {(def?.props ?? []).map((p) => (
