@@ -40,3 +40,13 @@ export const graphPos = (o: StationObject, i: number): { x: number; y: number } 
 /** An object's prop value: its own, else its type's default. */
 export const propValue = (o: StationObject, def: ObjectDef | undefined, prop: string): ParamValue | undefined =>
   o.props?.[prop] ?? def?.props.find((p) => p.id === prop)?.default;
+
+/** An object's prop back to the station's (its starter's value; none there: its type's default). */
+export const resetProp = (station: Station, starter: Station | null, id: string, prop: string): Station =>
+  change(station, id, (o) => {
+    const was = starter?.objects.find((x) => x.id === id)?.props?.[prop];
+    const props = { ...o.props };
+    if (was === undefined) delete props[prop];
+    else props[prop] = was;
+    return { ...o, props };
+  });

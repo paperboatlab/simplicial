@@ -2,7 +2,7 @@
 // picks the object a part belongs to and its properties float over the view's corner; the Graph view shows the objects
 // and joints as the kit's cards with their link slots as ports, a wire from an object's body fills a slot. Props, links
 // and places are edited here and sent to the station (`station.set`). A linked object's block is on the Flow.
-import { Key, RemoveKey } from "@paperboatlab/ui";
+import { Key, RemoveKey, valueText } from "@paperboatlab/ui";
 import { BlockCard, ParamRow, PortHandle } from "@paperboatlab/ui/canvas";
 import { SceneView, type Entity, type View } from "@paperboatlab/ui/stage";
 import {
@@ -10,8 +10,8 @@ import {
 } from "@xyflow/react";
 import { useContext, useEffect, useMemo, useState } from "react";
 import { Vars } from "../flow/flowContexts.ts";
-import type { ObjectDef, ParamValue, Station, StationObject } from "../protocol.ts";
-import { entitiesOf, graphPos, objectOfEntity, propValue, setLink, setPos, setProp } from "./stationEdits.ts";
+import type { ObjectDef, Overrides, ParamValue, Station, StationObject } from "../protocol.ts";
+import { entitiesOf, graphPos, objectOfEntity, propValue, resetProp, setLink, setPos, setProp } from "./stationEdits.ts";
 
 type Props = {
   station: Station | null;
@@ -25,9 +25,14 @@ type Props = {
   onChange: (next: Station) => void;
   /** Show a linked object's block on the Flow. */
   onBlock: (id: string) => void;
+  /** What the station started with, and what the flow changed of its objects (project.ts `diff`): those have a dot. */
+  starter: Station | null;
+  changed?: Overrides["objects"];
+  /** The station's name, for "cart-pole says 1". */
+  name: string;
 };
 
-export function StationPage({ station, defs, scene, view, grid, mode, locked, onChange, onBlock }: Props) {
+export function StationPage({ station, defs, scene, view, grid, mode, locked, onChange, onBlock, starter, changed, name }: Props) {
   const [picked, setPicked] = useState<string | null>(null);
   const defOf = (o: StationObject) => defs.find((d) => d.type === o.type);
   const object = station?.objects.find((o) => o.id === picked);
@@ -40,7 +45,8 @@ export function StationPage({ station, defs, scene, view, grid, mode, locked, on
           <SceneView key={JSON.stringify(view)} view={view} grid={grid} entities={scene}
             onPick={(e) => setPicked(objectOfEntity(e, station))} selected={entitiesOf(picked, ids)} />
           {object && station && (
-            <Properties object={object} def={defOf(object)} station={station} locked={locked} onChange={onChange} onBlock={onBlock} onClose={() => setPicked(null)} />
+            <Properties object={object} def={defOf(object)} station={station} locked={locked} onChange={onChange} onBlock={onBlock} onClose={() => setPicked(null)}
+              starter={starter} changed={changed?.[object.id]?.props} name={name} />
           )}
         </>
       ) : station && station.objects.length > 0 ? (
@@ -53,11 +59,13 @@ export function StationPage({ station, defs, scene, view, grid, mode, locked, on
 }
 
 /** The picked object's properties, floating over the 3D view's corner (they step aside when the view is narrow). */
-function Properties({ object, def, station, locked, onChange, onBlock, onClose }: {
+function Properties({ object, def, station, locked, onChange, onBlock, onClose, starter, changed, name }: {
   object: StationObject; def?: ObjectDef; station: Station; locked: boolean;
   onChange: (s: Station) => void; onBlock: (id: string) => void; onClose: () => void;
+  starter: Station | null; changed?: Record<string, ParamValue>; name: string;
 }) {
   const { hints } = useContext(Vars);
+  const theirs = starter?.objects.find((o) => o.id === object.id);
   return (
     <div className="fprops" role="dialog" aria-label={`${def?.label ?? object.type} ${object.id}`}>
       <div className="fh">
@@ -66,9 +74,19 @@ function Properties({ object, def, station, locked, onChange, onBlock, onClose }
         <RemoveKey label="Close (click the empty scene)" onClick={onClose} />
       </div>
       <div className="block-params">
-        {(def?.props ?? []).map((p) => (
-          <ParamRow key={p.id} def={p} value={propValue(object, def, p.id)} disabled={locked} vars={hints} onChange={(v) => onChange(setProp(station, object.id, p.id, v))} />
-        ))}
+        {(def?.props ?? []).map((p) => {
+          const was = theirs ? propValue(theirs, def, p.id) : undefined;
+          const says = typeof was === "object" ? ("var" in was ? was.var : `ƒ ${was.expr}`) : valueText(was);
+          return (
+            <span key={p.id} className="fprop">
+              <ParamRow def={p} value={propValue(object, def, p.id)} disabled={locked} vars={hints} onChange={(v) => onChange(setProp(station, object.id, p.id, v))} />
+              {changed?.[p.id] !== undefined
+                ? <button type="button" className="ov-dot" disabled={locked} aria-label={`Reset ${p.id} to the station's`}
+                    title={`Changed by this flow; ${name} says ${says} · Reset to the station's`} onClick={() => onChange(resetProp(station, starter, object.id, p.id))} />
+                : <span />}
+            </span>
+          );
+        })}
         {(def?.links ?? []).map((slot) => (
           <label key={slot} className="flink">
             <span>{slot}</span>

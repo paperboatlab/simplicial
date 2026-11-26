@@ -38,13 +38,23 @@ import { canArrangeFlow } from "./flow/flowLayout.ts";
 import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
 import { isPortType } from "./flow/portBlocks.ts";
 import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
-import { buildProject } from "./project.ts";
+import { applyOverrides, buildProject, diff, mergeOverrides, relPath, stationOf, upgrade, type Misfit } from "./project.ts";
 import { useProject } from "./projectSession.ts";
-import { listHub, listHubs, parseFlow, readFlow, stem, TYPES, writeFlow, type OpenedFile } from "./hubs.ts";
-import type { BoardLayout, RunSettings, StationFlow } from "./protocol.ts";
+import {
+  findStation, listed, listHub, listHubs, parseFlow, readFlow, startStation, stationLog, stationStatus, stem, TYPES, writeFlow,
+  type Finding, type OpenedFile, type Place, type Status, type Which,
+} from "./hubs.ts";
+import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote } from "./stationLink.ts";
+import type { BoardLayout, RunSettings, StationFlow, StationFlow0, StationRef } from "./protocol.ts";
 
+/** What the address asks for (stationLink.ts): the station, a flow to open on it (`?open=`), or the flow without one. */
+const OPENING = fromSearch(location.search);
+const WITHOUT = !!OPENING.nostation;
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
-const URL_ = new URLSearchParams(location.search).get("station") ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
+const URL_ = WITHOUT ? "" : OPENING.station ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
+const PORT = Number(/:(\d+)/.exec(URL_.replace(/^wss?:\/\//, ""))?.[1] ?? 0);
+/** A flow from this computer, kept for the page on its station (it can't be read again from there). */
+const STASH = "simplicial.opening";
 const ISSUES = "https://github.com/paperboatlab/simplicial/issues/new";
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
 /** What Simplicial ships beyond the kit: the engine's libraries (engine/CMakeLists.txt; licences from their own files). */
@@ -132,7 +142,7 @@ export function App() {
   const [floor, setFloor] = useState<boolean | null>(null); // the user's grid choice wins over the station's view.grid
   const [tab, setTab] = useState("");
   const [runSettings, setRunSettings] = useState<RunSettings>({});
-  const [booted, setBooted] = useState(false);   // the splash has handed over
+  const [booted, setBooted] = useState(WITHOUT);   // the splash has handed over (at once without a station)
   const [retrying, setRetrying] = useState(false);  // the first try found no station
   useEffect(() => { if (state.connection === "closed") setRetrying(true); }, [state.connection]);
   useEffect(() => { if (state.engine) remember(URL_); }, [state.engine]);
@@ -144,7 +154,7 @@ export function App() {
   const mouse = useRef<{ x: number; y: number } | null>(null);
 
   const running = state.run?.status === "running";
-  const lock = running ? LOCKED : "";
+  const lock = running ? LOCKED : WITHOUT ? "No station: open the flow on its station to edit and run it" : "";
   // The Flow canvas: its blocks and wires (what a run sends), the level open on it, undo, and what its menus do.
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Wire>([]);
@@ -163,38 +173,155 @@ export function App() {
   const layout = saved ?? state.board;
   const [arranging, setArranging] = useState(false);
 
-  // The flow file: open from a hub or this computer, saved back where it came from. The file decides the hub.
+  // The flow file: open from a hub or this computer, saved back where it came from. The file decides the hub. A flow
+  // is a child of its station (format 1, project.ts): it opens on it, found by its path, else by name (E1–E9 below).
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [file, setFile] = useState<OpenedFile | null>(null);
-  const [filePick, setFilePick] = useState<"open" | "save" | null>(null);
+  const [filePick, setFilePick] = useState<"open" | "save" | "find" | null>(null);
+  const finding = useRef<{ doc: StationFlow | StationFlow0; at: OpenedFile } | null>(null);  // what Find the station… is for
   const sysOpen = useRef<HTMLInputElement>(null);
   const hub = file?.hub ? hubs.find((h) => h.id === file.hub) : undefined;
   const fileName = file ? file.path.slice(file.path.lastIndexOf("/") + 1) : "";
-  const flowFile = (): StationFlow => buildProject({
-    station: state.engine, flow: toFlow(nodes, edges, state.loaded?.flow), station_objects: state.station, variables: state.variables, board: saved, run: runSettings,
+  // The window's station as found (its place, version, sha256; `hub` when it is in one) and the header the file gets.
+  const [home, setHome] = useState<(Place & { hub?: string }) | null>(null);
+  const [ref, setRef] = useState<StationRef>({ name: "" });
+  // The open flow's changes that don't fit its station (E4, E9): kept in the file, shown nowhere, until removed.
+  const [kept, setKept] = useState<Misfit[]>([]);
+  const [review, setReview] = useState(false);
+  const changes = useMemo(() => diff(state.starter, { station: state.station, variables: state.variables }), [state.starter, state.station, state.variables]);
+  const changedVars = useMemo(() => new Set(Object.keys(changes.overrides.variables ?? {})), [changes]);
+  const flowFile = (station = ref): StationFlow => buildProject({
+    station: { ...station, name: station.name || state.engine }, flow: toFlow(nodes, edges, state.loaded?.flow),
+    overrides: kept.reduce((o, m) => mergeOverrides(o, m.part), changes.overrides), variables: changes.own, board: saved, run: runSettings,
   });
-  /** Put a project in place: the canvas, the station's objects, the variables, the Board and the run settings. */
-  const load = (psf: StationFlow, at: OpenedFile | null) => {
-    openFlow(psf);
-    setRunSettings(psf.run ?? {});
-    saveBoard(psf.board);
+  /** Put a flow file in place on this station: its overrides applied to the starter (what doesn't fit kept apart), the
+   *  canvas, the Board and the run settings. Without a station (?nostation), only what the file itself holds. */
+  const load = (doc: StationFlow | StationFlow0, at: OpenedFile | null, label = state.engine): Misfit[] => {
+    let misfits: Misfit[] = [];
+    if (WITHOUT) {
+      openFlow({ flow: doc.flow, station: doc.paperboat === 0 ? doc.station_objects ?? null : null, variables: doc.variables ?? [] });
+    } else {
+      const f = doc.paperboat === 0 ? upgrade(doc, state.starter) : doc;
+      const r = applyOverrides(state.starter, f.overrides, state.objects.length ? state.objects : null, label);
+      openFlow({ flow: f.flow, station: r.station, variables: [...r.variables, ...(f.variables ?? [])] });
+      misfits = r.misfits;
+    }
+    setKept(misfits);
+    setRunSettings(doc.run ?? {});
+    saveBoard(doc.board);
     setFile(at);
+    return misfits;
   };
   // Whether the project is saved, a word before unsaved work is replaced, Open recent, and unsaved work kept for a reload.
-  const project = useProject(state.engine, flowFile, [nodes, edges, state.loaded, state.station, state.variables, saved, runSettings], file?.path ?? "Untitled",
-    (s) => load(s.project, s.name === "Untitled" ? null : { hub: s.hub, path: s.name }));
+  // (its station by name only: where the station is found is not an edit; a move is marked changed on open, E2)
+  const project = useProject(state.engine, () => flowFile({ name: state.engine }), [nodes, edges, state.loaded, changes, kept, saved, runSettings], file?.path ?? "Untitled",
+    (s) => void load(s.project, s.name === "Untitled" ? null : { hub: s.hub, path: s.name }));
   const failed = (title: string, err: unknown) => notes.show({ title, detail: err instanceof Error ? err.message : String(err), state: "failed" });
-  const take = (psf: StationFlow, at: OpenedFile, inHub?: Hub) => project.ask("Open this flow?", "Open", () => {
-    load(psf, at);
-    project.opened({ name: at.path, hub: at.hub, project: psf });
-    const other = psf.station !== state.engine ? `made on ${psf.station}, opened on ${state.engine}` : "";
-    notes.show({ title: `Opened ${at.path.slice(at.path.lastIndexOf("/") + 1)}`, detail: [inHub && `Simplicial now works in ${inHub.name}`, other].filter(Boolean).join(" · ") || undefined, state: "done" });
-  });
+  // The window's station, found once it says hello (by name; in the hub it was started from, if any): its version for the file.
+  useEffect(() => {
+    if (!state.engine) return;
+    const hubId = OPENING.start?.hub;
+    findStation({ hub: hubId, name: state.engine }).then((f) => {
+      if (!("found" in f)) return;
+      setHome((h) => h ?? { ...f.found, ...(hubId && (f.found.where === "path" || f.found.where === "workspace") ? { hub: hubId } : {}) });
+      setRef((r) => (r.name ? r : { name: f.found.name, ...(f.found.version ? { version: f.found.version } : {}), ...(f.found.sha256 ? { sha256: f.found.sha256 } : {}) }));
+    }, () => {});
+  }, [state.engine]);
+
+  /** Open a flow file read from `at`: on this window's station when it is the flow's (`use`: whatever it names), else after
+   *  a word: Can't find it (E1), or Open it on its station (E5). */
+  const take = async (doc: StationFlow | StationFlow0, at: OpenedFile, inHub?: Hub, use = false) => {
+    const made = stationOf(doc);
+    const name = at.path.slice(at.path.lastIndexOf("/") + 1);
+    if (WITHOUT) return void (load(doc, at), notes.show({ title: `Opened ${name} without a station`, detail: "Its blocks are unknown and nothing runs" }));
+    const mine = use || made.name === state.engine;
+    let f: Finding | null = null;
+    try {
+      f = await findStation(at.hub ? { hub: at.hub, ...(use ? { name: state.engine } : { path: at.path }) } : { name: mine ? state.engine : made.name, version: made.version });
+    } catch { /* the page has no server of its own: by name, as before */ }
+    if (!mine) {
+      if (!f || !("found" in f)) return cantFind(doc, at, f, inHub);
+      return otherStation(doc, at, f.found);
+    }
+    const place = f && "found" in f ? f.found : null;
+    project.ask("Open this flow?", "Open", () => {
+      const misfits = load(doc, at, place ? named(place) : state.engine);
+      const inThisHub = place && at.hub && (place.where === "path" || place.where === "workspace");
+      if (place) {
+        setHome({ ...place, ...(inThisHub ? { hub: at.hub } : {}) });
+        setRef({ name: place.name, ...(place.version ? { version: place.version } : {}), ...(place.sha256 ? { sha256: place.sha256 } : {}),
+          ...(inThisHub ? { path: relPath(at.path, place.path) } : {}) });
+      }
+      const moved = place ? movedNote(stem(at.path), made, place) : null;
+      project.opened({ name: at.path, hub: at.hub, project: doc }, !!moved || use);
+      notes.show(moved ?? { title: `Opened ${name}`, detail: [inHub && `Simplicial now works in ${inHub.name}`, doc.paperboat === 0 && "an older flow file: Save writes it in the new format"].filter(Boolean).join(" · ") || undefined, state: "done" });
+      const v = place && versionNote(stem(at.path), made, place, misfits);
+      if (v) notes.show(v);
+    });
+  };
+  /** Open the page on another station (started first when it isn't running), the flow to open on it in the address. */
+  const switchTo = async (to: Place | Which, open: OpenedFile | null, doc: StationFlow | StationFlow0 | null, o: { use?: boolean; tab?: Window | null } = {}) => {
+    const start = "where" in to ? startOf(to, open?.hub) : to;
+    try {
+      const port = "where" in to && to.port ? to.port : (await startStation(start!)).port;
+      if (open && !open.hub && doc) writeStored(STASH, doc);  // a new window sees it too
+      const search = toSearch({ station: `ws://localhost:${port}`, open: open ?? undefined, use: o.use, start: start ?? undefined }, location.search);
+      if (o.tab) o.tab.location.href = `${location.pathname}?${search}`;
+      else location.search = search;
+    } catch (e) {
+      o.tab?.close();
+      failed(`Can't start ${"name" in to && to.name ? to.name : "the station"}`, e);
+    }
+  };
+  /** Open the flow without a station: read only, its blocks lost blocks, nothing runs. */
+  const without = (doc: StationFlow | StationFlow0, at: OpenedFile) => {
+    if (!at.hub) writeStored(STASH, doc);
+    location.search = toSearch({ open: at, nostation: true }, location.search);
+  };
+  // E1: no station found anywhere it looked.
+  const cantFind = (doc: StationFlow | StationFlow0, at: OpenedFile, f: Finding | null, inHub?: Hub) => {
+    const made = stationOf(doc), name = at.path.slice(at.path.lastIndexOf("/") + 1);
+    project.tell({
+      title: `Can't find ${named(made)}`,
+      text: [`${name} is a flow on ${made.name}${made.path ? `, and points to ${made.path}, which isn't there` : ""}. No station called ${made.name} is anywhere else Simplicial looked:`],
+      looked: f && "missing" in f ? lookedList(f, inHub?.name) : undefined,
+      actions: [
+        ...(at.hub ? [{ label: "Find the station…", primary: true, run: () => { finding.current = { doc, at }; setFilePick("find"); } }] : []),
+        { label: "Open without a station", run: () => without(doc, at) },
+        { label: "Cancel" },
+      ],
+    });
+  };
+  // E5: the flow's station isn't this window's.
+  const otherStation = (doc: StationFlow | StationFlow0, at: OpenedFile, place: Place) => {
+    const it = stem(at.path);
+    project.tell({
+      title: `Open ${it} on ${place.name}?`,
+      text: [`This window works on ${state.engine}. Switch it to ${place.name}, or open ${it} in a new window and keep ${state.engine} here.`],
+      actions: [
+        { label: "Switch", primary: true, run: () => project.ask("Switch the station?", "Switch", () => void switchTo(place, at, doc)) },
+        { label: "New window", run: () => void switchTo(place, at, doc, { tab: window.open("", "_blank") }) },
+        { label: "Cancel" },
+      ],
+    });
+  };
+  /** Find the station… (E1's): a .pst picked in the hub; another station's name asks first, then the flow opens on it. */
+  const foundIt = (h: Hub, path: string) => {
+    setFilePick(null);
+    const it = finding.current;
+    const st = listed.get(`${h.id}:${path}`)?.station;
+    if (!it || !st) return void notes.show({ title: `Can't use ${path}`, detail: "Simplicial can't read its station.toml", state: "failed" });
+    const go = () => (st.name === state.engine ? void take(it.doc, it.at, undefined, true) : void switchTo({ hub: h.id, path }, it.at, it.doc, { use: true }));
+    const made = stationOf(it.doc);
+    if (st.name === made.name) return go();
+    project.tell({ title: `This is ${st.name}, not ${made.name}`, text: [`Open ${stem(it.at.path)} on ${named(st)}? Its changes that don't fit ${st.name} are kept in the file.`],
+      actions: [{ label: "Use it", primary: true, run: go }, { label: "Cancel" }] });
+  };
+
   /** File › New project: the station's starter again, no file. */
   const newProject = () => project.ask("Start a new project?", "New project", () => {
-    load(buildProject({
-      station: state.engine, flow: state.starter.graph ?? { nodes: [], edges: [] }, station_objects: state.starter.station, variables: state.starter.variables,
-    }), null);
+    load(buildProject({ station: ref, flow: state.starter.graph ?? { nodes: [], edges: [] } }), null);
+    setRef((r) => ({ name: r.name || state.engine, ...(r.version ? { version: r.version } : {}), ...(r.sha256 ? { sha256: r.sha256 } : {}) }));
     project.opened();
   });
   /** File › Open recent: a hub's file read again (it may have changed), else the copy kept when it was last opened or saved. */
@@ -205,15 +332,17 @@ export function App() {
     setHubs(known);
     readFlow(r.hub, r.name).then((psf) => take(psf, { hub: r.hub, path: r.name }, known.find((h) => h.id === r.hub)), (e) => failed(`Can't open ${r.name}`, e));
   };
-  /** This computer's Save as: the browser's download, named after the file. */
+  /** This computer's Save as: the browser's download, named after the file; its station by name only (no path). */
   const download = () => {
     const a = document.createElement("a");
-    const psf = flowFile();
+    const { path: _path, ...station } = ref;
+    const psf = flowFile(station);
     a.href = URL.createObjectURL(new Blob([JSON.stringify(psf, null, 2)], { type: "application/json" }));
     a.download = `${file ? stem(file.path) : state.engine || "flow"}.psf`;
     a.click();
     window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setFile({ path: a.download });
+    setRef(station);
     project.saved({ name: a.download, project: psf });
   };
   // No Malachite, or no hubs: straight to the system's picker.
@@ -227,27 +356,89 @@ export function App() {
     setHubs(known);
     if (known.length) setFilePick("save"); else download();
   };
+  /** Write the flow to `path` in the hub: its station's path from there (the hub's station of its name), else by name (E8). */
+  const writeIn = async (h: Hub | string, path: string) => {
+    const hubId = typeof h === "string" ? h : h.id;
+    let f: Finding | null = null;
+    try { f = await findStation({ hub: hubId, name: state.engine, version: ref.version }); } catch { /* by name */ }
+    const place = f && "found" in f && (f.found.where === "path" || f.found.where === "workspace") ? f.found : null;
+    const { path: _path, ...rest } = ref;
+    const station: StationRef = place
+      ? { name: place.name, ...(place.version ? { version: place.version } : {}), ...(place.sha256 ? { sha256: place.sha256 } : {}), path: relPath(path, place.path) }
+      : rest;
+    const psf = flowFile(station);
+    await writeFlow(h, path, psf);
+    setRef(station);
+    project.saved({ name: path, hub: hubId, project: psf });
+    if (place) setHome({ ...place, hub: hubId });
+    const apart = !place && home?.hub && home.hub !== hubId ? hubs.find((x) => x.id === home.hub)?.name : undefined;
+    return apart ? apartNote(stem(path), state.engine, apart, typeof h === "string" ? h : h.name) : null;
+  };
   const saveFile = () => {
     if (!file?.hub) return void saveFileAs();
-    const psf = flowFile();
-    writeFlow(file.hub, file.path, psf).then(() => {
-      project.saved({ name: file.path, hub: file.hub, project: psf });
-      notes.show({ title: `Saved ${fileName}`, state: "done" });
-    }, (e) => failed(`Can't save ${fileName}`, e));
+    writeIn(file.hub, file.path).then((apart) => notes.show(apart ?? { title: `Saved ${fileName}`, state: "done" }), (e) => failed(`Can't save ${fileName}`, e));
   };
+  /** Picking a .pst opens its station on its starter (a new flow); a .psf opens on its station. */
   const openFromHub = (h: Hub, path: string) => {
     setFilePick(null);
-    if (!path.endsWith(".psf")) return void notes.show({ title: `Can't open ${path.slice(path.lastIndexOf("/") + 1)} yet`, detail: "Simplicial opens flows (.psf) for now; stations (.pst) come later", state: "failed" });
+    if (path.endsWith(".pst")) {
+      const st = listed.get(`${h.id}:${path}`)?.station;
+      if (st?.name === state.engine) return newProject();
+      return project.tell({
+        title: `Open ${st ? st.name : path.slice(path.lastIndexOf("/") + 1)}?`,
+        text: [`This window works on ${state.engine}. Switch it to ${st?.name ?? "that station"} (a new flow on its starter), or open it in a new window.`],
+        actions: [
+          { label: "Switch", primary: true, run: () => project.ask("Switch the station?", "Switch", () => void switchTo({ hub: h.id, path }, null, null)) },
+          { label: "New window", run: () => void switchTo({ hub: h.id, path }, null, null, { tab: window.open("", "_blank") }) },
+          { label: "Cancel" },
+        ],
+      });
+    }
     readFlow(h, path).then((psf) => take(psf, { hub: h.id, path }, h), (e) => failed(`Can't open ${path}`, e));
   };
   const saveInHub = (h: Hub, path: string) => {
     setFilePick(null);
-    const psf = flowFile();
-    writeFlow(h, path, psf).then(() => {
+    writeIn(h, path).then((apart) => {
       setFile({ hub: h.id, path });
-      project.saved({ name: path, hub: h.id, project: psf });
-      notes.show({ title: `Saved ${path.slice(path.lastIndexOf("/") + 1)}`, detail: `Simplicial now works in ${h.name}`, state: "done" });
+      notes.show(apart ?? { title: `Saved ${path.slice(path.lastIndexOf("/") + 1)}`, detail: `Simplicial now works in ${h.name}`, state: "done" });
     }, (e) => failed(`Can't save ${path}`, e));
+  };
+  // ?open=<hub>:<path>: the flow to open once the station has said hello (it survives a station switch), or without one.
+  const opening = useRef(false);
+  useEffect(() => {
+    const o = OPENING.open;
+    // the station's starter first (variables.load comes before graph.load, station.load right after it)
+    if (!o || opening.current || !(WITHOUT || (booted && state.engine && state.starter.graph))) return;
+    opening.current = true;
+    const t = window.setTimeout(async () => {
+      try {
+        if (!o.hub) {
+          const kept = readStored(STASH, (x): x is object => typeof x === "object" && x !== null);
+          if (kept) await take(parseFlow(JSON.stringify(kept)), { path: o.path }, undefined, OPENING.use);
+          return;
+        }
+        const known = await listHubs();
+        setHubs(known);
+        await take(await readFlow(o.hub, o.path), { hub: o.hub, path: o.path }, known.find((h) => h.id === o.hub), OPENING.use);
+      } catch (e) { failed(`Can't open ${o.path}`, e); }
+      // asked once: a reload doesn't ask again (unsaved work comes back as Restore)
+      window.history.replaceState(null, "", `?${toSearch({ station: OPENING.station, nostation: WITHOUT, ...(WITHOUT ? { open: o } : {}) }, location.search)}`);
+    }, WITHOUT ? 0 : 400);
+    return () => window.clearTimeout(t);
+  }, [booted, state.engine, state.starter.graph]); // eslint-disable-line react-hooks/exhaustive-deps -- once
+  // E6: while the window waits for its station, what the station's start says (`/__paperboat/status`): failed, and why.
+  const [startFailed, setStartFailed] = useState<Status | null>(null);
+  useEffect(() => {
+    if (booted || WITHOUT || !PORT) return;
+    const t = window.setInterval(() => void stationStatus().then((all) => {
+      const s = all.find((x) => x.port === PORT);
+      setStartFailed(s?.state === "failed" ? s : null);
+    }, () => {}), 1000);
+    return () => window.clearInterval(t);
+  }, [booted]);
+  const showLog = () => {
+    setConsoleOpen(true);
+    if (PORT) void stationLog(PORT).then((text) => { for (const line of text.split("\n").filter(Boolean).slice(-200)) log("info", line); }, () => {});
   };
   const runStates = useMemo(() => ({
     active: new Set(state.active), failed: new Set(state.failed), queued: new Set(state.queued), cached: new Set(state.cached), progress: state.progress,
@@ -298,10 +489,11 @@ export function App() {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
       flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
       board: arranging, unsaved: state.engine ? "" : "Not connected to a station", recent: project.recent.map((r) => ({ name: r.name, when: ago(r.savedAt, Date.now()) })),
+      misfits: kept.length,
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), newProject, open: () => void openFile(), openRecent: (i) => void openRecent(i), save: saveFile, saveAs: () => void saveFileAs(), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
+      run, cancel, station: () => setPicker(true), newProject, open: () => void openFile(), openRecent: (i) => void openRecent(i), save: saveFile, saveAs: () => void saveFileAs(), review: () => setReview(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -426,8 +618,15 @@ export function App() {
       </header>
 
       {!booted ? (
-        <Splash app="simplicial" ready={!!state.engine} onReady={() => setBooted(true)} onLog={() => setConsoleOpen(true)}
-          say={retrying ? "Waiting for the station" : "Connecting to the station"} detail={retrying ? `${URL_} · retrying` : URL_} />
+        <>
+          <Splash app="simplicial" ready={!!state.engine} onReady={() => setBooted(true)} onLog={showLog} failed={!!startFailed}
+            onRetry={OPENING.start ? () => void switchTo(OPENING.start!, OPENING.open ?? null, null, { use: OPENING.use }) : undefined}
+            say={startFailed ? `${startFailed.name} didn't start` : retrying ? "Waiting for the station" : "Connecting to the station"}
+            detail={startFailed ? startFailed.error ?? "see the log" : retrying ? `${URL_} · retrying` : URL_} />
+          {startFailed && OPENING.open && (
+            <div className="splash-more"><Key kind="quiet" onClick={() => { location.search = toSearch({ open: OPENING.open, nostation: true }, location.search); }}>Open without a station</Key></div>
+          )}
+        </>
       ) : <>
         <PageRail label="Pages" page={shownPage} onPage={(p) => go(p as Page)} aside={mode !== "navigator"} pages={[
           { id: "station", label: "Station", icon: "a-station", keys: "Alt 1", why: station ? undefined : NO_STATION },
@@ -447,7 +646,8 @@ export function App() {
                     </>}>
                     <Vars.Provider value={vars}>
                     <StationPage station={state.station} defs={state.objects} scene={sceneOf(state)} view={state.view} grid={gridOn} mode={sview}
-                      locked={running} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }} />
+                      locked={running} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }}
+                      starter={state.starter.station} changed={changes.overrides.objects} name={state.engine} />
                     </Vars.Provider>
                   </Panel>
                 </div>
@@ -497,14 +697,15 @@ export function App() {
             </div>
             {mode !== "lookout" && dock}
           </div>
-          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running}
+          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running || WITHOUT}
               onHover={setHoverVar} onChange={(variables) => send({ type: "variables.set", variables })}
+              starter={state.starter.variables} changed={changedVars} station={state.engine}
               onRename={(from, to) => setNodes((ns) => ns.map((n) => (isBlock(n) && Object.values(n.data.params).some((p) => JSON.stringify(p).includes(from))
                 ? { ...n, data: { ...n.data, params: Object.fromEntries(Object.entries(n.data.params).map(([k, p]) => [k, renameRef(p, from, to)])) } } : n)))} />
         </div>
       </>}
 
-      {(picker || (!booted && retrying)) && <StationPicker current={URL_} wait={!booted} onClose={() => setPicker(false)} />}
+      {(picker || (!booted && retrying && !startFailed && !OPENING.start)) && <StationPicker current={URL_} wait={!booted} onClose={() => setPicker(false)} />}
       {about && <About app="simplicial" role="Visual flow, station and block-diagram simulation" version={__VERSION__}
         info={[state.engine ? `engine ${state.version ?? "?"} · protocol paperboat/0 · station ${state.engine}` : "no station", __COMMIT__ && `commit ${__COMMIT__}`].filter(Boolean).join(" · ")}
         repo="paperboatlab/simplicial" credits={CREDITS} onClose={() => setAbout(false)} />}
@@ -513,6 +714,9 @@ export function App() {
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
         scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables", "Stations"]}
         placeholder={search.at ? "Add a block here" : "Search commands, blocks, variables and stations"} />}
+      {filePick === "find" && <OpenFile what="its station" types={["pst"]} hubs={hubs.filter((h) => h.id === finding.current?.at.hub)} list={listHub} onOpen={foundIt}
+        onComputer={() => notes.show({ title: "A station on this computer starts from its own command", detail: "paperboat start <file.pst>, then open the flow on it" })}
+        onClose={() => setFilePick(null)} />}
       {filePick === "open" && <OpenFile what="a flow or a station" types={TYPES} hubs={hubs} list={listHub} onOpen={openFromHub}
         onComputer={() => sysOpen.current?.click()} onClose={() => setFilePick(null)} />}
       {filePick === "save" && <SaveFile what="the flow" types={TYPES} hubs={hubs} list={listHub} name={file ? stem(file.path) : state.engine}
@@ -525,12 +729,15 @@ export function App() {
       {project.notice && (() => {
         const n = project.notice, choose = (run?: () => void) => { project.close(); run?.(); };
         return (
-          <Dialog title={n.title} wait onClose={() => choose(n.actions.at(-1)?.run)}
+          <Dialog title={n.title} wait wide={!!n.looked} onClose={() => choose(n.actions.at(-1)?.run)}
             actions={n.actions.map((a) => <Key key={a.label} kind={a.primary ? "primary" : undefined} onClick={() => choose(a.run)}>{a.label}</Key>)}>
             {n.text.map((t) => <p key={t}>{t}</p>)}
+            {n.looked && <ul className="looked">{n.looked.map(([w, what]) => <li key={w}><Icon name="error" /><code>{w}</code><span>{what}</span></li>)}</ul>}
           </Dialog>
         );
       })()}
+      {review && <Review misfits={kept} station={home ? named(home) : state.engine} file={file ? stem(file.path) : "this flow"}
+        onApply={(keep) => { setKept(keep); setReview(false); }} onClose={() => setReview(false)} />}
       <Toasts toasts={notes.toasts} onDismiss={notes.dismiss} />
     </div>
   );
@@ -538,3 +745,28 @@ export function App() {
 
 
 /** The station's variables, read-only in v0.1: by group, the value in a well (a formula's, with ƒ and its expression), the unit. */
+
+/** E4's review: each change that doesn't fit the station, kept (in the file, unused) or removed. */
+function Review({ misfits, station, file, onApply, onClose }: {
+  misfits: Misfit[]; station: string; file: string; onApply: (keep: Misfit[]) => void; onClose: () => void;
+}) {
+  const [gone, setGone] = useState<Set<string>>(new Set());
+  const n = misfits.length;
+  return (
+    <Dialog title={`${n} ${n === 1 ? "change doesn't" : "changes don't"} fit ${station}`} onClose={onClose}
+      actions={<><span className="grow" /><Key kind="primary" onClick={() => onApply(misfits.filter((m) => !gone.has(m.key)))}>Apply</Key><Key onClick={onClose}>Cancel</Key></>}>
+      <p>These changes in {file} have no place in {station}: a kept one stays in the file, unused, until a version has it again.</p>
+      <div>
+        {misfits.map((m) => (
+          <div key={m.key} className="fit">
+            <code>{m.key}</code>
+            <small>{m.why}</small>
+            <Segmented size="sm" label={`${m.key}: keep or remove`} value={gone.has(m.key) ? "remove" : "keep"}
+              onChange={(v) => setGone((g) => { const x = new Set(g); if (v === "remove") x.add(m.key); else x.delete(m.key); return x; })}
+              options={[{ value: "keep", label: "Keep" }, { value: "remove", label: "Remove" }]} />
+          </div>
+        ))}
+      </div>
+    </Dialog>
+  );
+}

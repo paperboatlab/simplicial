@@ -5,6 +5,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "paperboat/core/hubs.hpp"
+#include "paperboat/core/process.hpp"
 
 namespace fs = std::filesystem;
 namespace hubs = paperboat::core::hubs;
@@ -71,4 +72,92 @@ TEST_CASE("the hubs come from paperboat hub list --json; none without it") {
   write(cli, "#!/bin/sh\necho 'malachite: not installed' >&2\nexit 1\n");
   CHECK(hubs::list(cli.string()).empty());
   fs::remove_all(dir);
+}
+
+namespace {
+
+// A .pst as `paperboat pack` makes one: a zip with station.toml at its root.
+void pack(const fs::path& pst, const std::string& name, const std::string& version) {
+  fs::create_directories(pst.parent_path());
+  const auto r = paperboat::core::ProcessRunner::run_sync(
+      {"python3", "-c", "import sys, zipfile\nwith zipfile.ZipFile(sys.argv[1], 'w', zipfile.ZIP_DEFLATED) as z:\n"
+                        " z.writestr('station.toml', '[station]\\nformat = 0\\nname = \"' + sys.argv[2] + '\"\\nversion = \"' + sys.argv[3] + '\"\\n')",
+       pst.string(), name, version});
+  REQUIRE(r.ok());
+}
+
+void station_folder(const fs::path& dir, const std::string& name, const std::string& version) {
+  write(dir / "station.toml", "[station]\nformat = 0\nname = \"" + name + "\"\nversion = \"" + version + "\"\n");
+}
+
+}  // namespace
+
+TEST_CASE("versions compare part by part") {
+  CHECK(hubs::newer("0.10.0", "0.9.2"));
+  CHECK(hubs::newer("1.0", "0.9.9"));
+  CHECK(hubs::newer("0.2.1", "0.2"));
+  CHECK_FALSE(hubs::newer("0.2.0", "0.2.0"));
+  CHECK_FALSE(hubs::newer("0.1.9", "0.2.0"));
+}
+
+TEST_CASE("a .pst's station is its station.toml, read in the zip") {
+  const fs::path dir = fs::temp_directory_path() / "pb_hubs_pst";
+  fs::remove_all(dir);
+  pack(dir / "cart-pole.pst", "cart-pole", "0.2.0");
+  write(dir / "broken.pst", "not a zip");
+  station_folder(dir / "dev", "pendulum", "0.3.0");
+  const auto got = hubs::stations({dir / "cart-pole.pst", dir / "broken.pst", dir / "dev"});
+  REQUIRE(got.size() == 2);
+  CHECK(got[0].name == "pendulum");  // folders first: they need no packer
+  CHECK(got[0].sha256.empty());
+  CHECK(got[1].name == "cart-pole");
+  CHECK(got[1].version == "0.2.0");
+  CHECK(got[1].sha256.size() == 64);
+  fs::remove_all(dir);
+}
+
+TEST_CASE("finding a flow's station: its path, the hub, installed, running, by name") {
+  const fs::path hub = fs::temp_directory_path() / "pb_hubs_find";
+  fs::remove_all(hub);
+  pack(hub / "stations" / "cart-pole.pst", "cart-pole", "0.2.0");
+  pack(hub / "old" / "cart-pole-0.1.pst", "cart-pole", "0.1.0");
+  write(hub / "flows" / "here.psf", R"({"paperboat": 1, "station": {"name": "cart-pole", "version": "0.2.0", "path": "../stations/cart-pole.pst"}, "flow": {"nodes": [], "edges": []}})");
+  write(hub / "flows" / "moved.psf", R"({"paperboat": 1, "station": {"name": "cart-pole", "version": "0.1.0", "path": "../cart-pole.pst"}, "flow": {"nodes": [], "edges": []}})");
+  write(hub / "old.psf", R"({"paperboat": 0, "station": "cart-pole", "flow": {"nodes": [], "edges": []}})");
+  write(hub / "lost.psf", R"({"paperboat": 1, "station": {"name": "pump-rig", "version": "0.1.0"}, "flow": {"nodes": [], "edges": []}})");
+  write(hub / "ex.psf", R"({"paperboat": 1, "station": {"name": "thermostat"}, "flow": {"nodes": [], "edges": []}})");
+  const hubs::Elsewhere outside{{{"/home/u/.paperboat/stations/thermostat", "thermostat", "0.1.0", "", 0}},
+                                {{"/tmp/run/pendulum", "pendulum", "0.4.0", "", 51302}}};
+
+  auto f = hubs::find(hub, "flows/here.psf", "", "", outside);
+  CHECK(f["found"]["where"] == "path");
+  CHECK(f["found"]["path"] == "stations/cart-pole.pst");
+  CHECK(f["found"]["version"] == "0.2.0");
+  CHECK(f["found"]["sha256"].get<std::string>().size() == 64);
+  f = hubs::find(hub, "flows/moved.psf", "", "", outside);  // not at its path: the hub's, the exact version first
+  CHECK(f["found"]["where"] == "workspace");
+  CHECK(f["found"]["path"] == "old/cart-pole-0.1.pst");
+  CHECK(hubs::find(hub, "old.psf", "", "", outside)["found"]["path"] == "stations/cart-pole.pst");  // format 0: the newest
+  CHECK(hubs::find(hub, "ex.psf", "", "", outside)["found"]["where"] == "installed");
+  f = hubs::find({}, "", "pendulum", "", outside);
+  CHECK(f["found"]["where"] == "running");
+  CHECK(f["found"]["port"] == 51302);
+  f = hubs::find(hub, "lost.psf", "", "", outside);
+  CHECK(f["missing"] == nlohmann::json{{"name", "pump-rig"}, {"version", "0.1.0"}});
+  CHECK(f["looked"].size() == 3);  // no path to look at: the hub, installed, running
+
+  // the picker's tree: a station on each .pst, and each flow's parent (null and a warning when found nowhere)
+  const auto tree = hubs::entries(hub, outside);
+  const auto at = [&](const std::string& p) {
+    for (const auto& e : tree) if (e["path"] == p) return e;
+    return nlohmann::json();
+  };
+  CHECK(at("stations/cart-pole.pst")["station"] == nlohmann::json{{"name", "cart-pole"}, {"version", "0.2.0"}});
+  CHECK(at("flows/here.psf")["parent"] == "stations/cart-pole.pst");
+  CHECK(at("flows/here.psf")["station"]["path"] == "../stations/cart-pole.pst");
+  CHECK(at("old.psf")["station"] == nlohmann::json{{"name", "cart-pole"}});
+  CHECK(at("lost.psf")["parent"].is_null());
+  CHECK(at("lost.psf")["warn"] == "pump-rig 0.1.0 not found");
+  CHECK_FALSE(at("ex.psf").contains("parent"));  // found, outside the hub: not nested
+  fs::remove_all(hub);
 }

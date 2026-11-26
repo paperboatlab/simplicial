@@ -21,6 +21,7 @@
 #include "paperboat/toolkit/installer.hpp"
 #include "paperboat/toolkit/platform.hpp"
 #include "paperboat/core/hubs.hpp"
+#include "paperboat/core/process.hpp"
 #include "paperboat/core/server.hpp"
 #include "paperboat/core/station_manager.hpp"
 
@@ -94,25 +95,80 @@ std::string query(const std::string& uri, const std::string& name) {
   return "";
 }
 
+bool from_here(const std::string& remote) { return remote == "127.0.0.1" || remote == "::1" || remote == "::ffff:127.0.0.1"; }
+bool from_page(const ix::HttpRequestPtr& request) { return request->headers.find("X-Paperboat-Page") != request->headers.end(); }
+
+// The hub `id` as Malachite's `hub list` names it: its folder, or empty.
+fs::path hub_root(const std::string& cli, const std::string& id) {
+  for (const auto& h : hubs::known(cli)) {
+    if (!id.empty() && h.value("id", "") == id) return h.value("path", "");
+  }
+  return {};
+}
+
+// Where the page server writes the log of a station it started (`station/start`), by its port.
+fs::path start_log(int port) { return platform::shared_tmp_dir() / ("simplicial-station-" + std::to_string(port) + ".log"); }
+
+// A flow's station (plans/2026-11-26_12-55_psf_pst_rework.md), for this computer only:
+// GET /__paperboat/station/find?hub=&path=<psf> (or &name=&version=): where it is (hubs::find);
+// POST /__paperboat/station/start?hub=&path=<pst or station folder> (or ?name=&version=, an installed one), from
+// the page: `paperboat start` it on a free port, in the background, and answer {port, url} (the page then waits on
+// /__paperboat/status); GET /__paperboat/station/log?port=: what a start the page asked for wrote.
+ix::HttpResponsePtr station_route(const std::string& path, const ix::HttpRequestPtr& request, const std::string& cli) {
+  const std::string id = query(request->uri, "hub"), rel = query(request->uri, "path");
+  const std::string name = query(request->uri, "name"), version = query(request->uri, "version");
+  std::error_code ec;
+  const fs::path root = hub_root(cli, id);
+  if (!id.empty() && (root.empty() || !fs::is_directory(root, ec))) return respond(404, "text/plain", "no such hub\n");
+  if (path == "/__paperboat/station/find") {
+    if (rel.empty() && name.empty()) return respond(400, "text/plain", "a flow's path or a station's name\n");
+    return respond(200, "application/json", hubs::find(root, rel, name, version, hubs::elsewhere()).dump());
+  }
+  if (path == "/__paperboat/station/log") {
+    const std::string port = query(request->uri, "port");
+    if (port.empty() || port.find_first_not_of("0123456789") != std::string::npos || port.size() > 5) return respond(400, "text/plain", "a port\n");
+    std::ifstream in(start_log(std::stoi(port)), std::ios::binary);
+    std::stringstream body;
+    body << in.rdbuf();
+    return respond(200, "text/plain; charset=utf-8", body.str());
+  }
+  if (path != "/__paperboat/station/start") return respond(404, "text/plain", "not found\n");
+  if (request->method != "POST" || !from_page(request)) return respond(405, "text/plain", "POST from the page starts a station\n");
+  fs::path target;
+  if (!root.empty()) {
+    const auto at = hubs::inside(root, rel);
+    if (!at || !(at->extension() == ".pst" ? fs::is_regular_file(*at, ec) : fs::is_regular_file(*at / "station.toml", ec)))
+      return respond(400, "text/plain", "not a .pst or a station folder in the hub\n");
+    target = *at;
+  } else {
+    const json f = hubs::find({}, "", name, version, hubs::elsewhere());
+    if (!f.contains("found") || f["found"]["where"] != "installed") return respond(404, "text/plain", "no installed station " + name + "\n");
+    target = f["found"].value("path", "");
+  }
+  const int port = StationManager::find_free_port(51301, 51399);
+  if (port <= 0) return respond(503, "text/plain", "no free station port (51301-51399)\n");
+  const int pid = ProcessRunner::run_detached({platform::exe_path().string(), "start", target.string(), "--port", std::to_string(port)},
+                                              {}, {}, start_log(port));
+  if (pid <= 0) return respond(500, "text/plain", "can't start " + target.filename().string() + "\n");
+  return respond(200, "application/json", json{{"port", port}, {"url", "ws://localhost:" + std::to_string(port)}}.dump());
+}
+
 // The hubs for the page's File › Open and Save as (paperboat#16): GET /__paperboat/hubs, a hub's files
-// (GET /__paperboat/hub/files?hub=<id>), and one .psf in it (GET to read, POST to write:
-// /__paperboat/hub/file?hub=<id>&path=<in the hub>). Only for this computer, and a write only from the page
-// itself (its own header, which a cross-site form can't send). Nothing when `path` isn't a hub route.
+// (GET /__paperboat/hub/files?hub=<id>, with their stations: hubs::entries), and one .psf in it (GET to read, POST
+// to write: /__paperboat/hub/file?hub=<id>&path=<in the hub>). Only for this computer, and a write only from the
+// page itself (its own header, which a cross-site form can't send). Nothing when `path` isn't a hub or station route.
 ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr& request, const std::string& remote) {
-  if (!path.starts_with("/__paperboat/hub")) return nullptr;
-  if (remote != "127.0.0.1" && remote != "::1" && remote != "::ffff:127.0.0.1")
-    return respond(403, "text/plain", "hubs are only for this computer\n");
+  const bool station = path.starts_with("/__paperboat/station/");
+  if (!path.starts_with("/__paperboat/hub") && !station) return nullptr;
+  if (!from_here(remote)) return respond(403, "text/plain", "hubs are only for this computer\n");
   const char* env = std::getenv("PAPERBOAT");  // the paperboat CLI (Malachite adds `hub`); a stand-in for tests
   const std::string cli = env && *env ? env : "paperboat";
+  if (station) return station_route(path, request, cli);
   if (path == "/__paperboat/hubs") return respond(200, "application/json", hubs::list(cli).dump());
-  const std::string id = query(request->uri, "hub");
-  fs::path root;
-  for (const auto& h : hubs::known(cli)) {
-    if (h.value("id", "") == id) root = h.value("path", "");
-  }
+  const fs::path root = hub_root(cli, query(request->uri, "hub"));
   std::error_code ec;
   if (root.empty() || !fs::is_directory(root, ec)) return respond(404, "text/plain", "no such hub\n");
-  if (path == "/__paperboat/hub/files") return respond(200, "application/json", hubs::files(root).dump());
+  if (path == "/__paperboat/hub/files") return respond(200, "application/json", hubs::entries(root, hubs::elsewhere()).dump());
   if (path != "/__paperboat/hub/file") return respond(404, "text/plain", "not found\n");
   const auto file = hubs::inside(root, query(request->uri, "path"));
   if (!file || file->extension() != ".psf") return respond(400, "text/plain", "not a .psf in the hub\n");
@@ -123,7 +179,7 @@ ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr&
     body << in.rdbuf();
     return respond(200, "application/json", body.str());
   }
-  if (request->method != "POST" || request->headers.find("X-Paperboat-Page") == request->headers.end())
+  if (request->method != "POST" || !from_page(request))
     return respond(405, "text/plain", "POST from the page writes a file\n");
   // to a temp file, then renamed: a sync client never sees half a file
   fs::create_directories(file->parent_path(), ec);

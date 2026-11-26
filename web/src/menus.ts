@@ -42,6 +42,8 @@ export type View = {
   unsaved: string;
   /** Open recent: the files, newest first, and when each was last opened or saved ("5 min ago"). */
   recent: { name: string; when: string }[];
+  /** How many of the open flow's changes don't fit its station (E4): kept in the file, reviewed from File. */
+  misfits: number;
 };
 export type Do = {
   setMode: (m: Mode) => void;
@@ -61,6 +63,8 @@ export type Do = {
   openRecent: (i: number) => void;
   save: () => void;
   saveAs: () => void;
+  /** Review the changes that don't fit the station: keep or remove each. */
+  review: () => void;
   report: () => void;
   about: () => void;
   /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
@@ -93,6 +97,7 @@ export function registry(v: View, a: Do): Command[] {
     })),
     { id: "file.save", label: "Save", menu: "file", group: "save", shortcut: "Ctrl S", chord: { key: "s", ctrl: true }, enabled: !v.unsaved, why: v.unsaved, run: a.save },
     { id: "file.saveas", label: "Save as…", menu: "file", group: "save", shortcut: "Ctrl Shift S", chord: { key: "s", ctrl: true, shift: true }, enabled: !v.unsaved, why: v.unsaved, run: a.saveAs },
+    { id: "file.review", label: "Review changes…", menu: "file", group: "save", enabled: v.misfits > 0, why: "Every change in this flow fits its station", run: a.review },
     { id: "file.station", label: "Choose a station…", menu: "file", group: "station", run: a.station },
     later("file.export", "Export station…", "file", "station"),
     later("file.settings", "Settings…", "file", "settings", "Ctrl ,"),

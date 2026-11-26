@@ -603,8 +603,70 @@ export type PortSides = {
   bottom?: string[];
 };
 
-/** A station flow file (#82): everything a user made, as one JSON file (name.psf). It is not a protocol message; the UI writes and reads it. flow, station, variables and board are the shapes the protocol already uses. A block whose type the opening station lacks stays as a lost block, params and wires kept. */
+/** A station flow file (#82), format 1 (plans/2026-11-26_12-55_psf_pst_rework.md): a child of one station (.pst), holding only what differs from it, as one JSON file (name.psf). It is not a protocol message; the UI writes and reads it. A block whose type the opening station lacks stays as a lost block, params and wires kept. */
 export type StationFlow = {
+  /** The flow file format version. Opening refuses a newer one and says so; format 0 (StationFlow0) still opens. */
+  paperboat: 1;
+  station: StationRef;
+  overrides?: Overrides;
+  /** The flow's own variables (not the station's: those it changed are in overrides). */
+  variables?: Variables;
+  /** The Flow canvas, groups included; every node has its place (pos). */
+  flow: Graph;
+  /** The user's Board arrangement, if they made one. */
+  board?: BoardLayout;
+  /** Only the run settings the user changed from the station's defaults. */
+  run?: RunSettings;
+  /** Optional UI preferences and restrictions saved with the flow file (#104). */
+  ui?: {
+    /** Lock down parts of the UI behind an optional passcode (#104). */
+    lock?: {
+      /** When true, lock the Board's Arrange button and command. */
+      arrange?: boolean;
+      /** Allowed page ids ('station', 'flow', 'board'). */
+      pages?: string[];
+      /** Allowed view mode ids ('navigator', 'commander', 'lookout'). */
+      modes?: string[];
+      /** Salted hash of the unlock passcode. */
+      passcode?: {
+        algo: string;
+        salt: string;
+        hash: string;
+      };
+    };
+  };
+};
+
+/** The station a flow file is a child of: its station.toml's name and version, the .pst's sha256 (none for a station folder), and its path relative to the flow file (none for an installed station). Opening finds it by path, then by name in the workspace, installed, running. */
+export type StationRef = {
+  name: string;
+  version?: string;
+  sha256?: string;
+  /** Relative to the .psf, with /, inside the same workspace. */
+  path?: string;
+};
+
+/** What a flow changed of its station's starter (variables.load, station.load), keyed by name and id. A value equal to the station's is left out, and so is an empty part. Applied as the station's scene built with the overridden variables, then removed, changed, added: one variables.set and one station.set. */
+export type Overrides = {
+  /** Station variables by name: the new value, or an object of the fields that changed (a formula: {expr}). */
+  variables?: Record<string, number | boolean | string | Record<string, unknown>>;
+  /** The station's objects the flow changed, by id: their changed props and links, and pos. */
+  objects?: Record<string, ObjectOverride>;
+  /** Whole objects the user added. */
+  added?: StationObject[];
+  /** The ids of the station's objects the user deleted. */
+  removed?: string[];
+};
+
+export type ObjectOverride = {
+  props?: Record<string, ParamValue>;
+  /** A slot to the object filling it; null: emptied. */
+  links?: Record<string, string | null>;
+  pos?: [number, number];
+};
+
+/** A station flow file in format 0 (#82), read and written as format 1 on the next Save: everything a user made, as one JSON file (name.psf). It is not a protocol message; the UI writes and reads it. flow, station, variables and board are the shapes the protocol already uses. A block whose type the opening station lacks stays as a lost block, params and wires kept. */
+export type StationFlow0 = {
   /** The flow file format version. Opening refuses a newer one and says so. */
   paperboat: 0;
   /** The engine the flow file was made on (hello.engine). Opening it on another station warns first. */
@@ -732,7 +794,7 @@ export type ServerMsg =
   | {
     type: "psf.load";
     name?: string;
-    psf: StationFlow;
+    psf: StationFlow | StationFlow0;
   }
   | {
     type: "variables.values";

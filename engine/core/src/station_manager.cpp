@@ -1695,7 +1695,7 @@ bool StationManager::start_app(int port, const std::string& host, bool daemon) {
   // in: it serves the web app built into share/paperboat/web itself.
   if (root.empty() || !fs::is_regular_file(root / "apps" / "web" / "package.json")) {
     const fs::path exe = platform::exe_path();
-    fs::path web = root.empty() ? fs::path{} : root / "web";
+    fs::path web = root.empty() ? fs::path{} : root / "web" / "dist";  // the page, built (npm run build)
     if (!fs::is_regular_file(web / "index.html")) web = exe.parent_path().parent_path() / "share" / "paperboat" / "web";
     if (!fs::is_regular_file(web / "index.html")) {
       std::cerr << "error: no web app here: run it from a Paperboat checkout (npm install), or install a release package\n";

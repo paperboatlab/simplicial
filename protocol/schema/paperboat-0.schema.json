@@ -1387,7 +1387,14 @@
           "type": "string"
         },
         "psf": {
-          "$ref": "#/$defs/StationFlow"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StationFlow"
+            },
+            {
+              "$ref": "#/$defs/StationFlow0"
+            }
+          ]
         }
       },
       "required": [
@@ -3376,7 +3383,197 @@
     },
     "StationFlow": {
       "type": "object",
-      "description": "A station flow file (#82): everything a user made, as one JSON file (name.psf). It is not a protocol message; the UI writes and reads it. flow, station, variables and board are the shapes the protocol already uses. A block whose type the opening station lacks stays as a lost block, params and wires kept.",
+      "description": "A station flow file (#82), format 1 (plans/2026-11-26_12-55_psf_pst_rework.md): a child of one station (.pst), holding only what differs from it, as one JSON file (name.psf). It is not a protocol message; the UI writes and reads it. A block whose type the opening station lacks stays as a lost block, params and wires kept.",
+      "required": [
+        "paperboat",
+        "station",
+        "flow"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "paperboat": {
+          "const": 1,
+          "description": "The flow file format version. Opening refuses a newer one and says so; format 0 (StationFlow0) still opens."
+        },
+        "station": {
+          "$ref": "#/$defs/StationRef"
+        },
+        "overrides": {
+          "$ref": "#/$defs/Overrides"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "The flow's own variables (not the station's: those it changed are in overrides)."
+        },
+        "flow": {
+          "$ref": "#/$defs/Graph",
+          "description": "The Flow canvas, groups included; every node has its place (pos)."
+        },
+        "board": {
+          "$ref": "#/$defs/BoardLayout",
+          "description": "The user's Board arrangement, if they made one."
+        },
+        "run": {
+          "$ref": "#/$defs/RunSettings",
+          "description": "Only the run settings the user changed from the station's defaults."
+        },
+        "ui": {
+          "type": "object",
+          "description": "Optional UI preferences and restrictions saved with the flow file (#104).",
+          "additionalProperties": false,
+          "properties": {
+            "lock": {
+              "type": "object",
+              "description": "Lock down parts of the UI behind an optional passcode (#104).",
+              "additionalProperties": false,
+              "properties": {
+                "arrange": {
+                  "type": "boolean",
+                  "description": "When true, lock the Board's Arrange button and command."
+                },
+                "pages": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Allowed page ids ('station', 'flow', 'board')."
+                },
+                "modes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Allowed view mode ids ('navigator', 'commander', 'lookout')."
+                },
+                "passcode": {
+                  "type": "object",
+                  "description": "Salted hash of the unlock passcode.",
+                  "properties": {
+                    "algo": {
+                      "type": "string"
+                    },
+                    "salt": {
+                      "type": "string"
+                    },
+                    "hash": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "algo",
+                    "salt",
+                    "hash"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "StationRef": {
+      "type": "object",
+      "description": "The station a flow file is a child of: its station.toml's name and version, the .pst's sha256 (none for a station folder), and its path relative to the flow file (none for an installed station). Opening finds it by path, then by name in the workspace, installed, running.",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative to the .psf, with /, inside the same workspace."
+        }
+      }
+    },
+    "Overrides": {
+      "type": "object",
+      "description": "What a flow changed of its station's starter (variables.load, station.load), keyed by name and id. A value equal to the station's is left out, and so is an empty part. Applied as the station's scene built with the overridden variables, then removed, changed, added: one variables.set and one station.set.",
+      "additionalProperties": false,
+      "properties": {
+        "variables": {
+          "type": "object",
+          "description": "Station variables by name: the new value, or an object of the fields that changed (a formula: {expr}).",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": [
+                  "number",
+                  "boolean",
+                  "string"
+                ]
+              },
+              {
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "objects": {
+          "type": "object",
+          "description": "The station's objects the flow changed, by id: their changed props and links, and pos.",
+          "additionalProperties": {
+            "$ref": "#/$defs/ObjectOverride"
+          }
+        },
+        "added": {
+          "type": "array",
+          "description": "Whole objects the user added.",
+          "items": {
+            "$ref": "#/$defs/StationObject"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "description": "The ids of the station's objects the user deleted.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ObjectOverride": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "props": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ParamValue"
+          }
+        },
+        "links": {
+          "type": "object",
+          "description": "A slot to the object filling it; null: emptied.",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "pos": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "StationFlow0": {
+      "type": "object",
+      "description": "A station flow file in format 0 (#82), read and written as format 1 on the next Save: everything a user made, as one JSON file (name.psf). It is not a protocol message; the UI writes and reads it. flow, station, variables and board are the shapes the protocol already uses. A block whose type the opening station lacks stays as a lost block, params and wires kept.",
       "required": [
         "paperboat",
         "station",

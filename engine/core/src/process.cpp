@@ -362,6 +362,9 @@ int ProcessRunner::run_detached(
     dup2(out_fd, STDERR_FILENO);
     close(out_fd);
   }
+  // Nothing else is inherited: a server's listening socket would outlive it in the detached process.
+  const long most = std::min(sysconf(_SC_OPEN_MAX), 65536L);
+  for (int fd = 3; fd < most; ++fd) close(fd);
 
   exec_child(args, cwd, env);
 }
