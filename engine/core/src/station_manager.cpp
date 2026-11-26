@@ -1092,7 +1092,7 @@ fs::path StationManager::resolve_station_dir(const fs::path& path_or_domain) {
   }
 
   // An installed toolkit's examples: engine/toolkit/<toolkit>/examples/<ocv|opt>-NN-name,
-  // or a sibling toolkit repository: paperboat-toolkit-<name>/examples/<ocv|opt>-NN-name.
+  // or a sibling toolkit repository: simplicial-toolkit-<name>/examples/<ocv|opt>-NN-name.
   // `ocv-01`, `ocv-1` and the full name all find the same folder.
   if (!root.empty()) {
     std::string prefix = name;
@@ -1127,7 +1127,7 @@ fs::path StationManager::resolve_station_dir(const fs::path& path_or_domain) {
       for (const auto& repo : fs::directory_iterator(parent, ec)) {
         if (!repo.is_directory(ec)) continue;
         const std::string rname = repo.path().filename().string();
-        if (!rname.starts_with("paperboat-toolkit-")) continue;
+        if (!rname.starts_with("simplicial-toolkit-") && !rname.starts_with("paperboat-toolkit-")) continue;  // the old name: checkouts made before the rename
         if (auto p = search_examples(repo.path() / "examples"); !p.empty()) return p;
       }
     }
@@ -1537,7 +1537,7 @@ std::vector<ExampleStation> StationManager::get_examples(const fs::path& example
       for (const auto& repo : fs::directory_iterator(parent, ec)) {
         if (!repo.is_directory(ec)) continue;
         const std::string rname = repo.path().filename().string();
-        if (!rname.starts_with("paperboat-toolkit-")) continue;
+        if (!rname.starts_with("simplicial-toolkit-") && !rname.starts_with("paperboat-toolkit-")) continue;  // the old name: checkouts made before the rename
         const fs::path examples = repo.path() / "examples";
         if (!fs::is_directory(examples, ec)) continue;
         for (const auto& entry : fs::directory_iterator(examples, ec)) {

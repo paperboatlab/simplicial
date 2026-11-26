@@ -2049,7 +2049,7 @@ bool launch_console(const std::vector<std::string>& args) {
   if (const char* env = std::getenv("PAPERBOAT_CONSOLE"); env && *env) {
     script = env;
   } else {
-    // engine/build/tools/paperboat in a checkout, else the checkout this is run from.
+    // engine/build/tools/simplicial-engine in a checkout, else the checkout this is run from.
     for (const fs::path& root : {exe.parent_path() / ".." / ".." / "..", tk::find_repo_root()}) {
       if (root.empty() || !fs::is_directory(root / "apps" / "cli")) continue;
       script = fs::weakly_canonical(root / "apps" / "cli" / "dist" / "main.js", ec);
@@ -2192,7 +2192,7 @@ namespace {
 
 // The one-file download (pb#358, pb#355): a standalone paperboat with nothing installed around it
 // (no checkout, no share/paperboat beside it). It installs the runtime of its own version directly
-// in C++ ($PAPERBOAT_HOME/self/<version>, linked in $PAPERBOAT_BIN), then hands the command over.
+// in C++ ($PAPERBOAT_HOME/self/<version>, linked in $PAPERBOAT_BIN_DIR), then hands the command over.
 // $PAPERBOAT_ARCHIVE installs from a local release archive instead of downloading (offline, CI).
 std::optional<int> bootstrap(int argc, char** argv) {
   if (!tk::find_repo_root().empty()) return std::nullopt;  // a checkout or an installed paperboat

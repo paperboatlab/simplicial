@@ -42,7 +42,7 @@ come back out of process over `paperboat-runtime/0` (#7).
 - `bin/simplicial`: what `paperboat app open` runs (`simplicial [<folder>] --port N`: the engine's `web start --host
   127.0.0.1 --folder <folder>`, the page server starting in that workspace) and the `cli` of `commands.toml` (the
   other words go to the engine as typed). It calls the engine by path, never the platform's `paperboat` on PATH:
-  `bin/simplicial-engine` in a release, `engine/build/tools/paperboat` in a checkout; `PAPERBOAT_ROOT` is the app's
+  `bin/simplicial-engine` in a release, `engine/build/tools/simplicial-engine` in a checkout; `PAPERBOAT_ROOT` is the app's
   folder. A `v*` tag's `release.yml` packs `simplicial-<version>.tar.gz`: bin/ (the engine static, libstdc++ static,
   and `paperboat-scratchpad`), web/dist, protocol/, scripts/, commands.toml, toolkits.toml, icon.png (the kit's, for
   the desktop entry) and an empty engine/toolkit/ (the root's markers).

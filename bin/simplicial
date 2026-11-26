@@ -2,11 +2,11 @@
 # Paperboat Simplicial. `simplicial [<folder>] [--port N]` is the app server `paperboat app open` runs (the page,
 # web/dist, on 127.0.0.1:N, in that folder); `simplicial <command> ...` runs a command of commands.toml (run,
 # build, check, station list, ...) as typed. Both go to the engine: bin/simplicial-engine in a release,
-# engine/build/tools/paperboat in a checkout (never the platform's paperboat on PATH).
+# engine/build/tools/simplicial-engine in a checkout (never the platform's paperboat on PATH).
 here=$(dirname "$(readlink -f "$0")")
 root=$(dirname "$here")
 engine=$here/simplicial-engine
-[ -x "$engine" ] || engine=$root/engine/build/tools/paperboat
+[ -x "$engine" ] || engine=$root/engine/build/tools/simplicial-engine
 [ -x "$engine" ] || { echo "simplicial: no engine at $engine (build it: cmake --build engine/build)" >&2; exit 1; }
 export PAPERBOAT_ROOT="$root"  # this app, not a checkout the folder happens to be in
 

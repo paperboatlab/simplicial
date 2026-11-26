@@ -603,9 +603,9 @@ TEST_CASE("list_toolkits includes built-in toolkit and inspect_toolkit categoriz
 }
 
 namespace {
-// The CLI built with these tests: <build>/tests/paperboat_tests -> <build>/tools/paperboat.
+// The CLI built with these tests: <build>/tests/paperboat_tests -> <build>/tools/simplicial-engine.
 fs::path find_cli() {
-  const fs::path beside = paperboat::platform::exe_path().parent_path().parent_path() / "tools" / "paperboat";
+  const fs::path beside = paperboat::platform::exe_path().parent_path().parent_path() / "tools" / "simplicial-engine";
   return fs::is_regular_file(beside) ? beside : fs::path{"bin/paperboat"};
 }
 }  // namespace

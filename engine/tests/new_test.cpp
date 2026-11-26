@@ -54,9 +54,9 @@ struct StubScale final : tk::Block {
   tk::Values step(const tk::Context&, const tk::Values&) override { return {}; }
 };
 
-// The CLI built with these tests: <build>/tests/paperboat_tests -> <build>/tools/paperboat.
+// The CLI built with these tests: <build>/tests/paperboat_tests -> <build>/tools/simplicial-engine.
 fs::path cli_binary() {
-  return paperboat::platform::exe_path().parent_path().parent_path() / "tools" / "paperboat";
+  return paperboat::platform::exe_path().parent_path().parent_path() / "tools" / "simplicial-engine";
 }
 
 }  // namespace

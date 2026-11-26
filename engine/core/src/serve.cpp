@@ -166,9 +166,9 @@ ix::HttpResponsePtr station_route(const std::string& path, const ix::HttpRequest
   return respond(200, "application/json", json{{"port", port}, {"url", "ws://localhost:" + std::to_string(port)}}.dump());
 }
 
-// The paperboat CLI (Malachite adds `hub`), or $PAPERBOAT: a stand-in for tests.
+// The paperboat CLI (Malachite adds `hub`), or $PAPERBOAT_BIN (the platform's name for it; a stand-in in tests).
 std::string paperboat_cli() {
-  const char* env = std::getenv("PAPERBOAT");
+  const char* env = std::getenv("PAPERBOAT_BIN");
   return env && *env ? env : "paperboat";
 }
 

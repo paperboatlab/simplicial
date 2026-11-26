@@ -83,7 +83,7 @@ TEST_CASE("self: archive version parsing, channels, and home/bin paths") {
 
   EnvGuard env;
   env.set("PAPERBOAT_HOME", "/tmp/pb-self-home");
-  env.set("PAPERBOAT_BIN", "/tmp/pb-self-bin");
+  env.set("PAPERBOAT_BIN_DIR", "/tmp/pb-self-bin");
   CHECK(tk::paperboat_home() == "/tmp/pb-self-home");
   CHECK(tk::apps_dir() == "/tmp/pb-self-home/apps");
   CHECK(tk::self_dir() == "/tmp/pb-self-home/self");
@@ -100,7 +100,7 @@ TEST_CASE("self: install_self, check_only, side-by-side versions, and use_self_v
 
   EnvGuard env;
   env.set("PAPERBOAT_HOME", (tmp / "home").string());
-  env.set("PAPERBOAT_BIN", (tmp / "bin").string());
+  env.set("PAPERBOAT_BIN_DIR", (tmp / "bin").string());
 
   const fs::path a1 = make_release_archive(tmp / "pkg1", "0.1.0", {});
   const fs::path a2 = make_release_archive(tmp / "pkg2", "0.2.0", {});
@@ -207,7 +207,7 @@ TEST_CASE("self: standalone CLI bootstraps from PAPERBOAT_ARCHIVE in C++ and swi
   const std::vector<std::pair<std::string, std::string>> env = {
       {"PAPERBOAT_ROOT", ""},
       {"PAPERBOAT_HOME", home_dir.string()},
-      {"PAPERBOAT_BIN", bin_dir.string()},
+      {"PAPERBOAT_BIN_DIR", bin_dir.string()},
       {"PAPERBOAT_ARCHIVE", a1.string()},
       {"HOME", (tmp / "user").string()},
   };
@@ -230,7 +230,7 @@ TEST_CASE("self: standalone CLI bootstraps from PAPERBOAT_ARCHIVE in C++ and swi
   {
     EnvGuard g;
     g.set("PAPERBOAT_HOME", home_dir.string());
-    g.set("PAPERBOAT_BIN", bin_dir.string());
+    g.set("PAPERBOAT_BIN_DIR", bin_dir.string());
     tk::SelfInstallOptions o2;
     o2.channel = "release";
     o2.archive = a2;

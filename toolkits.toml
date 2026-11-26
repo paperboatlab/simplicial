@@ -5,7 +5,7 @@
 # examples live in engine/toolkit/<name>/examples and are listed by `paperboat stations`.
 [[toolkits]]
 name = "optimization"
-repo = "https://github.com/paperboatlab/paperboat-toolkit-optimization.git"
+repo = "https://github.com/paperboatlab/simplicial-toolkit-optimization.git"
 description = "Linear, quadratic and nonlinear programming blocks (OSQP, Ipopt)."
 optional = true
 prefix = "opt"
@@ -14,7 +14,7 @@ blocks = ["qp", "lp", "nlp"]
 
 [[toolkits]]
 name = "control"
-repo = "https://github.com/paperboatlab/paperboat-toolkit-control.git"
+repo = "https://github.com/paperboatlab/simplicial-toolkit-control.git"
 description = "Control blocks: pid, transfer functions, filters, nonlinear and discrete blocks, lqr, observers and kalman, and per-step mpc, lp_step, nmpc (needs optimization)."
 optional = true
 engine = ">=0.1"
@@ -30,7 +30,7 @@ blocks = ["pid", "integrator", "lag", "delay", "mpc", "lp_step", "nmpc",
 
 [[toolkits]]
 name = "opencv"
-repo = "https://github.com/paperboatlab/paperboat-toolkit-opencv.git"
+repo = "https://github.com/paperboatlab/simplicial-toolkit-opencv.git"
 description = "Image processing blocks, view monitor, and image station object (OpenCV)."
 optional = true
 prefix = "ocv"
@@ -44,7 +44,7 @@ blocks = ["gray", "blur", "median", "threshold", "adaptive_threshold", "hsv_rang
 
 [[toolkits]]
 name = "meshop"
-repo = "https://github.com/paperboatlab/paperboat-toolkit-meshop.git"
+repo = "https://github.com/paperboatlab/simplicial-toolkit-meshop.git"
 description = "Triangle mesh blocks on VCGlib (GPL-3.0): load, save, stats and a print check."
 optional = true
 engine = ">=0.1"
