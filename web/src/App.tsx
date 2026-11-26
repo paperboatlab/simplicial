@@ -287,9 +287,9 @@ export function App() {
       setUntitled(false);
       const moved = place ? movedNote(stem(at.path), made, place) : null;
       project.opened(!!moved || use);
-      notes.show(moved ? shown(moved) : { title: `Opened ${name}`, detail: doc.paperboat === 0 ? "an older flow file: Save writes it in the new format" : undefined, state: "done" });
       const v = place && versionNote(stem(at.path), made, place, misfits);
-      if (v) notes.show(shown(v));
+      if (moved || !v) notes.show(moved ? shown(moved) : { title: `Opened ${name}`, detail: doc.paperboat === 0 ? "an older flow file: Save writes it in the new format" : undefined, state: "done" });
+      if (v) notes.show(shown(v));  // E3 says it opened, and what to look at
     });
   };
   /** Open the page on another station (started first when it isn't running), the flow to open on it in the address. */
@@ -821,7 +821,7 @@ export function App() {
         onOpen={(p) => foundIt({ hub: finding.current!.at.hub! }, p)} onClose={() => setFilePick(null)} />}
       {filePick === "open" && wsHub && <OpenFile what="a flow or a station" types={TYPES} hub={wsHub} list={() => listHub({ hub: wsHub.id })} describe={describe}
         byParent={{ label: "By station", orphans: "No station" }} onOpen={(p) => void openIn({ hub: wsHub.id }, p)} onClose={() => setFilePick(null)} />}
-      {filePick === "save" && wsHub && <SaveFile what="the flow" types={TYPES} hub={wsHub} list={() => listHub({ hub: wsHub.id })} name={file ? stem(file.path) : state.engine}
+      {filePick === "save" && wsHub && <SaveFile what="the flow" types={["psf"]} hub={wsHub} list={() => listHub({ hub: wsHub.id })} name={file ? stem(file.path) : state.engine}
         onSave={(p) => void saveIn({ hub: wsHub.id }, p)} onClose={() => setFilePick(null)} />}
       {ask === "open" && <AskOpen what="a flow or a station" types={TYPES} hubs={hubs.length} onLocal={() => { setAsk(null); void openLocal(); }}
         onConnect={() => setAsk("connect-open")} onClose={() => setAsk(null)} />}

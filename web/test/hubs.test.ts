@@ -25,6 +25,8 @@ test("the server's rows become the tree's entries", () => {
   const [flowRow] = toEntries([{ path: "f/a.psf", kind: "file", station: { name: "rig" }, parent: null, warn: "rig not found" }]);
   assert.equal(flowRow.parent, null);
   assert.equal(flowRow.warn, "rig not found");
+  const [pst] = toEntries([{ path: "s/rig.pst", kind: "file", station: { name: "rig", version: "0.2.0" } }]);
+  assert.equal(pst.badge, "0.2.0", "a station shows its version");
 });
 
 test("a flow file opens; anything else says why", () => {

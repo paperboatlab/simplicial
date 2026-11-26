@@ -47,9 +47,12 @@ export type EntryStation = { name: string; version?: string; path?: string };
 export type Row = { path: string; kind: "file" | "folder"; station?: EntryStation; parent?: string | null; warn?: string };
 export type HubEntry = FileEntry & { station?: EntryStation };
 
-/** The server's rows (in tree order) as the kit's FileTree takes them, the station fields kept. */
+/** The server's rows (in tree order) as the kit's FileTree takes them, the station fields kept, a .pst's version its badge. */
 export const toEntries = (rows: readonly Row[]): HubEntry[] =>
-  rows.map(({ path, kind, ...rest }) => ({ path, kind, name: path.slice(path.lastIndexOf("/") + 1), depth: path.split("/").length - 1, ...rest }));
+  rows.map(({ path, kind, ...rest }) => ({
+    path, kind, name: path.slice(path.lastIndexOf("/") + 1), depth: path.split("/").length - 1, ...rest,
+    ...(path.endsWith(".pst") && rest.station?.version ? { badge: rest.station.version } : {}),  // a station's version beside it
+  }));
 
 
 /** The file's name in the bar and Save as: "a/b/pendulum.psf" → "pendulum". */
