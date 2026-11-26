@@ -8,9 +8,6 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
    Variables are one surface; the pages sit in the bay between them */
 .win { height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: var(--bar-height) minmax(0, 1fr); padding: 0 0 var(--gutter); }
 .frame .page-rail { background: none; border-color: transparent; }
-/* in the bay the pages are cards again, drawers too (the frame clears only its own side panels) */
-.frame .bay .panel.side { background: var(--surface-panel); border-color: var(--line); border-radius: var(--radius-lg); }
-.frame .bay .panel.side > .panel-inner > .panel-head { border-bottom-color: var(--line); }
 .win > .splash-stage { grid-column: 1 / -1; }
 /* the bar is the kit's (.win > .bar): the lockup, the menus, the open file centred, the right end */
 .bar { grid-column: 1 / -1; }
