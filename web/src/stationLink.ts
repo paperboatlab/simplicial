@@ -33,7 +33,7 @@ export function versionNote(file: string, made: StationRef, at: { name: string; 
   const fit = misfits.length ? `${misfits.length === 1 ? "1 change doesn't" : `${misfits.length} changes don't`} fit · File › Review changes…` : undefined;
   if (made.version && at.version && made.version !== at.version) return { title: `${at.name} is ${at.version}; ${file} was made on ${made.version}`, detail: fit };
   if (made.sha256 && at.sha256 && made.sha256 !== at.sha256) return { title: `${named(at)} changed since ${file} was saved`, detail: fit };
-  return fit ? { title: `${many(misfits.length, "change")} in ${file} ${misfits.length === 1 ? "doesn't" : "don't"} fit ${named(at)}`, detail: fit } : null;
+  return fit ? { title: `${many(misfits.length, "change")} in ${file} ${misfits.length === 1 ? "doesn't" : "don't"} fit ${named(at)}`, detail: "Kept in the file, unused · File › Review changes…" } : null;
 }
 
 /** E8: saved in another hub than its station's. */

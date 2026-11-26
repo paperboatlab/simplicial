@@ -257,7 +257,6 @@ export function App() {
       notes.show(moved ?? { title: `Opened ${name}`, detail: [inHub && `Simplicial now works in ${inHub.name}`, doc.paperboat === 0 && "an older flow file: Save writes it in the new format"].filter(Boolean).join(" · ") || undefined, state: "done" });
       const v = place && versionNote(stem(at.path), made, place, misfits);
       if (v) notes.show(v);
-      window.history.replaceState(null, "", `?${toSearch({ station: OPENING.station, nostation: WITHOUT }, location.search)}`);
     });
   };
   /** Open the page on another station (started first when it isn't running), the flow to open on it in the address. */
@@ -408,9 +407,10 @@ export function App() {
   const opening = useRef(false);
   useEffect(() => {
     const o = OPENING.open;
-    if (!o || opening.current || !(WITHOUT || (booted && state.engine))) return;
+    // the station's starter first (variables.load comes before graph.load, station.load right after it)
+    if (!o || opening.current || !(WITHOUT || (booted && state.engine && state.starter.graph))) return;
     opening.current = true;
-    const t = window.setTimeout(async () => {  // the starter settles first (variables.load, station.load)
+    const t = window.setTimeout(async () => {
       try {
         if (!o.hub) {
           const kept = sessionStorage.getItem(STASH);
@@ -421,9 +421,11 @@ export function App() {
         setHubs(known);
         await take(await readFlow(o.hub, o.path), { hub: o.hub, path: o.path }, known.find((h) => h.id === o.hub), OPENING.use);
       } catch (e) { failed(`Can't open ${o.path}`, e); }
+      // asked once: a reload doesn't ask again (unsaved work comes back as Restore)
+      window.history.replaceState(null, "", `?${toSearch({ station: OPENING.station, nostation: WITHOUT, ...(WITHOUT ? { open: o } : {}) }, location.search)}`);
     }, WITHOUT ? 0 : 400);
     return () => window.clearTimeout(t);
-  }, [booted, state.engine]); // eslint-disable-line react-hooks/exhaustive-deps -- once
+  }, [booted, state.engine, state.starter.graph]); // eslint-disable-line react-hooks/exhaustive-deps -- once
   // E6: while the window waits for its station, what the station's start says (`/__paperboat/status`): failed, and why.
   const [startFailed, setStartFailed] = useState<Status | null>(null);
   useEffect(() => {
@@ -695,7 +697,7 @@ export function App() {
             </div>
             {mode !== "lookout" && dock}
           </div>
-          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running}
+          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running || WITHOUT}
               onHover={setHoverVar} onChange={(variables) => send({ type: "variables.set", variables })}
               starter={state.starter.variables} changed={changedVars} station={state.engine}
               onRename={(from, to) => setNodes((ns) => ns.map((n) => (isBlock(n) && Object.values(n.data.params).some((p) => JSON.stringify(p).includes(from))
@@ -727,7 +729,7 @@ export function App() {
       {project.notice && (() => {
         const n = project.notice, choose = (run?: () => void) => { project.close(); run?.(); };
         return (
-          <Dialog title={n.title} wait onClose={() => choose(n.actions.at(-1)?.run)}
+          <Dialog title={n.title} wait wide={!!n.looked} onClose={() => choose(n.actions.at(-1)?.run)}
             actions={n.actions.map((a) => <Key key={a.label} kind={a.primary ? "primary" : undefined} onClick={() => choose(a.run)}>{a.label}</Key>)}>
             {n.text.map((t) => <p key={t}>{t}</p>)}
             {n.looked && <ul className="looked">{n.looked.map(([w, what]) => <li key={w}><Icon name="error" /><code>{w}</code><span>{what}</span></li>)}</ul>}

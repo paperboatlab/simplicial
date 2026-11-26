@@ -81,6 +81,7 @@ export function useProject(
      *  found elsewhere, E2); kept in Open recent when it has a name. */
     opened: (s?: Omit<Stored, "savedAt">, changed = false) => {
       setBaseline(changed ? "changed" : null);
+      checked.current = engine;  // a file opened on purpose: no offer to restore what was there before
       if (s) setRecent((list) => saveRecent(addRecent(list, { ...s, savedAt: Date.now() })));
     },
     /** It was saved as `s`: saved from here on, and kept in Open recent. */
