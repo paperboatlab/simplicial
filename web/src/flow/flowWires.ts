@@ -28,6 +28,19 @@ export const commentedOutIds = (nodes: FlowNode[]) =>
   new Set(nodes.filter(isBlock).filter((n) => n.data.commented && n.data.commentMode !== "through").map((n) => n.id));
 
 /**
+ * Where the blocks and their ports are, as one string: React Flow changes its node lookup in place (the
+ * same Map), so the routes are worked out again when this changes, not when the lookup does.
+ */
+export const nodeGeometry = (nodeLookup: ReactFlowState["nodeLookup"]) =>
+  [...nodeLookup.values()]
+    .map((n) => {
+      const { positionAbsolute: at, handleBounds: h } = n.internals;
+      const ports = [...(h?.source ?? []), ...(h?.target ?? [])].map((p) => `${p.id}@${p.x},${p.y}`).join(" ");
+      return `${n.id}@${at.x},${at.y},${n.measured?.width},${n.measured?.height}[${ports}]`;
+    })
+    .join(";");
+
+/**
  * Route every wire shown round the blocks, from where React Flow has measured the nodes and their ports;
  * then mark where wires out of one port branch off each other, as drawn (along their saved bends, if any).
  */
@@ -68,16 +81,17 @@ export function routeCanvasWires(nodeLookup: ReactFlowState["nodeLookup"], shown
       return "right";
     };
 
+    // Whole pixels: a port measured a hair off another (zoom) would put a jog in a straight wire.
     routeInputs.push({
       id: w.id,
       source: w.source,
       sourceHandle: w.sourceHandle,
       target: w.target,
       targetHandle: w.targetHandle,
-      sx,
-      sy,
-      tx,
-      ty,
+      sx: Math.round(sx),
+      sy: Math.round(sy),
+      tx: Math.round(tx),
+      ty: Math.round(ty),
       sourcePosition: toSide(sh?.position),
       targetPosition: toSide(th?.position ?? Position.Left),
       step: w.data?.type === "step",

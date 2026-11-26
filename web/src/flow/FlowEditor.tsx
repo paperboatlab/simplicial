@@ -18,7 +18,7 @@ import { useFlowGroups } from "./flowGroups.ts";
 import { arrangeFlowNodes, clearWireBends } from "./flowLayout.ts";
 import { useFlowLevels } from "./flowLevels.ts";
 import { hasStepPorts, inForm, isBlock, portType, type BlockNode, type FlowNode, type Wire } from "./flowModel.ts";
-import { commentedOutIds, iconWireCounts, routeCanvasWires } from "./flowWires.ts";
+import { commentedOutIds, iconWireCounts, nodeGeometry, routeCanvasWires } from "./flowWires.ts";
 import { Boundary, GroupBox } from "./Groups.tsx";
 import { display, isFrame, isLevel, type GroupData, type GroupNode } from "./groups.ts";
 import { useLitWires } from "./litWires.ts";
@@ -234,8 +234,9 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
 
   // A dragged card: plan what dropping it here would do, show that, and do it on drop.
   const { hint, setHint, onDragOver, onDrop } = useCardDrop(wrap, nodes, edges, level, defOf, setNodes, setEdges, screenToFlowPosition);
-  const nodeLookup = useStore((st) => st.nodeLookup);
-  const wireRoutes = useMemo(() => routeCanvasWires(nodeLookup, shown.edges), [shown.edges, nodeLookup]);
+  const geometry = useStore((st) => nodeGeometry(st.nodeLookup));
+  // `geometry` stands for the lookup, which React Flow changes in place
+  const wireRoutes = useMemo(() => routeCanvasWires(store.getState().nodeLookup, shown.edges), [shown.edges, geometry, store]);
   const setBends = useMemo(
     () => (lock ? null : (id: string, bends: Point[]) => setEdges((ws) => ws.map((w) => (w.id === id ? { ...w, data: { type: w.data?.type ?? "signal", ...w.data, points: bends } } : w)))),
     [lock, setEdges],
