@@ -18,7 +18,7 @@ import {
 import { useUndo } from "@paperboatlab/ui/canvas";
 import { HubSelector, OpenFile, SaveFile, type Hub } from "@paperboatlab/ui/hub";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Board } from "./board/Board.tsx";
 import { loadSaved, save } from "./board/boardLayout.ts";
 import { useBoardWiring } from "./board/boardWiring.ts";
@@ -101,7 +101,7 @@ function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; valu
   const commit = () => { const d = parseLength(draft); if (d !== undefined) set({ duration: d }); else setDraft(lengthText(duration)); };
   return (
     <span className="run-options" title="The next run's length and speed (the station's defaults until changed; ∞ runs until cancelled)">
-      <i className="dock-sep" />for
+      <i className="sep" />for
       <input aria-label="Run length, s (∞: until cancelled)" value={draft} size={4} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />s
       <Key size="sm" kind="quiet" className="run-forever" aria-pressed={duration === 0} aria-label="Run until cancelled"
         title={duration === 0 ? `Back to ${finite.current} s` : "Run until cancelled (∞)"} onClick={() => set({ duration: duration === 0 ? finite.current : 0 })}>∞</Key>
@@ -410,7 +410,7 @@ export function App() {
               ]} />
             </span>
             <button ref={conKey} type="button" className="key round bar-key" aria-label="Console (Ctrl `)" title="Console (Ctrl `)" aria-pressed={consoleOpen} onClick={() => setConsoleOpen((o) => !o)}>
-              <Icon name="a-console" />{errors > 0 && <b className="badge">{errors}</b>}
+              <Icon name="a-console" />{errors > 0 && <b className="badge bad">{errors}</b>}
             </button>
             <PanelsKey layout={sketch(mode, station)} onToggle={(id) => toggle(id as Pane)}
               panels={PANES[mode].filter((p) => station || p !== "st").map((p) => ({ id: p, label: PANE_NAME[p][0], keys: PANE_NAME[p][1], shown: !hid(p) }))} />
@@ -436,10 +436,11 @@ export function App() {
               {station && (
                 <div className="pg pg-station" inert={inert("station")}>
                   <Panel name="Station" side="left" width={380} icon="a-station" count={objects} {...drawer("st", mode === "lookout")}
-                    head={<><small className="sum">{`${state.engine} · ${objects} ${objects === 1 ? "object" : "objects"}`}</small><Tools>
+                    head={<small className="sum">{`${state.engine} · ${objects} ${objects === 1 ? "object" : "objects"}`}</small>}
+                    tools={<>
                       {sview === "3d" && <Key size="sm" kind="quiet" aria-pressed={gridOn} title="The floor grid" onClick={() => setFloor(!gridOn)}>Grid</Key>}
-                      <Segmented label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} />
-                    </Tools></>}>
+                      <Segmented size="sm" label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} />
+                    </>}>
                     <StationPage station={state.station} defs={state.objects} scene={sceneOf(state)} view={state.view} grid={gridOn} mode={sview}
                       locked={running} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }} />
                   </Panel>
@@ -447,7 +448,8 @@ export function App() {
               )}
               <div className="pg pg-flow" inert={inert("flow")}>
                 <Panel name="Flow" side="right" width={480} icon="a-flow" count={blockCount} {...drawer("fl", mode === "lookout")}
-                  head={<><small className="sum">{`${blockCount} ${blockCount === 1 ? "block" : "blocks"} · ${edges.length} ${edges.length === 1 ? "wire" : "wires"}`}</small><Tools>
+                  head={<small className="sum">{`${blockCount} ${blockCount === 1 ? "block" : "blocks"} · ${edges.length} ${edges.length === 1 ? "wire" : "wires"}`}</small>}
+                  tools={<>
                     <span title={lock || "Arrange the blocks along their wires"}>
                       <Key size="sm" kind="quiet" disabled={!!lock || !canArrangeFlow(nodes, level)} onClick={() => flow.current?.arrange()}>Arrange</Key>
                     </span>
@@ -455,7 +457,7 @@ export function App() {
                       <Key size="sm" kind="quiet" icon="add" shortcut="/" disabled={!!lock}
                         onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setSearch({ at: { x: r.right - 400, y: r.bottom + 6 } }); }}>Add block</Key>
                     </span>
-                  </Tools></>}>
+                  </>}>
                   <div ref={flowBody} className="page-body"
                     onPointerMove={(e) => (mouse.current = { x: e.clientX, y: e.clientY })} onPointerLeave={() => (mouse.current = null)}>
                     <RunStates.Provider value={runStates}>
@@ -477,12 +479,10 @@ export function App() {
                     {mode === "commander" && hid("bd") && readouts.length > 0 && (
                       <span className="bread">{readouts.map(([k, v, u]) => <span key={k}>{k} <b>{fmt(v)}</b>{u && <small>{u}</small>}</span>)}</span>
                     )}
-                    <Tools>
-                      <Key size="sm" kind="quiet" aria-pressed={arranging} title={arranging ? "Done arranging" : "Move and size the instruments, add decorations and tabs"} onClick={arrangeBoard}>
-                        {arranging ? "Done" : "Arrange"}
-                      </Key>
-                    </Tools>
-                  </>}>
+                  </>}
+                  tools={<Key size="sm" kind="quiet" aria-pressed={arranging} title={arranging ? "Done arranging" : "Move and size the instruments, add decorations and tabs"} onClick={arrangeBoard}>
+                    {arranging ? "Done" : "Arrange"}
+                  </Key>}>
                   <Board state={state} send={send} monitors={monitors} layout={layout} custom={!!saved} onSave={saveBoard} arrange={arranging}
                     tab={tab} onTab={setTab} onBlock={(id) => { go("flow"); pick(id); }} taps={taps} onTap={tap} dock={mode !== "commander"} />
                 </Panel>
@@ -530,6 +530,5 @@ export function App() {
   );
 }
 
-const Tools = ({ children }: { children: ReactNode }) => <span className="tools">{children}</span>;
 
 /** The station's variables, read-only in v0.1: by group, the value in a well (a formula's, with ƒ and its expression), the unit. */

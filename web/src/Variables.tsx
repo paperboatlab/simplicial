@@ -34,9 +34,9 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   };
   return (
     <Panel name="Variables" side="right" width={312} icon="a-variables" count={list.length} hidden={hidden} onHidden={onHidden}
-      head={<span className="tools">
+      tools={<>
         <Key size="sm" kind="quiet" icon="add" disabled={locked} title={locked ? "Wait for the run to end" : "A new variable, to bind to blocks' params"} onClick={add}>Variable</Key>
-      </span>}>
+      </>}>
       {!list.length && <p className="vnone">No variables yet: add one, then bind a block's param to it</p>}
       <VariableList>
         {[...groups].map(([g, vs]) => (

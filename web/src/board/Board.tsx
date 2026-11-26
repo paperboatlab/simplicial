@@ -238,7 +238,7 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
                   <>
                     <span className="deco-tools" onClick={(e) => e.stopPropagation()}>
                       {d.kind === "label" && (
-                        <Segmented label="Label style" value={d.style} onChange={(s) => commit(editDecoration(arranged, d.index, { style: s }))}
+                        <Segmented size="sm" label="Label style" value={d.style} onChange={(s) => commit(editDecoration(arranged, d.index, { style: s }))}
                           options={[{ value: "heading", label: "Heading" }, { value: "note", label: "Note" }]} />
                       )}
                       <RemoveKey label="Remove (Delete)" onClick={() => { commit(removeDecoration(arranged, d.index)); setPicked(null); }} />
@@ -274,7 +274,7 @@ export function Board({ state, send, monitors, layout, custom, onSave: commit, a
                   settings={p.settings} onSettings={(next) => commit(setSettings(arranged, p.block, next))} taps={taps} onTap={(id) => onTap(p.block, id)} />
                 {canEdit && (
                   <span className="cell-tools" onClick={(e) => e.stopPropagation()}>
-                    <Segmented<Size | "custom"> label={`Size of ${p.block}`} value={p.span || spanning?.block === p.block ? "custom" : p.size}
+                    <Segmented<Size | "custom"> size="sm" label={`Size of ${p.block}`} value={p.span || spanning?.block === p.block ? "custom" : p.size}
                       onChange={(s) => s !== "custom" && commit(resizeInstrument(arranged, p.block, s))}
                       options={[
                         ...SIZES.map((s) => ({ value: s, label: SIZE_LABEL[s], hint: `${CELLS[s][0]} × ${CELLS[s][1]} cells` })),

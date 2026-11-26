@@ -62,10 +62,10 @@ export function SelectionDialog(p: Props) {
     <NodeToolbar nodeId={p.pickedNodes.map((n) => n.id)} isVisible={p.isVisible} position={p.roomAbove ? Position.Top : Position.Bottom} offset={14}
       className="selection-dialog nodrag nopan nowheel">
       <span className="sel-what">{summary}</span>
-      <i className="sel-sep" />
+      <i className="sep" />
       {unfold("comment", "Comment")}
       {unfold("group", "Group")}
-      <i className="sel-sep" />
+      <i className="sep" />
       <span title={deleteWhy || "Delete the selection"}>
         <Key size="sm" kind="quiet" shortcut="Del" disabled={!!deleteWhy} onClick={p.removePicked}>Delete</Key>
       </span>
