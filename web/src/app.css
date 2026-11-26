@@ -98,7 +98,7 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .flow-canvas .react-flow__node.selectable:focus-visible { outline: none; }
 .flow-canvas .react-flow__node:focus-visible > :first-child { outline: 2px solid var(--focus); outline-offset: 3px; }
 .flow-canvas.locked .react-flow__handle { cursor: default; }
-.wire-hit { fill: none; stroke: transparent; stroke-width: 14px; pointer-events: none; }
+.wire-hit { fill: none; stroke: transparent; stroke-width: 14px; pointer-events: stroke; }
 .wire-remove { position: absolute; pointer-events: all; }
 .canvas-empty { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; font-size: var(--size-sm); color: var(--text-muted); pointer-events: none; }
 .canvas-empty .kbd { margin-right: 6px; }

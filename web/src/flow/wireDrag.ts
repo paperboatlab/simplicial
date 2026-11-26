@@ -1,8 +1,10 @@
 // Drawing and moving wires on the Flow canvas. While a wire is dragged (#52) the port it would join
 // is raised and ports that can't take it dim; a drop that misses, near a port that accepts it, joins
 // that one. Dragging a wire's end onto another port moves it; dropping it anywhere else deletes it.
+// A branch pulled out of a wire (Ctrl-drag or right-drag on it) is a new wire from the same output.
 
 import type { Connection, HandleType, OnConnectEnd, OnConnectStart, ReactFlowState, XYPosition } from "@xyflow/react";
+import type { Point } from "@paperboatlab/ui/canvas";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { connectionOf, nearestAccepting, SNAP, type Anchor } from "@paperboatlab/ui/canvas";
 import { connect, portDef, type Wire } from "./flowModel.ts";
@@ -94,6 +96,26 @@ export function useWireDrag(
     if (!state.isValid && anchor && targetNow.current) onConnect(connectionOf(anchor, targetNow.current.nodeId, targetNow.current.handleId));
     endWire();
   };
+  // ---- A branch: drawn from where the wire was grabbed to the pointer, joined on release ----
+  const [line, setLine] = useState<{ wire: string; from: Point; to: Point } | null>(null);
+  const startBranch = (wire: string, a: Anchor, from: Point) => {
+    startWire(a);
+    setLine({ wire, from, to: from });
+    const move = (e: PointerEvent) => {
+      const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      setLine((l) => l && { ...l, to: [at.x, at.y] });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      if (targetNow.current) onConnect(connectionOf(a, targetNow.current.nodeId, targetNow.current.handleId));
+      setLine(null);
+      endWire();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   const handlers = { onConnect, onReconnect, onReconnectStart, onReconnectEnd, onConnectStart, onConnectEnd };
-  return { wireDrag, handlers };
+  return { wireDrag, handlers, branch: { start: startBranch, line } };
 }
