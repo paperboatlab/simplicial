@@ -1,4 +1,4 @@
-// Simplicial's page (agent-docs/rebrand/apps/simplicial): the bar (lockup, menus, the project's name, the view
+// Simplicial's page (agent-docs/rebrand/apps/simplicial): the bar (lockup, menus, the workspace well, the view
 // mode, the Console, Panels and theme keys), the page rail in Navigator, the three pages laid out by the view
 // mode, the Variables card, the run dock, the Console window and the floating search. The parts are the kit's
 // (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash, and
@@ -8,15 +8,21 @@
 // per station in the browser) or the station's.
 // Background news (the station lost and back, a run's fault) comes as toasts (news.ts), kept by the bar's
 // Notifications key.
-// File › Open… and Save as… go through the kit's OpenFile and SaveFile when Malachite knows hubs (hubs.ts), else straight
-// to the system's: the file decides the hub, and the bar then shows the hub's selector and the file's path in it.
+// The one file workflow (plans/2026-11-26_11-05_one_file_workflow.md): Simplicial works in a folder or a hub (the page's
+// server keeps which, hubs.ts); the bar's well after the menu bar names it, the File menu is the kit's, and with none the
+// Start page fills the bay. In a hub, Open and Save as are our picker over it; outside one, the system's dialogs in a
+// Paperboat window (`shell()`), else a typed path and a download. Recent and the theme are the store every app shares.
 import {
   About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
-  Toasts, ago, isEnabled, readStored, typeLine, typing, ownKeys, useShortcuts, useTheme, useToasts, valueText, writeStored,
-  type Credit, type PaneRect, type SearchItem, type Theme,
+  Toasts, WindowKeys, isEnabled, readStored, typeLine, typing, ownKeys, useShortcuts, useTheme, useToasts, valueText, writeStored,
+  type Credit, type PaneRect, type SearchItem, type Theme, type Toast,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
-import { HubSelector, OpenFile, SaveFile, type Hub } from "@paperboatlab/ui/hub";
+import type { FileEntry } from "@paperboatlab/ui/files";
+import { ConnectHub, OpenFile, SaveFile, type Hub } from "@paperboatlab/ui/hub";
+import {
+  AskOpen, Start, TypedPath, Unsaved, WorkspaceWell, baseName, fileMenu, parseSettings, recentFor, recentMenu, shell, type RecentEntry, type Workspace,
+} from "@paperboatlab/ui/workspace";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Board } from "./board/Board.tsx";
@@ -37,14 +43,14 @@ import { toFlow, toGraph } from "./flow/flowGraph.ts";
 import { canArrangeFlow } from "./flow/flowLayout.ts";
 import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
 import { isPortType } from "./flow/portBlocks.ts";
-import { MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
+import { fileItems, MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
 import { applyOverrides, buildProject, diff, mergeOverrides, relPath, stationOf, upgrade, type Misfit } from "./project.ts";
 import { useProject } from "./projectSession.ts";
 import {
-  findStation, listed, listHub, listHubs, parseFlow, readFlow, startStation, stationLog, stationStatus, stem, TYPES, writeFlow,
-  type Finding, type OpenedFile, type Place, type Status, type Which,
+  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveTheme, setWorkspace,
+  startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
 } from "./hubs.ts";
-import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote } from "./stationLink.ts";
+import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote, type Note } from "./stationLink.ts";
 import type { BoardLayout, RunSettings, StationFlow, StationFlow0, StationRef } from "./protocol.ts";
 
 /** What the address asks for (stationLink.ts): the station, a flow to open on it (`?open=`), or the flow without one. */
@@ -53,8 +59,6 @@ const WITHOUT = !!OPENING.nostation;
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
 const URL_ = WITHOUT ? "" : OPENING.station ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
 const PORT = Number(/:(\d+)/.exec(URL_.replace(/^wss?:\/\//, ""))?.[1] ?? 0);
-/** A flow from this computer, kept for the page on its station (it can't be read again from there). */
-const STASH = "simplicial.opening";
 const ISSUES = "https://github.com/paperboatlab/simplicial/issues/new";
 const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
 /** What Simplicial ships beyond the kit: the engine's libraries (engine/CMakeLists.txt; licences from their own files). */
@@ -130,6 +134,8 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(() => readStored("paperboat.theme", isTheme) ?? "system");
   useTheme(theme);
   useEffect(() => writeStored("paperboat.theme", theme), [theme]);
+  /** The theme picked here: every app starts in it next time (settings.json), and this one takes it at once. */
+  const pickTheme = (t: Theme) => { setTheme(t); saveTheme(t).catch(() => {}); };
   const [mode, setMode] = useState<Mode>(() => readStored("simplicial.mode", isMode) ?? "navigator");
   const [page, setPage] = useState<Page>(() => readStored("simplicial.page", isPage) ?? "flow");
   const [hidden, setHidden] = useState<Record<Mode, Pane[]>>(() => readStored("simplicial.hidden", isHidden) ?? HIDDEN);
@@ -173,17 +179,32 @@ export function App() {
   const layout = saved ?? state.board;
   const [arranging, setArranging] = useState(false);
 
-  // The flow file: open from a hub or this computer, saved back where it came from. The file decides the hub. A flow
-  // is a child of its station (format 1, project.ts): it opens on it, found by its path, else by name (E1–E9 below).
+  // The workspace (a folder or a hub, the page's server's: hubs.ts), the file open in it, and the store every app shares.
+  // A flow is a child of its station (format 1, project.ts): it opens on it, found by its path, else by name (E1–E9 below).
+  const [ws, setWs] = useState<Workspace | null>(null);
+  const [userHome, setUserHome] = useState<string>();
+  const [recent, setRecent] = useState<RecentEntry[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [file, setFile] = useState<OpenedFile | null>(null);
+  const [untitled, setUntitled] = useState(false);  // New flow: the canvas, with no file yet
+  const [pending, setPending] = useState(!!OPENING.open);  // ?open= is on its way: no Start page meanwhile
   const [filePick, setFilePick] = useState<"open" | "save" | "find" | null>(null);
+  const [ask, setAsk] = useState<null | "open" | "connect" | "connect-open" | "folder" | "file">(null);
+  const [unsaved, setUnsaved] = useState<{ closing?: string; then: () => void } | null>(null);
   const finding = useRef<{ doc: StationFlow | StationFlow0; at: OpenedFile } | null>(null);  // what Find the station… is for
-  const sysOpen = useRef<HTMLInputElement>(null);
-  const hub = file?.hub ? hubs.find((h) => h.id === file.hub) : undefined;
-  const fileName = file ? file.path.slice(file.path.lastIndexOf("/") + 1) : "";
-  // The window's station as found (its place, version, sha256; `hub` when it is in one) and the header the file gets.
-  const [home, setHome] = useState<(Place & { hub?: string }) | null>(null);
+  const loadRecent = () => void getRecent().then((r) => setRecent(r.recent ?? []), () => {});
+  useEffect(() => {
+    getWorkspace().then((r) => { setWs(r.workspace); setUserHome(r.home); }, () => {});
+    getSettings().then((s) => setTheme(parseSettings(s).theme), () => {});
+    loadRecent();
+    void listHubs().then(setHubs);
+  }, []);
+  const hubOf = (id: string): Hub => hubs.find((h) => h.id === id) ?? { id, name: ws?.hub === id ? ws.name : id, place: "local", path: ws?.hub === id ? ws.root : "" };
+  const wsHub = ws?.kind === "hub" && ws.hub ? hubOf(ws.hub) : undefined;
+  const closingWs = ws ? (ws.kind === "hub" ? "the hub" : "the folder") : undefined;
+  const fileName = file ? baseName(file.path) : "";
+  // The window's station as found (its place, version, sha256; `at`: the hub or folder it is in) and the header the file gets.
+  const [home, setHome] = useState<(Place & { at?: Root }) | null>(null);
   const [ref, setRef] = useState<StationRef>({ name: "" });
   // The open flow's changes that don't fit its station (E4, E9): kept in the file, shown nowhere, until removed.
   const [kept, setKept] = useState<Misfit[]>([]);
@@ -212,60 +233,71 @@ export function App() {
     setFile(at);
     return misfits;
   };
-  // Whether the project is saved, a word before unsaved work is replaced, Open recent, and unsaved work kept for a reload.
+  // Whether the project is saved, and unsaved work kept for a reload.
   // (its station by name only: where the station is found is not an edit; a move is marked changed on open, E2)
   const project = useProject(state.engine, () => flowFile({ name: state.engine }), [nodes, edges, state.loaded, changes, kept, saved, runSettings], file?.path ?? "Untitled",
-    (s) => void load(s.project, s.name === "Untitled" ? null : { hub: s.hub, path: s.name }));
+    (s) => { load(s.project, s.name === "Untitled" ? null : { path: s.name }); setUntitled(s.name === "Untitled"); });
   const failed = (title: string, err: unknown) => notes.show({ title, detail: err instanceof Error ? err.message : String(err), state: "failed" });
-  // The window's station, found once it says hello (by name; in the hub it was started from, if any): its version for the file.
+  /** Before the open flow is replaced or closed: Save, Don't save, Cancel (the kit's Unsaved), when it has changes. */
+  // (through a ref: a step after Save or Don't save runs in the closure of the render that asked)
+  const dirty = useRef(false);
+  dirty.current = project.dirty;
+  const guard = (then: () => void, closing?: string) => (dirty.current ? setUnsaved({ closing, then }) : then());
+  // A note's key (E2's Save, E3's Review), wired here; Save through a ref: the note outlives the render that made it.
+  const saveNow = useRef<() => void>(() => {});
+  const shown = ({ act, ...n }: Note): Omit<Toast, "id"> => ({
+    ...n, ...(act === "save" ? { actions: [{ label: "Save", run: () => saveNow.current() }] } : act === "review" ? { actions: [{ label: "Review", primary: true, run: () => setReview(true) }] } : {}),
+  });
+  // The window's station, found once it says hello (by name; in the hub or folder it was started from, if any): its version for the file.
   useEffect(() => {
     if (!state.engine) return;
-    const hubId = OPENING.start?.hub;
-    findStation({ hub: hubId, name: state.engine }).then((f) => {
+    const at = rootOf(OPENING.start);
+    findStation({ ...at, name: state.engine }).then((f) => {
       if (!("found" in f)) return;
-      setHome((h) => h ?? { ...f.found, ...(hubId && (f.found.where === "path" || f.found.where === "workspace") ? { hub: hubId } : {}) });
+      setHome((h) => h ?? { ...f.found, ...(at && (f.found.where === "path" || f.found.where === "workspace") ? { at } : {}) });
       setRef((r) => (r.name ? r : { name: f.found.name, ...(f.found.version ? { version: f.found.version } : {}), ...(f.found.sha256 ? { sha256: f.found.sha256 } : {}) }));
     }, () => {});
   }, [state.engine]);
 
   /** Open a flow file read from `at`: on this window's station when it is the flow's (`use`: whatever it names), else after
    *  a word: Can't find it (E1), or Open it on its station (E5). */
-  const take = async (doc: StationFlow | StationFlow0, at: OpenedFile, inHub?: Hub, use = false) => {
+  const take = async (doc: StationFlow | StationFlow0, at: OpenedFile, use = false) => {
     const made = stationOf(doc);
-    const name = at.path.slice(at.path.lastIndexOf("/") + 1);
+    const name = baseName(at.path);
+    const root = rootOf(at);
     if (WITHOUT) return void (load(doc, at), notes.show({ title: `Opened ${name} without a station`, detail: "Its blocks are unknown and nothing runs" }));
     const mine = use || made.name === state.engine;
     let f: Finding | null = null;
     try {
-      f = await findStation(at.hub ? { hub: at.hub, ...(use ? { name: state.engine } : { path: at.path }) } : { name: mine ? state.engine : made.name, version: made.version });
+      f = await findStation(root ? { ...root, ...(use ? { name: state.engine } : { path: at.path }) } : { name: mine ? state.engine : made.name, version: made.version });
     } catch { /* the page has no server of its own: by name, as before */ }
     if (!mine) {
-      if (!f || !("found" in f)) return cantFind(doc, at, f, inHub);
-      return otherStation(doc, at, f.found);
+      if (!f || !("found" in f)) return cantFind(doc, at, f);
+      return otherStation(at, f.found);
     }
     const place = f && "found" in f ? f.found : null;
-    project.ask("Open this flow?", "Open", () => {
+    guard(() => {
       const misfits = load(doc, at, place ? named(place) : state.engine);
-      const inThisHub = place && at.hub && (place.where === "path" || place.where === "workspace");
+      const inThis = place && root && (place.where === "path" || place.where === "workspace");
       if (place) {
-        setHome({ ...place, ...(inThisHub ? { hub: at.hub } : {}) });
+        setHome({ ...place, ...(inThis ? { at: root } : {}) });
         setRef({ name: place.name, ...(place.version ? { version: place.version } : {}), ...(place.sha256 ? { sha256: place.sha256 } : {}),
-          ...(inThisHub ? { path: relPath(at.path, place.path) } : {}) });
+          ...(inThis ? { path: relPath(at.path, place.path) } : {}) });
       }
+      setUntitled(false);
       const moved = place ? movedNote(stem(at.path), made, place) : null;
-      project.opened({ name: at.path, hub: at.hub, project: doc }, !!moved || use);
-      notes.show(moved ?? { title: `Opened ${name}`, detail: [inHub && `Simplicial now works in ${inHub.name}`, doc.paperboat === 0 && "an older flow file: Save writes it in the new format"].filter(Boolean).join(" · ") || undefined, state: "done" });
+      project.opened(!!moved || use);
+      notes.show(moved ? shown(moved) : { title: `Opened ${name}`, detail: doc.paperboat === 0 ? "an older flow file: Save writes it in the new format" : undefined, state: "done" });
       const v = place && versionNote(stem(at.path), made, place, misfits);
-      if (v) notes.show(v);
+      if (v) notes.show(shown(v));
     });
   };
   /** Open the page on another station (started first when it isn't running), the flow to open on it in the address. */
-  const switchTo = async (to: Place | Which, open: OpenedFile | null, doc: StationFlow | StationFlow0 | null, o: { use?: boolean; tab?: Window | null } = {}) => {
-    const start = "where" in to ? startOf(to, open?.hub) : to;
+  const switchTo = async (to: Place | Which, open: OpenedFile | null, o: { use?: boolean; tab?: Window | null } = {}) => {
+    const start = "where" in to ? startOf(to, rootOf(open)) : to;
     try {
       const port = "where" in to && to.port ? to.port : (await startStation(start!)).port;
-      if (open && !open.hub && doc) writeStored(STASH, doc);  // a new window sees it too
-      const search = toSearch({ station: `ws://localhost:${port}`, open: open ?? undefined, use: o.use, start: start ?? undefined }, location.search);
+      const search = toSearch({ station: `ws://localhost:${port}`, open: open ? { hub: open.hub, path: open.path } : undefined, use: o.use, start: start ?? undefined }, location.search);
       if (o.tab) o.tab.location.href = `${location.pathname}?${search}`;
       else location.search = search;
     } catch (e) {
@@ -274,65 +306,130 @@ export function App() {
     }
   };
   /** Open the flow without a station: read only, its blocks lost blocks, nothing runs. */
-  const without = (doc: StationFlow | StationFlow0, at: OpenedFile) => {
-    if (!at.hub) writeStored(STASH, doc);
-    location.search = toSearch({ open: at, nostation: true }, location.search);
-  };
+  const without = (at: OpenedFile) => { location.search = toSearch({ open: { hub: at.hub, path: at.path }, nostation: true }, location.search); };
   // E1: no station found anywhere it looked.
-  const cantFind = (doc: StationFlow | StationFlow0, at: OpenedFile, f: Finding | null, inHub?: Hub) => {
-    const made = stationOf(doc), name = at.path.slice(at.path.lastIndexOf("/") + 1);
+  const cantFind = (doc: StationFlow | StationFlow0, at: OpenedFile, f: Finding | null) => {
+    const made = stationOf(doc), name = baseName(at.path);
     project.tell({
       title: `Can't find ${named(made)}`,
       text: [`${name} is a flow on ${made.name}${made.path ? `, and points to ${made.path}, which isn't there` : ""}. No station called ${made.name} is anywhere else Simplicial looked:`],
-      looked: f && "missing" in f ? lookedList(f, inHub?.name) : undefined,
+      looked: f && "missing" in f ? lookedList(f, ws?.name) : undefined,
       actions: [
         ...(at.hub ? [{ label: "Find the station…", primary: true, run: () => { finding.current = { doc, at }; setFilePick("find"); } }] : []),
-        { label: "Open without a station", run: () => without(doc, at) },
+        { label: "Open without a station", run: () => without(at) },
         { label: "Cancel" },
       ],
     });
   };
   // E5: the flow's station isn't this window's.
-  const otherStation = (doc: StationFlow | StationFlow0, at: OpenedFile, place: Place) => {
+  const otherStation = (at: OpenedFile, place: Place) => {
     const it = stem(at.path);
     project.tell({
       title: `Open ${it} on ${place.name}?`,
       text: [`This window works on ${state.engine}. Switch it to ${place.name}, or open ${it} in a new window and keep ${state.engine} here.`],
       actions: [
-        { label: "Switch", primary: true, run: () => project.ask("Switch the station?", "Switch", () => void switchTo(place, at, doc)) },
-        { label: "New window", run: () => void switchTo(place, at, doc, { tab: window.open("", "_blank") }) },
+        { label: "Switch", primary: true, run: () => guard(() => void switchTo(place, at)) },
+        { label: "New window", run: () => void switchTo(place, at, { tab: window.open("", "_blank") }) },
         { label: "Cancel" },
       ],
     });
   };
   /** Find the station… (E1's): a .pst picked in the hub; another station's name asks first, then the flow opens on it. */
-  const foundIt = (h: Hub, path: string) => {
+  const foundIt = (root: Root, path: string) => {
     setFilePick(null);
     const it = finding.current;
-    const st = listed.get(`${h.id}:${path}`)?.station;
+    const st = listedAt(root, path)?.station;
     if (!it || !st) return void notes.show({ title: `Can't use ${path}`, detail: "Simplicial can't read its station.toml", state: "failed" });
-    const go = () => (st.name === state.engine ? void take(it.doc, it.at, undefined, true) : void switchTo({ hub: h.id, path }, it.at, it.doc, { use: true }));
+    const go = () => (st.name === state.engine ? void take(it.doc, it.at, true) : void switchTo({ ...root, path }, it.at, { use: true }));
     const made = stationOf(it.doc);
     if (st.name === made.name) return go();
     project.tell({ title: `This is ${st.name}, not ${made.name}`, text: [`Open ${stem(it.at.path)} on ${named(st)}? Its changes that don't fit ${st.name} are kept in the file.`],
       actions: [{ label: "Use it", primary: true, run: go }, { label: "Cancel" }] });
   };
 
-  /** File › New project: the station's starter again, no file. */
-  const newProject = () => project.ask("Start a new project?", "New project", () => {
+  /** The picker's preview of a flow or a station: its station, and where the flow points to it. */
+  const describe = (e: FileEntry) => {
+    const st = (e as HubEntry).station;
+    return st && <dl className="open-facts"><dt>station</dt><dd>{named(st)}</dd>{st.path && <><dt>at</dt><dd>{st.path}</dd></>}</dl>;
+  };
+  /** The station's starter again, no file. */
+  const fresh = () => {
     load(buildProject({ station: ref, flow: state.starter.graph ?? { nodes: [], edges: [] } }), null);
     setRef((r) => ({ name: r.name || state.engine, ...(r.version ? { version: r.version } : {}), ...(r.sha256 ? { sha256: r.sha256 } : {}) }));
     project.opened();
-  });
-  /** File › Open recent: a hub's file read again (it may have changed), else the copy kept when it was last opened or saved. */
-  const openRecent = async (i: number) => {
-    const r = project.recent[i];
-    if (!r?.hub) return r && take(r.project, { path: r.name });
+  };
+  /** File › New flow: the station's starter, unsaved until Save asks where. Close file: back to Start. */
+  const newProject = () => guard(() => { fresh(); setUntitled(true); });
+  const closeFile = () => guard(() => { fresh(); setUntitled(false); });
+  /** Work somewhere else (a folder, a hub, nothing): the open flow closes first (unsaved work asks), then Start. */
+  const switchWs = (to: Parameters<typeof setWorkspace>[0], said?: (w: Workspace | null) => string, then?: () => void) => guard(() => void setWorkspace(to).then((r) => {
+    setWs(r.workspace);
+    loadRecent();
+    fresh();
+    setUntitled(false);
+    if (said) notes.show({ title: said(r.workspace), state: "done" });
+    then?.();
+  }, (e) => failed("Can't change the workspace", e)), closingWs);
+  const workInFolder = (path: string) => switchWs({ folder: path }, (w) => `${w?.name ?? baseName(path)} is Simplicial's workspace`);
+  const connect = (id: string, thenOpen = false) => switchWs({ hub: id }, (w) => `${w?.name ?? id} is Simplicial's workspace`, thenOpen ? () => setFilePick("open") : undefined);
+  const closeWorkspace = () => switchWs({});
+  /** Open folder…: the system's dialog in a Paperboat window, else the path typed. */
+  const openFolder = async () => {
+    const sh = shell();
+    if (!sh) return setAsk("folder");
+    const p = await sh.pickFolder("Open folder");
+    if (p) workInFolder(p);
+  };
+  const newHub = () => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" });
+  const askConnect = async (thenOpen = false) => { setHubs(await listHubs()); setAsk(thenOpen ? "connect-open" : "connect"); };
+  /** Open file…: in a hub, our picker over it; outside one, a local file or a hub (Malachite installed), else a local file. */
+  const openFile = async () => {
     const known = await listHubs();
     setHubs(known);
-    readFlow(r.hub, r.name).then((psf) => take(psf, { hub: r.hub, path: r.name }, known.find((h) => h.id === r.hub)), (e) => failed(`Can't open ${r.name}`, e));
+    if (ws?.kind === "hub") return setFilePick("open");
+    if (known.length) return setAsk("open");
+    void openLocal();
   };
-  /** This computer's Save as: the browser's download, named after the file; its station by name only (no path). */
+  const openLocal = async () => {
+    const sh = shell();
+    if (!sh) return setAsk("file");
+    const p = await sh.pickFile([...TYPES], "Open a flow or a station");
+    if (p) openPath(p);
+  };
+  /** A file on this computer (its absolute path): its folder, or the hub that holds it, becomes the workspace, then it opens. */
+  const openPath = (path: string) => guard(() => void (async () => {
+    try {
+      const r = await setWorkspace({ file: path });
+      setWs(r.workspace);
+      loadRecent();
+      const root = rootOf(r.workspace);
+      if (!root || !r.path) throw new Error("not in a folder");
+      await openIn(root, r.path);
+    } catch (e) { failed(`Can't open ${baseName(path)}`, e); }
+  })(), path.startsWith(`${ws?.root ?? "\0"}/`) ? undefined : closingWs);
+  /** Picking a .pst opens its station on its starter (a new flow); a .psf opens on its station. */
+  const openIn = async (root: Root, path: string) => {
+    setFilePick(null);
+    if (path.endsWith(".pst")) {
+      const st = listedAt(root, path)?.station ?? (await listHub(root).then(() => listedAt(root, path)?.station, () => undefined));
+      if (st?.name === state.engine) return newProject();
+      return project.tell({
+        title: `Open ${st ? st.name : baseName(path)}?`,
+        text: [`This window works on ${state.engine}. Switch it to ${st?.name ?? "that station"} (a new flow on its starter), or open it in a new window.`],
+        actions: [
+          { label: "Switch", primary: true, run: () => guard(() => void switchTo({ ...root, path }, null)) },
+          { label: "New window", run: () => void switchTo({ ...root, path }, null, { tab: window.open("", "_blank") }) },
+          { label: "Cancel" },
+        ],
+      });
+    }
+    try { await take(await readFlow(root, path), { ...root, path }); } catch (e) { failed(`Can't open ${path}`, e); }
+  };
+  /** File › Open recent and the Start page's Recent: a folder, a hub, or a file (its folder or hub comes with it). */
+  const openRecent = (e: RecentEntry) => (e.kind === "folder" ? workInFolder(e.path) : e.kind === "hub" && e.hub ? connect(e.hub) : openPath(e.path));
+  const recentItems = recentMenu(recentFor({ version: 1, recent }, "simplicial", { hubs: hubs.length > 0 }), openRecent,
+    () => void clearRecent().then((r) => setRecent(r.recent ?? []), (e) => failed("Can't clear Open recent", e)));
+  /** Save as… in a browser: a download, named after the file; its station by name only (no path). */
   const download = () => {
     const a = document.createElement("a");
     const { path: _path, ...station } = ref;
@@ -343,67 +440,60 @@ export function App() {
     window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setFile({ path: a.download });
     setRef(station);
-    project.saved({ name: a.download, project: psf });
+    project.saved();
   };
-  // No Malachite, or no hubs: straight to the system's picker.
-  const openFile = async () => {
-    const known = await listHubs();
-    setHubs(known);
-    if (known.length) setFilePick("open"); else sysOpen.current?.click();
-  };
+  /** Save as…: in a hub, our picker; else the system's dialog (its folder, or the hub that holds it, becomes the workspace), else a download. */
   const saveFileAs = async () => {
-    const known = await listHubs();
-    setHubs(known);
-    if (known.length) setFilePick("save"); else download();
+    if (ws?.kind === "hub") return setFilePick("save");
+    const sh = shell();
+    if (!sh) return download();
+    const p = await sh.pickSave(`${file ? stem(file.path) : state.engine || "flow"}.psf`, ["psf"], "Save the flow as");
+    if (!p) return;
+    try {
+      const r = await setWorkspace({ file: p });
+      setWs(r.workspace);
+      const root = rootOf(r.workspace);
+      if (!root || !r.path) throw new Error("not in a folder");
+      await saveIn(root, r.path);
+    } catch (e) { failed(`Can't save ${baseName(p)}`, e); }
   };
-  /** Write the flow to `path` in the hub: its station's path from there (the hub's station of its name), else by name (E8). */
-  const writeIn = async (h: Hub | string, path: string) => {
-    const hubId = typeof h === "string" ? h : h.id;
+  /** Write the flow to `path` in a hub or folder: its station's path from there (that place's station of its name), else by name (E8). */
+  const writeIn = async (root: Root, path: string): Promise<Note | null> => {
     let f: Finding | null = null;
-    try { f = await findStation({ hub: hubId, name: state.engine, version: ref.version }); } catch { /* by name */ }
+    try { f = await findStation({ ...root, name: state.engine, version: ref.version }); } catch { /* by name */ }
     const place = f && "found" in f && (f.found.where === "path" || f.found.where === "workspace") ? f.found : null;
     const { path: _path, ...rest } = ref;
     const station: StationRef = place
       ? { name: place.name, ...(place.version ? { version: place.version } : {}), ...(place.sha256 ? { sha256: place.sha256 } : {}), path: relPath(path, place.path) }
       : rest;
     const psf = flowFile(station);
-    await writeFlow(h, path, psf);
+    await writeFlow(root, path, psf);
     setRef(station);
-    project.saved({ name: path, hub: hubId, project: psf });
-    if (place) setHome({ ...place, hub: hubId });
-    const apart = !place && home?.hub && home.hub !== hubId ? hubs.find((x) => x.id === home.hub)?.name : undefined;
-    return apart ? apartNote(stem(path), state.engine, apart, typeof h === "string" ? h : h.name) : null;
+    project.saved();
+    loadRecent();
+    if (place) setHome({ ...place, at: root });
+    const nameOf = (r: Root) => (r.hub ? hubOf(r.hub).name : baseName(r.folder!));
+    const apart = !place && home?.at && JSON.stringify(home.at) !== JSON.stringify(root) ? nameOf(home.at) : undefined;
+    return apart ? apartNote(stem(path), state.engine, apart, nameOf(root)) : null;
   };
+  const saveIn = async (root: Root, path: string) => {
+    setFilePick(null);
+    try {
+      const apart = await writeIn(root, path);
+      setFile({ ...root, path });
+      setUntitled(false);
+      notes.show(apart ? shown(apart) : { title: `Saved ${baseName(path)}`, state: "done" });
+    } catch (e) { failed(`Can't save ${baseName(path)}`, e); }
+  };
+  /** Save: back where it came from; a new flow, or a download, asks where (Save as…). */
   const saveFile = () => {
-    if (!file?.hub) return void saveFileAs();
-    writeIn(file.hub, file.path).then((apart) => notes.show(apart ?? { title: `Saved ${fileName}`, state: "done" }), (e) => failed(`Can't save ${fileName}`, e));
+    const root = rootOf(file);
+    if (!root || !file) return void saveFileAs();
+    void saveIn(root, file.path);
   };
-  /** Picking a .pst opens its station on its starter (a new flow); a .psf opens on its station. */
-  const openFromHub = (h: Hub, path: string) => {
-    setFilePick(null);
-    if (path.endsWith(".pst")) {
-      const st = listed.get(`${h.id}:${path}`)?.station;
-      if (st?.name === state.engine) return newProject();
-      return project.tell({
-        title: `Open ${st ? st.name : path.slice(path.lastIndexOf("/") + 1)}?`,
-        text: [`This window works on ${state.engine}. Switch it to ${st?.name ?? "that station"} (a new flow on its starter), or open it in a new window.`],
-        actions: [
-          { label: "Switch", primary: true, run: () => project.ask("Switch the station?", "Switch", () => void switchTo({ hub: h.id, path }, null, null)) },
-          { label: "New window", run: () => void switchTo({ hub: h.id, path }, null, null, { tab: window.open("", "_blank") }) },
-          { label: "Cancel" },
-        ],
-      });
-    }
-    readFlow(h, path).then((psf) => take(psf, { hub: h.id, path }, h), (e) => failed(`Can't open ${path}`, e));
-  };
-  const saveInHub = (h: Hub, path: string) => {
-    setFilePick(null);
-    writeIn(h, path).then((apart) => {
-      setFile({ hub: h.id, path });
-      notes.show(apart ?? { title: `Saved ${path.slice(path.lastIndexOf("/") + 1)}`, detail: `Simplicial now works in ${h.name}`, state: "done" });
-    }, (e) => failed(`Can't save ${path}`, e));
-  };
-  // ?open=<hub>:<path>: the flow to open once the station has said hello (it survives a station switch), or without one.
+  saveNow.current = saveFile;
+  // ?open=<hub>:<path>: the flow to open once the station has said hello (it survives a station switch), or without one;
+  // no hub: the folder the page's server works in.
   const opening = useRef(false);
   useEffect(() => {
     const o = OPENING.open;
@@ -412,15 +502,13 @@ export function App() {
     opening.current = true;
     const t = window.setTimeout(async () => {
       try {
-        if (!o.hub) {
-          const kept = readStored(STASH, (x): x is object => typeof x === "object" && x !== null);
-          if (kept) await take(parseFlow(JSON.stringify(kept)), { path: o.path }, undefined, OPENING.use);
-          return;
-        }
-        const known = await listHubs();
-        setHubs(known);
-        await take(await readFlow(o.hub, o.path), { hub: o.hub, path: o.path }, known.find((h) => h.id === o.hub), OPENING.use);
+        const served = await getWorkspace();
+        setWs(served.workspace);
+        const root: Root | undefined = o.hub ? { hub: o.hub } : rootOf(served.workspace);
+        if (!root) throw new Error("no folder open");
+        await take(await readFlow(root, o.path), { ...root, path: o.path }, OPENING.use);
       } catch (e) { failed(`Can't open ${o.path}`, e); }
+      setPending(false);
       // asked once: a reload doesn't ask again (unsaved work comes back as Restore)
       window.history.replaceState(null, "", `?${toSearch({ station: OPENING.station, nostation: WITHOUT, ...(WITHOUT ? { open: o } : {}) }, location.search)}`);
     }, WITHOUT ? 0 : 400);
@@ -484,20 +572,26 @@ export function App() {
   const errors = state.logs.filter((l) => l.level === "error").length;
 
   const picked = nodes.some((n) => n.selected && !(isBlock(n) && n.data.def.linked));
-  const commands = registry(
+  // the File menu is the kit's (the same in every app); the rest is Simplicial's own
+  const showStart = booted && !WITHOUT && !pending && !file && !untitled;
+  const files = fileItems(fileMenu({
+    noun: "flow", workspace: ws, file: booted && !showStart, hubs: hubs.length > 0, recent: recentItems,
+    onNew: newProject, onOpenFile: () => void openFile(), onOpenFolder: () => void openFolder(), onConnect: () => void askConnect(),
+    onSave: saveFile, onSaveAs: () => void saveFileAs(), onCloseFile: closeFile, onCloseWorkspace: closeWorkspace, onSettings: () => {},
+  }), running);
+  const commands = [...files, ...registry(
     {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
       flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
-      board: arranging, unsaved: state.engine ? "" : "Not connected to a station", recent: project.recent.map((r) => ({ name: r.name, when: ago(r.savedAt, Date.now()) })),
-      misfits: kept.length,
+      board: arranging,
     },
     {
-      setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), newProject, open: () => void openFile(), openRecent: (i) => void openRecent(i), save: saveFile, saveAs: () => void saveFileAs(), review: () => setReview(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
+      setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme: pickTheme, search: () => setSearch((s) => (s ? null : {})),
+      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
-  );
+  )];
   useShortcuts(booted ? commands : []);
 
   /** Quick add at a point: the cursor over the Flow, else a third down its middle; only where the Flow is in view. */
@@ -590,13 +684,11 @@ export function App() {
       <header className="bar">
         <span className="lk"><AppMark app="simplicial" size={26} idle paused={!booted} label="Simplicial" /><span className="wm">Simplicial</span></span>
         {booted && <>
-          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme", recent: "Open recent" }} />
-          {hub && <HubSelector hub={hub} hubs={hubs} app="Simplicial" onSwitch={() => setFilePick("open")} onDisconnect={() => setFile(null)}
-            onNew={() => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" })} />}
-          <span className="proj" title={[file ? (hub ? `${hub.name}/${file.path}` : file.path) : "", state.engine, project.dirty ? "changes not saved" : ""].filter(Boolean).join(" · ")}>
-            {file ? <>{file.path.includes("/") && `${file.path.slice(0, file.path.lastIndexOf("/"))}/`}<u>{fileName}</u></> : state.engine}
-            {project.dirty && <i className="dirty" />}
-          </span>
+          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme" }} />
+          {ws && <WorkspaceWell workspace={ws} home={userHome} recent={recentItems} hubs={hubs} onOpenFolder={() => void openFolder()}
+            onConnect={hubs.length ? () => void askConnect() : undefined} onClose={closeWorkspace} onSwitchHub={(id) => connect(id)} onNewHub={newHub}
+            onOpenInMalachite={ws.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined}
+            onUseFolder={() => void openFolder()} />}
           <span className="bend">
             <span className="modes" title="View mode (Alt M steps through them)">
               <Segmented label="View mode" value={mode} onChange={setMode} options={[
@@ -612,15 +704,17 @@ export function App() {
             <PanelsKey layout={sketch(mode, station)} onToggle={(id) => toggle(id as Pane)}
               panels={PANES[mode].filter((p) => station || p !== "st").map((p) => ({ id: p, label: PANE_NAME[p][0], keys: PANE_NAME[p][1], shown: !hid(p) }))} />
             <span className="lsep" />
-            <ThemePicker theme={theme} onChange={setTheme} />
+            <ThemePicker theme={theme} onChange={pickTheme} />
+            <WindowKeys />
           </span>
         </>}
+        {!booted && <span className="bend"><WindowKeys /></span>}
       </header>
 
       {!booted ? (
         <>
           <Splash app="simplicial" ready={!!state.engine} onReady={() => setBooted(true)} onLog={showLog} failed={!!startFailed}
-            onRetry={OPENING.start ? () => void switchTo(OPENING.start!, OPENING.open ?? null, null, { use: OPENING.use }) : undefined}
+            onRetry={OPENING.start ? () => void switchTo(OPENING.start!, OPENING.open ?? null, { use: OPENING.use }) : undefined}
             say={startFailed ? `${startFailed.name} didn't start` : retrying ? "Waiting for the station" : "Connecting to the station"}
             detail={startFailed ? startFailed.error ?? "see the log" : retrying ? `${URL_} · retrying` : URL_} />
           {startFailed && OPENING.open && (
@@ -635,7 +729,13 @@ export function App() {
         ]} />
         <div className="main">
           <div className="pages bay">
-            <div className="pcol" style={{ "--i": pages.indexOf(shownPage) } as CSSProperties}>
+            {showStart && (
+              <div className="panel start-card">
+                <Start app="Simplicial" noun="flow" nouns="flows and stations" hubs={hubs.length > 0} recent={recent} home={userHome}
+                  onOpenFolder={() => void openFolder()} onOpenFile={() => void openFile()} onNew={newProject} onConnect={() => void askConnect()} onRecent={openRecent} />
+              </div>
+            )}
+            <div className="pcol" hidden={showStart} style={{ "--i": pages.indexOf(shownPage) } as CSSProperties}>
               {station && (
                 <div className="pg pg-station" inert={inert("station")}>
                   <Panel name="Station" side="left" width={380} icon="a-station" count={objects} {...drawer("st", mode === "lookout")}
@@ -654,7 +754,10 @@ export function App() {
               )}
               <div className="pg pg-flow" inert={inert("flow")}>
                 <Panel name="Flow" side="right" width={480} icon="a-flow" count={blockCount} {...drawer("fl", mode === "lookout")}
-                  head={<small className="sum">{`${blockCount} ${blockCount === 1 ? "block" : "blocks"} · ${edges.length} ${edges.length === 1 ? "wire" : "wires"}`}</small>}
+                  head={<small className="sum" title={file ? [ws?.name, file.path].filter(Boolean).join(" · ") : "Not saved yet"}>
+                    <b className="fname">{file ? fileName : "untitled.psf"}{project.dirty && <i className="dirty" aria-label="changes not saved" />}</b>
+                    {` · ${blockCount} ${blockCount === 1 ? "block" : "blocks"} · ${edges.length} ${edges.length === 1 ? "wire" : "wires"}`}
+                  </small>}
                   tools={<>
                     <span title={lock || "Arrange the blocks along their wires"}>
                       <Key size="sm" kind="quiet" disabled={!!lock || !canArrangeFlow(nodes, level)} onClick={() => flow.current?.arrange()}>Arrange</Key>
@@ -695,7 +798,7 @@ export function App() {
                 {mode === "lookout" && dock}
               </div>
             </div>
-            {mode !== "lookout" && dock}
+            {mode !== "lookout" && !showStart && dock}
           </div>
           <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running || WITHOUT}
               onHover={setHoverVar} onChange={(variables) => send({ type: "variables.set", variables })}
@@ -714,18 +817,28 @@ export function App() {
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
         scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables", "Stations"]}
         placeholder={search.at ? "Add a block here" : "Search commands, blocks, variables and stations"} />}
-      {filePick === "find" && <OpenFile what="its station" types={["pst"]} hubs={hubs.filter((h) => h.id === finding.current?.at.hub)} list={listHub} onOpen={foundIt}
-        onComputer={() => notes.show({ title: "A station on this computer starts from its own command", detail: "paperboat start <file.pst>, then open the flow on it" })}
-        onClose={() => setFilePick(null)} />}
-      {filePick === "open" && <OpenFile what="a flow or a station" types={TYPES} hubs={hubs} list={listHub} onOpen={openFromHub}
-        onComputer={() => sysOpen.current?.click()} onClose={() => setFilePick(null)} />}
-      {filePick === "save" && <SaveFile what="the flow" types={TYPES} hubs={hubs} list={listHub} name={file ? stem(file.path) : state.engine}
-        onSave={saveInHub} onComputer={download} onClose={() => setFilePick(null)} />}
-      <input ref={sysOpen} type="file" accept=".psf" hidden onChange={(e) => {
-        const f = e.target.files?.[0];
-        e.target.value = "";
-        if (f) f.text().then((t) => take(parseFlow(t), { path: f.name })).catch((err: unknown) => failed(`Can't open ${f.name}`, err));
-      }} />
+      {filePick === "find" && finding.current?.at.hub && <OpenFile what="its station" types={["pst"]} hub={hubOf(finding.current.at.hub)} list={() => listHub({ hub: finding.current!.at.hub! })}
+        onOpen={(p) => foundIt({ hub: finding.current!.at.hub! }, p)} onClose={() => setFilePick(null)} />}
+      {filePick === "open" && wsHub && <OpenFile what="a flow or a station" types={TYPES} hub={wsHub} list={() => listHub({ hub: wsHub.id })} describe={describe}
+        byParent={{ label: "By station", orphans: "No station" }} onOpen={(p) => void openIn({ hub: wsHub.id }, p)} onClose={() => setFilePick(null)} />}
+      {filePick === "save" && wsHub && <SaveFile what="the flow" types={TYPES} hub={wsHub} list={() => listHub({ hub: wsHub.id })} name={file ? stem(file.path) : state.engine}
+        onSave={(p) => void saveIn({ hub: wsHub.id }, p)} onClose={() => setFilePick(null)} />}
+      {ask === "open" && <AskOpen what="a flow or a station" types={TYPES} hubs={hubs.length} onLocal={() => { setAsk(null); void openLocal(); }}
+        onConnect={() => setAsk("connect-open")} onClose={() => setAsk(null)} />}
+      {(ask === "connect" || ask === "connect-open") && <ConnectHub app="Simplicial" hubs={hubs} onNew={newHub} onClose={() => setAsk(null)}
+        onConnect={(id) => { setAsk(null); connect(id, ask === "connect-open"); }} />}
+      {ask === "folder" && <TypedPath title="Open folder" initial={ws?.kind === "folder" ? ws.root : ""} onClose={() => setAsk(null)}
+        onOpen={(p) => { setAsk(null); workInFolder(p); }} />}
+      {ask === "file" && <TypedPath title="Open a local file" what="file" initial={ws?.kind === "folder" ? `${ws.root}/` : ""} onClose={() => setAsk(null)}
+        onOpen={(p) => { setAsk(null); openPath(p); }} />}
+      {unsaved && <Unsaved name={file ? fileName : "untitled.psf"} closing={unsaved.closing} onClose={() => setUnsaved(null)}
+        onSave={() => {
+          const u = unsaved, root = rootOf(file);
+          setUnsaved(null);
+          if (!root || !file) return void saveFileAs();  // a new flow: Save as… asks where; closing waits for another go
+          writeIn(root, file.path).then(() => { dirty.current = false; u.then(); }, (e) => failed(`Can't save ${fileName}`, e));
+        }}
+        onDiscard={() => { const u = unsaved; setUnsaved(null); project.opened(); dirty.current = false; u.then(); }} />}
       {project.notice && (() => {
         const n = project.notice, choose = (run?: () => void) => { project.close(); run?.(); };
         return (
