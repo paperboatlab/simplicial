@@ -38,12 +38,6 @@ export type View = {
   flow: { lock: string; undo: boolean; redo: boolean; copy: boolean; paste: boolean; arrange: boolean };
   /** The Board is being arranged (its instruments moved and sized, decorations and tabs edited). */
   board: boolean;
-  /** Why the flow can't be saved now; "" when it can. */
-  unsaved: string;
-  /** Open recent: the files, newest first, and when each was last opened or saved ("5 min ago"). */
-  recent: { name: string; when: string }[];
-  /** How many of the open flow's changes don't fit its station (E4): kept in the file, reviewed from File. */
-  misfits: number;
 };
 export type Do = {
   setMode: (m: Mode) => void;
@@ -56,15 +50,6 @@ export type Do = {
   cancel: () => void;
   /** Choose a station: the page opens on the one picked. */
   station: () => void;
-  /** File › Open…, Save and Save as… : a flow file (.psf), from a hub or this computer. */
-  newProject: () => void;
-  open: () => void;
-  /** Reopen the recent file at this index. */
-  openRecent: (i: number) => void;
-  save: () => void;
-  saveAs: () => void;
-  /** Review the changes that don't fit the station: keep or remove each. */
-  review: () => void;
   report: () => void;
   about: () => void;
   /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
@@ -81,6 +66,16 @@ export type Do = {
 const later = (id: string, label: string, menu: string, group: string, shortcut?: string): Command =>
   ({ id, label, menu, group, shortcut, enabled: false, why: LATER, run: () => {} });
 
+/**
+ * The File menu as the kit's `fileMenu` makes it (the same items in every app), as Simplicial runs it: while a run is in
+ * progress nothing opens or closes; Settings… waits for a settings page (the theme is the bar's).
+ */
+export function fileItems(items: Command[], running: boolean): Command[] {
+  const busy = new Set(["file.new", "file.open", "file.openFolder", "file.recent", "file.connect", "file.close", "file.closeWorkspace"]);
+  return items.map((c) => (c.id === "file.settings" ? { ...c, enabled: false, why: LATER }
+    : running && busy.has(c.id) ? { ...c, enabled: false, why: RUNNING } : c));
+}
+
 export function registry(v: View, a: Do): Command[] {
   const nav = v.mode === "navigator";
   // A Flow edit: greyed with why while a run is in progress, else while it has nothing to act on.
@@ -89,19 +84,6 @@ export function registry(v: View, a: Do): Command[] {
   const drawer = (p: Pane, label: string, shortcut?: string, chord?: Command["chord"]): Command =>
     ({ id: `view.${p}`, label, menu: "view", group: "panels", shortcut, chord, checked: !v.hidden(p), run: () => a.toggle(p) });
   return [
-    // New has no key: the browser keeps Ctrl N for a new window
-    { id: "file.new", label: "New project", menu: "file", group: "open", enabled: !v.running, why: RUNNING, run: a.newProject },
-    { id: "file.open", label: "Open…", menu: "file", group: "open", shortcut: "Ctrl O", chord: { key: "o", ctrl: true }, enabled: !v.running, why: RUNNING, run: a.open },
-    ...v.recent.map((r, i): Command => ({
-      id: `file.recent.${i}`, label: r.name, menu: "file", group: "recent", meta: r.when, enabled: !v.running, why: RUNNING, run: () => a.openRecent(i),
-    })),
-    { id: "file.save", label: "Save", menu: "file", group: "save", shortcut: "Ctrl S", chord: { key: "s", ctrl: true }, enabled: !v.unsaved, why: v.unsaved, run: a.save },
-    { id: "file.saveas", label: "Save as…", menu: "file", group: "save", shortcut: "Ctrl Shift S", chord: { key: "s", ctrl: true, shift: true }, enabled: !v.unsaved, why: v.unsaved, run: a.saveAs },
-    { id: "file.review", label: "Review changes…", menu: "file", group: "save", enabled: v.misfits > 0, why: "Every change in this flow fits its station", run: a.review },
-    { id: "file.station", label: "Choose a station…", menu: "file", group: "station", run: a.station },
-    later("file.export", "Export station…", "file", "station"),
-    later("file.settings", "Settings…", "file", "settings", "Ctrl ,"),
-
     edit("edit.undo", "Undo", "undo", "Ctrl Z", v.flow.undo, "Nothing to undo", a.undo),
     edit("edit.redo", "Redo", "undo", "Ctrl Shift Z", v.flow.redo, "Nothing to redo", a.redo),
     edit("edit.cut", "Cut", "clip", "Ctrl X", v.flow.copy, NOTHING, a.cut),
@@ -135,6 +117,8 @@ export function registry(v: View, a: Do): Command[] {
     { id: "run.run", label: "Run", menu: "run", group: "run", shortcut: "Ctrl R", chord: { key: "r", ctrl: true }, enabled: !v.whyNot, why: v.whyNot, run: a.run },
     { id: "run.cancel", label: "Cancel", menu: "run", group: "run", shortcut: "Esc", enabled: v.running, why: "Nothing is running", run: a.cancel },
     later("run.settings", "Run settings…", "run", "flow"),
+    { id: "run.station", label: "Choose a station…", menu: "run", group: "station", run: a.station },
+    later("run.export", "Export station…", "run", "station"),
 
     later("help.docs", "Docs", "help", "docs", "F1"),
     later("help.keys", "Keyboard shortcuts", "help", "docs", "Ctrl /"),

@@ -10,6 +10,7 @@ test("E2: found elsewhere than its path says where, and that Save keeps it", () 
   const n = movedNote("level-loop", { name: "cart-pole", path: "../cart-pole.pst" }, at);
   assert.equal(n?.title, "Opened level-loop on cart-pole");
   assert.match(n?.detail ?? "", /at stations\/cart-pole\.pst; the flow pointed to \.\.\/cart-pole\.pst\. Save keeps the new place/);
+  assert.deepEqual([n?.state, n?.act], ["done", "save"], "the note carries the Save key");
   assert.equal(movedNote("x", { name: "cart-pole", path: "a.pst" }, { ...at, where: "path" }), null);
   assert.equal(movedNote("x", { name: "cart-pole" }, at), null, "no path to have moved from");
 });
@@ -17,7 +18,9 @@ test("E2: found elsewhere than its path says where, and that Save keeps it", () 
 test("E3 and E4: another version, a changed station, changes that don't fit", () => {
   assert.equal(versionNote("level-loop", { name: "cart-pole", version: "0.2.0" }, at, [])?.title, "cart-pole is 0.3.0; level-loop was made on 0.2.0");
   assert.equal(versionNote("level-loop", { name: "cart-pole", version: "0.3.0", sha256: "a" }, at, [])?.title, "cart-pole 0.3.0 changed since level-loop was saved");
-  assert.equal(versionNote("level-loop", { name: "cart-pole", version: "0.2.0" }, at, [misfit, misfit])?.detail, "2 changes don't fit · File › Review changes…");
+  const v = versionNote("level-loop", { name: "cart-pole", version: "0.2.0" }, at, [misfit, misfit]);
+  assert.deepEqual([v?.detail, v?.state, v?.act], ["2 of its changes don't fit.", "warning", "review"], "a warning in ink, with Review");
+  assert.equal(versionNote("level-loop", { name: "cart-pole", version: "0.2.0" }, at, [])?.act, undefined, "nothing to review");
   assert.equal(versionNote("x", { name: "cart-pole", version: "0.3.0" }, at, [misfit])?.title, "1 change in x doesn't fit cart-pole 0.3.0");
   assert.equal(versionNote("x", { name: "cart-pole", version: "0.3.0", sha256: "b" }, at, []), null);
   assert.match(apartNote("level-loop", "tank-rig", "tank-lab", "pump-rig").detail ?? "", /tank-rig stays in tank-lab/);
@@ -30,9 +33,9 @@ test("E1 lists where it looked", () => {
 });
 
 test("what starts a found station", () => {
-  assert.deepEqual(startOf(at, "h1"), { hub: "h1", path: "stations/cart-pole.pst" });
+  assert.deepEqual(startOf(at, { hub: "h1" }), { hub: "h1", path: "stations/cart-pole.pst" });
   assert.deepEqual(startOf({ ...at, where: "installed", path: "/x" }), { name: "cart-pole", version: "0.3.0" });
-  assert.equal(startOf({ ...at, port: 51302 }, "h1"), null, "it runs: nothing to start");
+  assert.equal(startOf({ ...at, port: 51302 }, { hub: "h1" }), null, "it runs: nothing to start");
 });
 
 test("?open= survives the switch, with what started the station", () => {

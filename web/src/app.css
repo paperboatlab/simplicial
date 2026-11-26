@@ -261,3 +261,13 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .fit small { grid-column: 1; font-size: var(--size-2xs); color: var(--text-muted); }
 .fit > :last-child { grid-row: 1 / 3; grid-column: 2; }
 .splash-more { position: fixed; left: 50%; top: calc(50% + 120px); transform: translateX(-50%); z-index: 5; }
+
+/* the one file workflow: the Start page in the bay's card while no file is open; the Flow's head names the file (no
+   document field in the bar's centre); the picker's preview of a flow or a station */
+.bay > .start-card { height: 100%; display: flex; }
+.bay > .pcol[hidden] { display: none; }
+.panel-head .sum .fname { font-weight: 500; color: var(--text); }
+.panel-head .sum .dirty { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }
+.open-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font: var(--size-2xs) var(--font-mono); }
+.open-facts dt { color: var(--text-muted); }
+.open-facts dd { margin: 0; overflow-wrap: anywhere; }

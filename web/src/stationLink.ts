@@ -2,15 +2,15 @@
 // station (E2, E3, E4, E8, the places E1 looked), and the page's address across a station switch (`?open=`). Pure, so
 // it is tested; App.tsx does the asking, opening and saving.
 import type { Misfit } from "./project.ts";
-import type { Finding, Place, Which } from "./hubs.ts";
+import type { Finding, Place, Root, Which } from "./hubs.ts";
 import type { StationRef } from "./protocol.ts";
 
 /** A station as the messages name it: "cart-pole 0.2.0". */
 export const named = (s: { name: string; version?: string }) => (s.version ? `${s.name} ${s.version}` : s.name);
 const many = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
-/** A toast's words: what the kit's notifications take. */
-export type Note = { title: string; detail?: string; state?: "done" };
+/** A toast's words, and the key it offers (`act`: E2's Save, E3/E4's Review), which App.tsx wires. */
+export type Note = { title: string; detail?: string; state?: "done" | "warning"; act?: "save" | "review" };
 
 /** Where E1 looked, as its list: [where, what that is]. */
 export function lookedList(f: Extract<Finding, { missing: unknown }>, hub?: string): [string, string][] {
@@ -25,27 +25,28 @@ const whereText = (p: Place) => (p.where === "path" || p.where === "workspace" ?
 /** E2: the flow opened on its station found elsewhere than its path (null when it was at its path, or it had none). */
 export function movedNote(file: string, made: StationRef, at: Place): Note | null {
   if (at.where === "path" || !made.path) return null;
-  return { title: `Opened ${file} on ${at.name}`, detail: `Found ${at.name} at ${whereText(at)}; the flow pointed to ${made.path}. Save keeps the new place.`, state: "done" };
+  return { title: `Opened ${file} on ${at.name}`, detail: `Found ${at.name} at ${whereText(at)}; the flow pointed to ${made.path}. Save keeps the new place.`, state: "done", act: "save" };
 }
 
 /** E3 and E4: another version, or the same one changed (its sha256), and the changes that don't fit; null when all is well. */
 export function versionNote(file: string, made: StationRef, at: { name: string; version?: string; sha256?: string }, misfits: readonly Misfit[]): Note | null {
-  const fit = misfits.length ? `${misfits.length === 1 ? "1 change doesn't" : `${misfits.length} changes don't`} fit · File › Review changes…` : undefined;
-  if (made.version && at.version && made.version !== at.version) return { title: `${at.name} is ${at.version}; ${file} was made on ${made.version}`, detail: fit };
-  if (made.sha256 && at.sha256 && made.sha256 !== at.sha256) return { title: `${named(at)} changed since ${file} was saved`, detail: fit };
-  return fit ? { title: `${many(misfits.length, "change")} in ${file} ${misfits.length === 1 ? "doesn't" : "don't"} fit ${named(at)}`, detail: "Kept in the file, unused · File › Review changes…" } : null;
+  const n = misfits.length;
+  const fit: Partial<Note> = n ? { detail: `${n === 1 ? "1 of its changes doesn't" : `${n} of its changes don't`} fit.`, act: "review" } : {};
+  if (made.version && at.version && made.version !== at.version) return { title: `${at.name} is ${at.version}; ${file} was made on ${made.version}`, state: "warning", ...fit };
+  if (made.sha256 && at.sha256 && made.sha256 !== at.sha256) return { title: `${named(at)} changed since ${file} was saved`, state: "warning", ...fit };
+  return n ? { title: `${many(n, "change")} in ${file} ${n === 1 ? "doesn't" : "don't"} fit ${named(at)}`, detail: "Kept in the file, unused.", state: "warning", act: "review" } : null;
 }
 
 /** E8: saved in another hub than its station's. */
 export const apartNote = (file: string, station: string, from: string, to: string): Note =>
-  ({ title: `Saved ${file} in ${to}`, detail: `${station} stays in ${from}, so the flow will find it by name next time.` });
+  ({ title: `Saved ${file} in ${to}`, detail: `${station} stays in ${from}, so the flow will find it by name next time.`, state: "warning" });
 
-/** What starts a found station: its .pst or folder in the hub, or an installed one by name; nothing when it runs. */
-export const startOf = (p: Place, hub?: string): Which | null =>
-  p.port ? null : (p.where === "path" || p.where === "workspace") && hub ? { hub, path: p.path } : { name: p.name, version: p.version };
+/** What starts a found station: its .pst or folder in the hub or folder, or an installed one by name; nothing when it runs. */
+export const startOf = (p: Place, root?: Root): Which | null =>
+  p.port ? null : (p.where === "path" || p.where === "workspace") && root ? { ...root, path: p.path } : { name: p.name, version: p.version };
 
-/** The page's address after a station switch: the station, the file to open on it (`<hub>:<path>`; no hub: this computer's,
- *  kept in the browser), whether to take it on this station whatever it names (`use`), what started the station. */
+/** The page's address after a station switch: the station, the file to open on it (`<hub>:<path>`; no hub: in the
+ *  folder the page's server works in), whether to take it on this station whatever it names (`use`), what started the station. */
 export type Opening = { station?: string; open?: { hub?: string; path: string }; use?: boolean; start?: Which; nostation?: boolean };
 
 export function toSearch(o: Opening, now = ""): string {

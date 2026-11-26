@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Graph, ObjectDef, Overrides, StationFlow0 } from "../src/protocol.ts";
 import {
-  addRecent, applyOverrides, besidePath, buildProject, diff, mergeOverrides, parseFlow, PROJECT_VERSION, RECENT_MAX, relPath, upgrade, type Now, type Starter, type Stored,
+  applyOverrides, besidePath, buildProject, diff, mergeOverrides, parseFlow, PROJECT_VERSION, relPath, upgrade, type Now, type Starter,
 } from "../src/project.ts";
 
 const flow: Graph = {
@@ -108,29 +108,6 @@ test("damage is named by where it is", () => {
   assert.match(bad({ ...base, flow, board: {} }), /board\.instruments/);
   assert.match(bad({ ...base, flow, run: { duration: "long" } }), /run\.duration/);
   assert.match(bad({ ...base, flow, run: { duration: "long" } }), /^it is damaged: /);
-});
-
-test("recent projects: newest first, one per file, at most five", () => {
-  const entry = (name: string, at: number): Stored => ({ name, savedAt: at, project: buildProject({ station: { name: "b" }, flow }) });
-  let list: Stored[] = [];
-  for (let i = 0; i < 7; i++) list = addRecent(list, entry(`p${i}`, i));
-  assert.equal(list.length, RECENT_MAX);
-  assert.deepEqual(list.map((s) => s.name), ["p6", "p5", "p4", "p3", "p2"]);
-  const again = addRecent(list, entry("p4", 99));
-  assert.deepEqual(again.map((s) => s.name), ["p4", "p6", "p5", "p3", "p2"]);
-  assert.equal(again[0].savedAt, 99, "the newer copy replaces the older");
-  const inHub = addRecent(again, { ...entry("p4", 100), hub: "lab" });
-  assert.deepEqual(inHub.slice(0, 2).map((s) => [s.hub, s.name]), [["lab", "p4"], [undefined, "p4"]], "the same path in a hub is another file");
-});
-
-test("recent projects: a huge project doesn't push out the one just saved", () => {
-  const big = (name: string): Stored => ({
-    name,
-    savedAt: 1,
-    project: buildProject({ station: { name: "b" }, flow: { nodes: [{ id: "a", type: "t", params: { text: "x".repeat(1_400_000) } }], edges: [] } }),
-  });
-  const list = addRecent(addRecent([], big("one")), big("two"));
-  assert.deepEqual(list.map((s) => s.name), ["two"], "the older one makes way: the list stays under the cap");
 });
 
 // ---- format 1: the diff from the station's starter, and applying it back ----

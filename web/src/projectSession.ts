@@ -1,10 +1,10 @@
-// The project around the open file (#6, from legacy's projectSession.ts): whether it is saved, a word before unsaved
-// work is replaced, the recent projects, and the unsaved work kept as it happens and offered back after a reload.
-// Opening and saving are the page's (App.tsx, hubs.ts); they tell this what happened.
+// The project around the open file (#6, from legacy's projectSession.ts): whether it is saved, and the unsaved work kept
+// as it happens and offered back after a reload. Opening, saving and the word before unsaved work is replaced (the kit's
+// Unsaved) are the page's (App.tsx, hubs.ts); they tell this what happened.
 import { ago } from "@paperboatlab/ui";
 import { useEffect, useRef, useState } from "react";
 import type { StationFlow } from "./protocol.ts";
-import { addRecent, clearAutosave, loadAutosave, loadRecent, saveAutosave, saveRecent, type Stored } from "./project.ts";
+import { clearAutosave, loadAutosave, saveAutosave, type Stored } from "./project.ts";
 
 /** A question before something is replaced, and its answers; the last is the safe one (Esc). `looked`: where it looked (E1). */
 export type Notice = { title: string; text: string[]; looked?: [string, string][]; actions: { label: string; primary?: boolean; run?: () => void }[] };
@@ -25,7 +25,6 @@ export function useProject(
   const [key, setKey] = useState("");
   const [baseline, setBaseline] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [recent, setRecent] = useState<Stored[]>(loadRecent);
   const checked = useRef("");  // the station whose kept work was looked for
   const dirty = baseline !== null && key !== "" && key !== baseline;
   const take = useRef(snapshot);
@@ -68,26 +67,19 @@ export function useProject(
   }, [key, dirty]); // eslint-disable-line react-hooks/exhaustive-deps -- when the project changes
 
   return {
-    dirty, notice, recent,
+    dirty, notice,
     close: () => setNotice(null),
     /** Ask something of the page's own (E1, E5). */
     tell: setNotice,
-    /** Do `verb` now, or after a word when it would replace unsaved work. */
-    ask: (title: string, verb: string, go: () => void) => {
-      if (!dirty) return go();
-      setNotice({ title, text: [`“${name}” has changes that weren't saved. ${verb} replaces them.`], actions: [{ label: verb, primary: true, run: go }, { label: "Cancel" }] });
-    },
     /** A project was opened (or started): unsaved from what it settles to (`changed`: unsaved until saved, its station
-     *  found elsewhere, E2); kept in Open recent when it has a name. */
-    opened: (s?: Omit<Stored, "savedAt">, changed = false) => {
+     *  found elsewhere, E2). */
+    opened: (changed = false) => {
       setBaseline(changed ? "changed" : null);
       checked.current = engine;  // a file opened on purpose: no offer to restore what was there before
-      if (s) setRecent((list) => saveRecent(addRecent(list, { ...s, savedAt: Date.now() })));
     },
-    /** It was saved as `s`: saved from here on, and kept in Open recent. */
-    saved: (s: Omit<Stored, "savedAt">) => {
-      setBaseline(JSON.stringify(take.current()));  // the project as the page holds it (`s.project` also has its station's place)
-      setRecent((list) => saveRecent(addRecent(list, { ...s, savedAt: Date.now() })));
+    /** It was saved: saved from here on. */
+    saved: () => {
+      setBaseline(JSON.stringify(take.current()));
       clearAutosave(engine);
     },
   };

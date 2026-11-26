@@ -1,11 +1,11 @@
 // The one registry: the menu bar, Ctrl K and the shortcuts read it, so what can't run says why everywhere.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MENUS, registry, type Do, type View } from "../src/menus.ts";
+import { fileMenu } from "@paperboatlab/ui/workspace";
+import { fileItems, MENUS, registry, type Do, type View } from "../src/menus.ts";
 
 const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "",
-  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false,
-  unsaved: "", recent: [{ name: "balance.psf", when: "5 min ago" }], misfits: 0 };
+  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false };
 const calls: string[] = [];
 const act = new Proxy({} as Do, { get: (_, k) => (...a: unknown[]) => calls.push(`${String(k)}(${a.join(",")})`) });
 const find = (cs: ReturnType<typeof registry>, id: string) => cs.find((c) => c.id === id)!;
@@ -71,29 +71,23 @@ test("a run length: seconds, or ∞ / inf for a run until cancelled", async () =
   assert.equal(parseLength("abc"), undefined);
 });
 
-test("File opens and saves a flow; Save says why it can't without a station", () => {
-  const cs = registry(view, act);
-  assert.equal(find(cs, "file.open").chord?.key, "o");
-  assert.ok(on(find(cs, "file.save")) && on(find(cs, "file.saveas")));
-  const off = registry({ ...view, unsaved: "Not connected to a station" }, act);
-  assert.equal(on(find(off, "file.save")), false);
-  assert.equal(find(off, "file.saveas").why, "Not connected to a station");
-  assert.ok(on(find(off, "file.open")));
-});
-
-test("File: a recent file reopens by index; nothing is opened while a run is in progress", () => {
-  const cs = registry(view, act);
-  const r = find(cs, "file.recent.0");
-  assert.deepEqual([r.label, r.meta, r.group], ["balance.psf", "5 min ago", "recent"]);
-  calls.length = 0;
-  r.run();
-  assert.deepEqual(calls, ["openRecent(0)"]);
-  const running = registry({ ...view, running: true }, act);
-  for (const id of ["file.new", "file.open", "file.recent.0"]) assert.equal(on(find(running, id)), false, id);
+test("File is the kit's menu: nothing opens or closes while a run is in progress; Settings… waits", () => {
+  const no = () => {};
+  const kit = fileMenu({ noun: "flow", workspace: null, file: true, hubs: false, recent: [], onNew: no, onOpenFile: no, onOpenFolder: no,
+    onSave: no, onSaveAs: no, onCloseFile: no, onCloseWorkspace: no, onSettings: no });
+  const idle = fileItems(kit, false);
+  assert.deepEqual(idle.map((c) => c.label), ["New flow", "Open file…", "Open folder…", "Open recent", "Save", "Save as…", "Close file", "Close folder", "Settings…"]);
+  assert.ok(on(find(idle, "file.open")) && on(find(idle, "file.save")));
+  assert.equal(on(find(idle, "file.settings")), false);
+  const running = fileItems(kit, true);
+  for (const id of ["file.new", "file.open", "file.openFolder", "file.close"]) assert.equal(on(find(running, id)), false, id);
+  assert.equal(find(running, "file.open").why, "A run is in progress");
   assert.equal(on(find(running, "file.save")), true);
+  const chords = [...idle, ...registry(view, act)].filter((c) => c.chord).map((c) => JSON.stringify(c.chord));
+  assert.equal(new Set(chords).size, chords.length, "Ctrl K (the search) and Ctrl K Ctrl O (Open folder…) are both there, apart");
 });
 
-test("Review changes waits for a change that doesn't fit", () => {
-  assert.equal(on(find(registry(view, act), "file.review")), false);
-  assert.equal(on(find(registry({ ...view, misfits: 2 }, act), "file.review")), true);
+test("Choose a station… is in Run", () => {
+  assert.equal(find(registry(view, act), "run.station").menu, "run");
 });
+

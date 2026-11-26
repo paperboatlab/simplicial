@@ -2,8 +2,7 @@
 // child of one station, holding only what differs from the station's starter (its overrides, the flow's own variables,
 // the flow, the Board, the run), pointing to the station by name, version, sha256 and a path relative to the file. Pure
 // functions: the diff from the starter and applying it back (what no longer fits kept apart, like a lost block), building
-// a file, reading and checking one (format 0, full copies, still reads), and the small lists the browser keeps (recent
-// projects and the autosave). The shapes are `StationFlow`/`StationFlow0` in protocol.ts, generated from the schema.
+// a file, reading and checking one (format 0, full copies, still reads), and what the browser keeps (the autosave). The shapes are `StationFlow`/`StationFlow0` in protocol.ts, generated from the schema.
 import { readStored as read, writeStored as write } from "@paperboatlab/ui";
 import type {
   BoardLayout, FlowType, Graph, ObjectDef, ObjectOverride, Overrides, RunSettings, Station, StationFlow, StationFlow0, StationObject, StationRef, Variable, Variables,
@@ -280,38 +279,14 @@ export function parseFlow(text: string): StationFlow | StationFlow0 {
   return data as unknown as StationFlow | StationFlow0;
 }
 
-// ---- What the browser keeps: recent projects (their content, so they can be reopened) and the autosave ----
+// ---- What the browser keeps: the autosave (Open recent is the store every app shares: hubs.ts) ----
 
-/** A project kept in this browser: its file's path (in `hub`, if it is in one, else a name on this computer), when, and what it held. */
-export type Stored = { name: string; hub?: string; savedAt: number; project: StationFlow | StationFlow0 };
+/** Unsaved work kept in this browser: its file's path (in `hub` or `folder`, if it has a place), when, and what it held. */
+export type Stored = { name: string; hub?: string; folder?: string; savedAt: number; project: StationFlow | StationFlow0 };
 
-export const RECENT_MAX = 5;
-/** All recent projects together stay under this many characters (localStorage holds about 5 MB). */
-export const RECENT_CHARS = 1_500_000;
-
-/** `entry` first, the same file's older entry dropped, the list cut to `RECENT_MAX` and `RECENT_CHARS` (oldest go first). */
-export function addRecent(list: Stored[], entry: Stored): Stored[] {
-  const out: Stored[] = [];
-  let size = 0;
-  for (const s of [entry, ...list.filter((x) => x.name !== entry.name || x.hub !== entry.hub)]) {
-    const n = JSON.stringify(s).length;
-    if (out.length >= RECENT_MAX || (out.length > 0 && size + n > RECENT_CHARS)) break;
-    out.push(s);
-    size += n;
-  }
-  return out;
-}
-
-const RECENT_KEY = "simplicial.recent";
 const autosaveKey = (engine: string) => `simplicial.autosave:${engine}`;
 
 const isStored = (v: unknown): v is Stored => isObj(v) && isText(v.name) && isNum(v.savedAt) && isObj(v.project) && "flow" in v.project;
-
-export const loadRecent = (): Stored[] => {
-  const v = read(RECENT_KEY, (x): x is unknown[] => Array.isArray(x));
-  return (v ?? []).filter(isStored);
-};
-export const saveRecent = (list: Stored[]) => (write(RECENT_KEY, list), list);
 
 /** The unsaved work of this station's last session, kept as it happens. */
 export const loadAutosave = (engine: string): Stored | undefined => read(autosaveKey(engine), isStored);
