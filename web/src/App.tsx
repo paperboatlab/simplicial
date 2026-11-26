@@ -3,7 +3,8 @@
 // mode, the Variables card, the run dock, the Console window, the floating search and Settings (SettingsWindow.tsx: the theme is there). The parts are the kit's
 // (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash, and
 // once the first try finds none, Choose a station over it (StationPicker.tsx).
-// The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them. The
+// The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them; its Add block
+// opens the block library (flow/BlockLibrary.tsx), `/` quick add at the cursor. The
 // Board (board/Board.tsx) shows an instrument for each monitor block among them, laid out by the user's layout (kept
 // per station in the browser) or the station's.
 // Background news (the station lost and back, a run's fault) comes as toasts (news.ts), kept by the bar's
@@ -39,6 +40,7 @@ import { openStation, remember } from "./stations.ts";
 import { useCanvasSync } from "./flow/canvasSync.ts";
 import { OnBlocks, RunStates, Vars } from "./flow/flowContexts.ts";
 import { FlowEditor, type FlowControls } from "./flow/FlowEditor.tsx";
+import { BlockLibrary } from "./flow/BlockLibrary.tsx";
 import { toFlow, toGraph } from "./flow/flowGraph.ts";
 import { canArrangeFlow } from "./flow/flowLayout.ts";
 import { isBlock, type FlowNode, type Wire } from "./flow/flowModel.ts";
@@ -148,6 +150,7 @@ export function App() {
   useEffect(() => writeStored("simplicial.hidden", hidden), [hidden]);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [search, setSearch] = useState<null | { at?: { x: number; y: number } }>(null);
+  const [library, setLibrary] = useState(false);  // the block library, from the Flow's Add block
   const [sview, setSview] = useState<"3d" | "graph">("3d");
   const [floor, setFloor] = useState<boolean | null>(null); // the user's grid choice wins over the station's view.grid
   const [tab, setTab] = useState("");
@@ -779,9 +782,8 @@ export function App() {
                     <span title={lock || "Arrange the blocks along their wires"}>
                       <Key size="sm" kind="quiet" disabled={!!lock || !canArrangeFlow(nodes, level)} onClick={() => flow.current?.arrange()}>Arrange</Key>
                     </span>
-                    <span title={lock || "Add a block (/ or double-click the canvas)"}>
-                      <Key size="sm" kind="quiet" icon="add" shortcut="/" disabled={!!lock}
-                        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setSearch({ at: { x: r.right - 400, y: r.bottom + 6 } }); }}>Add block</Key>
+                    <span title={lock || "Browse the block library (quick add at the cursor: / or double-click the canvas)"}>
+                      <Key size="sm" kind="quiet" icon="add" disabled={!!lock} onClick={() => setLibrary(true)}>Add block</Key>
                     </span>
                   </>}>
                   <div ref={flowBody} className="page-body"
@@ -835,6 +837,13 @@ export function App() {
         onMalachite={ws?.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined} commands={commands} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
+      {library && !lock && <BlockLibrary blocks={blocks} toolkits={state.toolkits} onClose={() => setLibrary(false)}
+        used={nodes.filter(isBlock).reduce<Record<string, number>>((m, n) => ({ ...m, [n.data.def.type]: (m[n.data.def.type] ?? 0) + 1 }), {})}
+        onAdd={(b) => {  // in the middle of the Flow in view, as quick add does at the cursor
+          const r = flowBody.current?.getBoundingClientRect();
+          if (r) flow.current?.place(b, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+          setLibrary(false);
+        }} />}
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}
         scopes={search.at ? [] : ["All", "Commands", "Blocks", "Variables", "Stations"]}
         placeholder={search.at ? "Add a block here" : "Search commands, blocks, variables and stations"} />}

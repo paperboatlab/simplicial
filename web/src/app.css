@@ -271,3 +271,48 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .open-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font: var(--size-2xs) var(--font-mono); }
 .open-facts dt { color: var(--text-muted); }
 .open-facts dd { margin: 0; overflow-wrap: anywhere; }
+
+/* The block library (flow/BlockLibrary.tsx, the Flow's Add block): packages on the rail's ground at the left (as
+   Settings' pages), the search, the cards in a grid; the chosen card tinted with the soft selection outline. While a
+   card is dragged out, the library fades and lets the pointer through to the canvas. */
+.dialog.block-library { width: min(1080px, calc(100vw - 32px)); height: min(700px, calc(100vh - 64px)); padding-bottom: 0; }
+.lib-body { flex: 1; min-height: 0; display: flex; gap: 18px; }
+.lib-nav { flex: none; width: 176px; display: flex; flex-direction: column; gap: 2px; padding: 6px; margin-bottom: 18px; border-radius: var(--radius-lg); background: var(--surface-sunken); overflow: auto; }
+.lib-nav button { all: unset; box-sizing: border-box; flex: none; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: var(--radius-md); color: var(--text-muted); cursor: pointer; transition: background var(--motion), color var(--motion); }
+.lib-nav button small { margin-left: auto; font: var(--size-3xs) var(--font-mono); color: var(--text-muted); }
+.lib-nav button:hover { color: var(--text); }
+.lib-nav button[aria-current="page"] { background: var(--surface-raised); box-shadow: 0 0 0 1px var(--line), var(--shadow-key); color: var(--text); font-weight: 500; }
+.lib-nav button:focus-visible { outline: 2px solid var(--focus); }
+.lib-nav button.absent { font-style: italic; }
+.lib-nav h3 { margin: 12px 10px 4px; font: 500 var(--size-label) var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.lib-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.lib-field { flex: none; display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-sunken); color: var(--text-muted); }
+.lib-field:focus-within { border-color: var(--line-strong); }
+.lib-field input { all: unset; flex: 1; min-width: 0; font: var(--size-md) var(--font-sans); color: var(--text); }
+.lib-field small { font: var(--size-2xs) var(--font-mono); }
+.lib-cards { flex: 1; min-height: 0; overflow: auto; padding: 4px 2px 12px; margin-top: 8px; }
+.lib-cards section + section { margin-top: 6px; }
+.lib-cards .group-label { margin: 10px 2px 8px; }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 8px; }
+.lib-card { display: flex; gap: 12px; padding: 10px 12px; min-height: 76px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-raised); cursor: pointer; transition: background var(--motion), box-shadow var(--motion); }
+.lib-card[aria-selected="true"] { background: color-mix(in srgb, var(--accent) var(--tint), var(--surface-raised)); box-shadow: 0 0 0 1px var(--accent-select); border-color: transparent; }
+.lib-card:active { cursor: grabbing; }
+.lib-plate { flex: none; width: 52px; height: 46px; display: grid; place-items: center; padding: 3px; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface-panel); color: var(--text-muted); }
+.lib-plate svg.icon-art { width: 100%; height: 100%; }
+.lib-plate .glyph { width: 30px; height: 30px; }
+.lib-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lib-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lib-name b { font-weight: 600; font-size: var(--size-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-ports { margin-top: auto; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.lib-ports small { margin-left: auto; font: var(--size-3xs) var(--font-mono); color: var(--text-muted); white-space: nowrap; }
+.lib-text p { margin: 0; font-size: var(--size-2xs); line-height: 1.4; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.lib-text code { min-width: 0; font: var(--size-3xs) var(--font-mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-empty { margin: 24px 2px; font-size: var(--size-sm); color: var(--text-muted); }
+.lib-absent { max-width: 560px; padding: 8px 2px; font-size: var(--size-sm); }
+.lib-absent h3 { display: flex; align-items: center; gap: 8px; margin: 4px 0 8px; font: 600 var(--size-md) var(--font-sans); }
+.lib-absent p { margin: 0 0 10px; color: var(--text-muted); }
+.lib-absent code { font: var(--size-xs) var(--font-mono); color: var(--text); padding: 1px 6px; border-radius: var(--radius-sm); background: var(--surface-sunken); }
+.lib-names { display: flex; flex-wrap: wrap; gap: 4px; }
+.lib-foot { flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 10px 2px 12px; border-top: 1px solid var(--line); font-size: var(--size-meta); color: var(--text-muted); }
+.lib-foot kbd { font: var(--size-3xs) var(--font-mono); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-right: 4px; }
+body.lib-dragging .dialog-scrim:has(.block-library) { opacity: 0; pointer-events: none; transition: opacity var(--motion); }
