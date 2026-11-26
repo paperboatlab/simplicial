@@ -21,7 +21,13 @@ or pull a branch out of any of its wires: Ctrl-drag (or right-drag) the wire ont
 **Arrange** lays the blocks out left to right along their wires; a feedback wire runs back below them,
 branching off its output's line like any other.
 
-.. note:: Not written yet: placing blocks, expression inputs, the Graph view.
+A number setting takes a number, a variable's name or a formula of them (``kp / 5``), as you type it.
+Typing a name lists the variables it may mean, each with its type and value: ↑ ↓ to pick one, Tab or
+Enter to take it, Esc to hide the list (twice: to undo the edit). A setting bound to a variable shows
+its name in an outline. Point at a variable in the **Variables** card to see the blocks that use it
+(a subsystem is marked when a block inside it does); click anywhere outside an open variable to fold it.
+
+.. note:: Not written yet: placing blocks, the Graph view.
 
 Run
 ---
