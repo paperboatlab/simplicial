@@ -71,7 +71,9 @@ come back out of process over `paperboat-runtime/0` (#7).
     scene, at the replay playhead when replaying; the Board's view3d instrument draws it too.
   - `src/Variables.tsx`: the Variables card on the kit's `VariableList`: + Variable, an open row edits a variable;
     `variableEdits.ts` (pure, tested) is what an edit does to the list. The page sends the list (`variables.set`) and
-    keeps it as the state's (`engine.ts`), since the station doesn't send it back.
+    keeps it as the state's (`engine.ts`), since the station doesn't send it back. Under it, Julix's live variables
+    (`variables.remote`, kept apart as `remoteVariables`), read-only, never in the flow; `liveRows`/`bindable` say which
+    a name the flow has hides, and the binding hints list the rest.
   - `src/hubs.ts`: the workspace and its files, as the page's server gives them: the workspace, switched at runtime
     (`/__paperboat/workspace`: a folder, a hub, a file's folder or hub, nothing), the hubs (`/__paperboat/hubs`, which
     runs `paperboat hub list --json`: no Malachite, no hub), a workspace's tree and its `.psf` files
@@ -134,7 +136,9 @@ come back out of process over `paperboat-runtime/0` (#7).
    callback; core and toolkit never name an example station or an external simulation tool.
 6. **Variables are resolved before construction.** `{"var"}`/`{"expr"}` references are resolved before
    any `Block` or `StationObject` exists; `Context::set_variable` is buffered and committed at the end of
-   the pass.
+   the pass. A live client's variables (`variables.set` with a `source`: Julix, plans/2026-11-27_00-15) are the
+   server's, not a session's flow: every resolve (the station's show, a run, a tuned list, an analysis) takes the
+   flow's own first and `toolkit::with_live` adds the live ones under the names left, so they never reach a flow file.
 7. **Threads.** The session handles messages on the socket thread and runs each `Run` on a
    `std::jthread` with a `std::stop_token`; keys and live variables are latched between steps; `Handle`
    payloads are immutable shared pointers.

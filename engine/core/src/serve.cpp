@@ -369,19 +369,22 @@ struct Server::State {
   ix::HttpServer server;  // also upgrades WebSocket connections, on the same port
   std::mutex mutex;
   std::map<std::string, std::unique_ptr<Session>> sessions;  // by connection id
-  // Live variables from a client that is not this project (Squero MX), shared by every session.
+  // Live variables from a client that is not this flow (Julix), shared by every session: the connection
+  // that sent them (they go when it closes) and what it calls itself.
   std::string remote_source;
+  std::string remote_label = "julix";
   json remote_variables = json::array();
 
-  void publish_remote(const std::string& source, const json& variables) {
+  void publish_remote(const std::string& connection, const json& variables, const std::string& label) {
     std::vector<Session*> targets;
     {
       std::lock_guard lock(mutex);
-      remote_source = source;
+      remote_source = connection;
+      remote_label = label;
       remote_variables = variables;
       for (auto& [id, session] : sessions) targets.push_back(session.get());
     }
-    const json message = {{"type", "variables.remote"}, {"source", "mx"}, {"variables", variables}};
+    const json message = {{"type", "variables.remote"}, {"source", label}, {"variables", variables}};
     for (Session* session : targets) session->send_message(message);
   }
 
@@ -394,7 +397,7 @@ struct Server::State {
       remote_variables = json::array();
       for (auto& [id, session] : sessions) targets.push_back(session.get());
     }
-    const json message = {{"type", "variables.remote"}, {"source", "mx"}, {"variables", json::array()}};
+    const json message = {{"type", "variables.remote"}, {"source", remote_label}, {"variables", json::array()}};
     for (Session* session : targets) session->send_message(message);
   }
 };
@@ -407,11 +410,13 @@ Server::Server(const Station& station, int port) : state_(std::make_unique<State
         const std::string path = decode(request->uri.substr(0, request->uri.find('?')));
         if (path == "/variables.remote") {
           json variables;
+          std::string label;
           {
             std::lock_guard lock(s.mutex);
             variables = s.remote_variables;
+            label = s.remote_label;
           }
-          auto response = respond(200, "application/json", json{{"source", "mx"}, {"variables", variables}}.dump());
+          auto response = respond(200, "application/json", json{{"source", label}, {"variables", variables}}.dump());
           response->headers["Access-Control-Allow-Origin"] = "*";
           return response;
         }
@@ -424,18 +429,24 @@ Server::Server(const Station& station, int port) : state_(std::make_unique<State
           // sendText is thread-safe in IXWebSocket, so runs can send from their own thread.
           auto session = std::make_unique<Session>(
               s.station, [&ws](const std::string& text) { ws.sendText(text); },
-              [&s, id](const json& variables) { s.publish_remote(id, variables); });
+              [&s, id](const json& variables, const std::string& label) { s.publish_remote(id, variables, label); },
+              [&s] {
+                std::lock_guard lock(s.mutex);
+                return s.remote_variables;
+              });
           Session* created = nullptr;
           json remote_snapshot;
+          std::string remote_label;
           {
             std::lock_guard lock(s.mutex);
             created = session.get();
             s.sessions[id] = std::move(session);
             remote_snapshot = s.remote_variables;
+            remote_label = s.remote_label;
           }
-          // A client that opens after MX sent its variables gets them too.
+          // A client that opens after Julix sent its variables gets them too.
           if (created && !remote_snapshot.empty())
-            created->send_message({{"type", "variables.remote"}, {"source", "mx"}, {"variables", remote_snapshot}});
+            created->send_message({{"type", "variables.remote"}, {"source", remote_label}, {"variables", remote_snapshot}});
         } else if (msg->type == ix::WebSocketMessageType::Close) {
           std::unique_ptr<Session> gone;  // destroyed outside the lock: joins its run
           {

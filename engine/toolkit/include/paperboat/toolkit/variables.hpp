@@ -75,4 +75,9 @@ bool is_reference(const nlohmann::json& value);
 // function's name).
 bool valid_variable_name(std::string_view name);
 
+// The flow's own variables, then a live client's (Julix's session: Simulink's base workspace under the
+// model's) under every name the flow doesn't use: name, type and value only. A live one without a value
+// (an array too large to share) or with a name a variable can't have is left out.
+nlohmann::json with_live(const nlohmann::json& own, const nlohmann::json& live);
+
 }  // namespace paperboat::toolkit

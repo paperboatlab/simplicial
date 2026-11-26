@@ -27,6 +27,14 @@ Enter to take it, Esc to hide the list (twice: to undo the edit). A setting boun
 its name in an outline. Point at a variable in the **Variables** card to see the blocks that use it
 (a subsystem is marked when a block inside it does); click anywhere outside an open variable to fold it.
 
+**Julix's variables.** While Julix runs on this computer, its session's variables show in the
+**Variables** card under **From Julix**, read-only, as they were when its last run ended: numbers,
+booleans, text, and arrays as a ``matrix`` by its rows (a vector is a column), up to 4096 values (a
+larger one says so, and has no value to use). A setting binds to one like to any variable, and a run
+takes the value Julix has then. A name the flow has itself is the flow's (its Julix row is greyed):
+Julix fills in only what the flow doesn't define, as MATLAB's workspace does under a Simulink model's.
+They are never saved in the flow file, and they go when Julix closes.
+
 .. note:: Not written yet: placing blocks, the Graph view.
 
 Run
