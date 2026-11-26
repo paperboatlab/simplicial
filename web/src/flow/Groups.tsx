@@ -17,7 +17,7 @@ function Frame({ id, data, selected }: NodeProps<GroupNode>) {
   const { update, ungroup } = useContext(GroupActions);
   const lock = useContext(Lock);
   return (
-    <div className={`frame${selected ? " selected" : ""}`}>
+    <div className={`group-frame${selected ? " selected" : ""}`}>
       <NodeResizer isVisible={!!selected && !lock} minWidth={180} minHeight={100} onResizeEnd={(_, p) => update(id, { size: { w: p.width, h: p.height } })} />
       <div className="frame-head">
         <button type="button" className="frame-toggle nodrag" title="Collapse to one block" aria-label="Collapse" onClick={() => update(id, { collapsed: true })}>

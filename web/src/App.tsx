@@ -394,13 +394,13 @@ export function App() {
   const gridOn = floor ?? (state.view.mode !== "3d" || state.view.grid !== false);
 
   return (
-    <div className={`win${still ? " still" : ""}${station ? "" : " nost"}${(["st", "fl", "bd"] as Pane[]).map((p) => (hid(p) ? ` hide-${p}` : "")).join("")}`} data-mode={mode}>
+    <div className={`win frame${still ? " still" : ""}${station ? "" : " nost"}${(["st", "fl", "bd"] as Pane[]).map((p) => (hid(p) ? ` hide-${p}` : "")).join("")}`} data-mode={mode}>
       <header className="bar">
         <span className="lk"><AppMark app="simplicial" size={26} idle paused={!booted} label="Simplicial" /><span className="wm">Simplicial</span></span>
         {booted && <>
+          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme", recent: "Open recent" }} />
           {hub && <HubSelector hub={hub} hubs={hubs} app="Simplicial" onSwitch={() => setFilePick("open")} onDisconnect={() => setFile(null)}
             onNew={() => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" })} />}
-          <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme", recent: "Open recent" }} />
           <span className="proj" title={[file ? (hub ? `${hub.name}/${file.path}` : file.path) : "", state.engine, project.dirty ? "changes not saved" : ""].filter(Boolean).join(" · ")}>
             {file ? <>{file.path.includes("/") && `${file.path.slice(0, file.path.lastIndexOf("/"))}/`}<u>{fileName}</u></> : state.engine}
             {project.dirty && <i className="dirty" />}
@@ -416,10 +416,10 @@ export function App() {
             <button ref={conKey} type="button" className="key round bar-key" aria-label="Console (Ctrl `)" title="Console (Ctrl `)" aria-pressed={consoleOpen} onClick={() => setConsoleOpen((o) => !o)}>
               <Icon name="a-console" />{errors > 0 && <b className="badge">{errors}</b>}
             </button>
+            <Notifications {...notes} />
             <PanelsKey layout={sketch(mode, station)} onToggle={(id) => toggle(id as Pane)}
               panels={PANES[mode].filter((p) => station || p !== "st").map((p) => ({ id: p, label: PANE_NAME[p][0], keys: PANE_NAME[p][1], shown: !hid(p) }))} />
             <span className="lsep" />
-            <Notifications {...notes} />
             <ThemePicker theme={theme} onChange={setTheme} />
           </span>
         </>}
@@ -435,7 +435,7 @@ export function App() {
           { id: "board", label: "Board", icon: "a-board", keys: "Alt 3", count: running ? "live" : undefined },
         ]} />
         <div className="main">
-          <div className="pages">
+          <div className="pages bay">
             <div className="pcol" style={{ "--i": pages.indexOf(shownPage) } as CSSProperties}>
               {station && (
                 <div className="pg pg-station" inert={inert("station")}>

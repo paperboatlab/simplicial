@@ -4,8 +4,13 @@
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--surface-ground); color: var(--text); font: var(--size-sm)/1.45 var(--font-sans); }
 
-/* the window: the bar on top, the page rail at the left (Navigator only), the pages and the Variables card */
-.win { height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: var(--bar-height) minmax(0, 1fr); gap: var(--gutter); padding: var(--gutter); }
+/* the window is the kit's frame (REBRAND "Frame"): the bar on top, the page rail at the left (Navigator only) and the
+   Variables are one surface; the pages sit in the bay between them */
+.win { height: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: var(--bar-height) minmax(0, 1fr); padding: 0 0 var(--gutter); }
+.frame .page-rail { background: none; border-color: transparent; }
+/* in the bay the pages are cards again, drawers too (the frame clears only its own side panels) */
+.frame .bay .panel.side { background: var(--surface-panel); border-color: var(--line); border-radius: var(--radius-lg); }
+.frame .bay .panel.side > .panel-inner > .panel-head { border-bottom-color: var(--line); }
 .win > .splash-stage { grid-column: 1 / -1; }
 /* the bar is the kit's (.win > .bar): the lockup, the menus, the open file centred, the right end */
 .bar { grid-column: 1 / -1; }
@@ -17,9 +22,9 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .bar-key.round { border-radius: var(--radius-md); }
 .bar-key .badge { position: absolute; top: -5px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--surface-raised); border: 1px solid var(--danger); font: 600 10px/14px var(--font-mono); color: var(--danger-text); text-align: center; }
 
-/* the page rail steps aside in Commander and Lookout (every page is in view there), gap and all */
-.page-rail.aside { margin-right: calc(-1 * var(--gutter)); }
-.main { display: flex; gap: var(--gutter); min-height: 0; min-width: 0; }
+/* the page rail steps aside in Commander and Lookout (every page is in view there), down to a gutter before the bay */
+.page-rail.aside { width: var(--gutter); }
+.main { display: flex; min-height: 0; min-width: 0; }
 .main > .panel.side { height: 100%; }
 /* The Variables card (Variables.tsx) on the kit's VariableList: + Variable in its head, and an open row's editor. */
 .vedit { display: grid; gap: 8px; }
@@ -50,7 +55,8 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .page-body { height: 100%; }
 
 /* the pages: one column that slides to the page picked (Navigator); a wrapper per page holds its card */
-.pages { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-lg); }
+.pages { position: relative; flex: 1; overflow: hidden; }
+.bay > .dock { bottom: calc(var(--gutter) + 16px); }  /* floats over the page card, clear of the bay's gutter */
 .pcol { display: grid; grid-auto-rows: 100%; row-gap: var(--gutter); height: 100%; transform: translateY(calc(var(--i, 0) * (-100% - var(--gutter)))); transition: transform var(--slide); }
 .pg { display: flex; min-width: 0; min-height: 0; position: relative; }
 .pg > .panel { flex: 1; min-width: 0; }
@@ -65,7 +71,7 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .win:not([data-mode="navigator"]) .pg-board { grid-area: bd; }
 .win[data-mode="commander"] .pcol { --bdh: 330px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr); grid-template-rows: minmax(0, 1fr) var(--bdh); grid-template-areas: "st fl" "bd bd"; transition: grid-template-rows var(--slide); }
 .win[data-mode="commander"].hide-bd .pcol { --bdh: var(--panel-head-height); }
-.win[data-mode="commander"].hide-bd .dock { bottom: calc(var(--panel-head-height) + 16px); }
+.win[data-mode="commander"].hide-bd .bay > .dock { bottom: calc(var(--panel-head-height) + var(--gutter) + 16px); }
 .win[data-mode="commander"].nost .pcol { grid-template-areas: "fl fl" "bd bd"; }
 /* Lookout: the Board fills the window, Station and Flow drawers at its sides that hide to slim bars (slide, never squeeze) */
 .win[data-mode="lookout"] .pcol { --stw: 380px; --flw: 480px; grid-template-columns: var(--stw) minmax(0, 1fr) var(--flw); grid-template-rows: minmax(0, 1fr); grid-template-areas: "st bd fl"; transition: grid-template-columns var(--slide); }
@@ -123,9 +129,9 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .react-flow__handle.ghost-port.on { opacity: 1; pointer-events: all; }
 .react-flow__handle.ghost-port::before { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; font: 600 var(--size-2xs)/1 var(--font-mono); color: var(--text); }
 .group-empty { margin: 4px 10px 12px; font-size: var(--size-2xs); color: var(--text-muted); }
-/* a frame: a dashed box round its blocks, its head a strip on top */
-.frame { width: 100%; height: 100%; box-sizing: border-box; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface-sunken) 40%, transparent); }
-.frame.selected { outline: var(--select-outline); outline-offset: var(--select-offset); }
+/* a frame: a dashed box round its blocks, its head a strip on top (group-frame: .frame is the kit's window frame) */
+.group-frame { width: 100%; height: 100%; box-sizing: border-box; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface-sunken) 40%, transparent); }
+.group-frame.selected { outline: var(--select-outline); outline-offset: var(--select-offset); }
 .frame-head { height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 6px; }
 .frame-toggle { all: unset; width: 20px; height: 20px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; }
 .frame-toggle:hover { color: var(--text); background: var(--surface-sunken); }
@@ -248,4 +254,4 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .fprops .ffoot code { font: var(--size-3xs) var(--font-mono); color: var(--text); }
 @container (max-width: 560px) { .fprops { display: none; } }
 /* The blocks that use the variable under the pointer in the Variables card: a broad tinted ring, softer than selection's outline. */
-.react-flow__node.var-use :is(.plate, .block, .frame) { outline: 4px solid color-mix(in srgb, var(--accent) 30%, transparent); outline-offset: 2px; transition: outline-color var(--motion); }
+.react-flow__node.var-use :is(.plate, .block, .group-frame) { outline: 4px solid color-mix(in srgb, var(--accent) 30%, transparent); outline-offset: 2px; transition: outline-color var(--motion); }
