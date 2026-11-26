@@ -54,7 +54,8 @@ come back out of process over `paperboat-runtime/0` (#7).
   - `src/App.tsx`: the frame. The splash until a station says hello; the bar; the page rail (Navigator
     only); the Station, Flow and Board pages laid out by the view mode (Navigator, Commander, Lookout;
     hidden panes kept per mode); the Variables card; the run dock; the Console window; the floating
-    search and quick add. It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
+    search and quick add; Settings (`SettingsWindow.tsx`, the kit's `Settings`: General with the theme, Simplicial,
+    Hub while in one, Shortcuts; no Editor, there is no editor pane). It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
     kit's `useUndo`) and the open level. `app.css` draws only what the kit doesn't.
   - `src/station/`: the Station page. `StationPage.tsx`: the 3D view on the kit's stage (`@paperboatlab/ui/stage`; a click
     picks the object a part belongs to, its properties float over the corner) and the Graph view (objects and joints as the

@@ -5,7 +5,7 @@ import { fileMenu } from "@paperboatlab/ui/workspace";
 import { fileItems, MENUS, registry, type Do, type View } from "../src/menus.ts";
 
 const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "",
-  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false };
+  flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true, picked: false }, board: false };
 const calls: string[] = [];
 const act = new Proxy({} as Do, { get: (_, k) => (...a: unknown[]) => calls.push(`${String(k)}(${a.join(",")})`) });
 const find = (cs: ReturnType<typeof registry>, id: string) => cs.find((c) => c.id === id)!;
@@ -71,20 +71,32 @@ test("a run length: seconds, or ∞ / inf for a run until cancelled", async () =
   assert.equal(parseLength("abc"), undefined);
 });
 
-test("File is the kit's menu: nothing opens or closes while a run is in progress; Settings… waits", () => {
+test("File is the kit's menu: nothing opens or closes while a run is in progress; Settings… opens", () => {
   const no = () => {};
   const kit = fileMenu({ noun: "flow", workspace: null, file: true, hubs: false, recent: [], onNew: no, onOpenFile: no, onOpenFolder: no,
     onSave: no, onSaveAs: no, onCloseFile: no, onCloseWorkspace: no, onSettings: no });
   const idle = fileItems(kit, false);
   assert.deepEqual(idle.map((c) => c.label), ["New flow", "Open file…", "Open folder…", "Open recent", "Save", "Save as…", "Close file", "Close folder", "Settings…"]);
   assert.ok(on(find(idle, "file.open")) && on(find(idle, "file.save")));
-  assert.equal(on(find(idle, "file.settings")), false);
+  assert.equal(on(find(idle, "file.settings")), true);
+  assert.equal(find(idle, "file.openFolder").shortcut, "Ctrl Shift O");
   const running = fileItems(kit, true);
   for (const id of ["file.new", "file.open", "file.openFolder", "file.close"]) assert.equal(on(find(running, id)), false, id);
   assert.equal(find(running, "file.open").why, "A run is in progress");
   assert.equal(on(find(running, "file.save")), true);
   const chords = [...idle, ...registry(view, act)].filter((c) => c.chord).map((c) => JSON.stringify(c.chord));
-  assert.equal(new Set(chords).size, chords.length, "Ctrl K (the search) and Ctrl K Ctrl O (Open folder…) are both there, apart");
+  assert.equal(new Set(chords).size, chords.length, "no two commands share a key");
+});
+
+test("Help › Keyboard shortcuts is Ctrl /, unless something picked on the Flow takes it (Comment out)", () => {
+  const keys = find(registry(view, act), "help.keys");
+  assert.equal(keys.menu, "help");
+  assert.deepEqual(keys.chord, { key: "/", ctrl: true });
+  keys.run();
+  assert.equal(calls.at(-1), "shortcuts()");
+  const picked = find(registry({ ...view, flow: { ...view.flow, picked: true } }, act), "help.keys");
+  assert.equal(picked.chord, undefined);
+  assert.equal(picked.shortcut, "Ctrl /");
 });
 
 test("Choose a station… is in Run", () => {

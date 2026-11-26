@@ -27,9 +27,9 @@ Simplicial works in a **workspace**: a folder on this computer, or a Malachite h
 **Start** page fills the window: Open folder…, Open file…, New flow, Connect to a hub… and Recent
 (the folders, hubs and flows you opened last, in every Paperboat app). The workspace is named after
 the menu bar; its menu opens another folder, switches the hub, or closes it (back to Start). The
-File menu is the same in every app: New flow, Open file… (Ctrl O), Open folder… (Ctrl K Ctrl O),
+File menu is the same in every app: New flow, Open file… (Ctrl O), Open folder… (Ctrl Shift O),
 Open recent, Connect to a hub…, Save (Ctrl S), Save as… (Ctrl Shift S), Close file, Close folder (or
-Close hub) and Settings….
+Close hub) and Settings… (Ctrl ,).
 
 - **In a hub**, Open file… and Save as… are Simplicial's own picker over the hub: **By station** shows
   each ``.pst`` with its flows under it wherever they sit, and the flows whose station isn't found
@@ -40,8 +40,9 @@ Close hub) and Settings….
 - A file opened from **outside the workspace** switches to its folder, or to the hub that holds it.
 - **Closing** a flow with changes not saved asks first: Save, Don't save, or Cancel.
 
-The theme and Recent are kept in ``$PAPERBOAT_HOME`` (``recent.json``, ``settings.json``) for every
-Paperboat app: a theme picked here is the one every app starts in.
+The theme (Light, Dark or System, in Settings › General or View › Theme) and Recent are kept in
+``$PAPERBOAT_HOME`` (``recent.json``, ``settings.json``) for every Paperboat app: a theme picked here
+is the one every app starts in.
 
 A window works on one station. Opening a flow finds its station: at the flow's path first, then by
 name in the hub, among the installed stations (yours and the examples), and the running ones (the
