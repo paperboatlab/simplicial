@@ -11,7 +11,7 @@ import { newVariable, withVariable } from "./variableEdits.ts";
 const TYPES: Variable["type"][] = ["number", "boolean", "text", "enum", "matrix"];
 
 
-export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename, onHover }: {
+export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename, onHover, starter, changed, station }: {
   hidden: boolean;
   onHidden: (hidden: boolean) => void;
   list: List;
@@ -25,6 +25,10 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   onRename: (from: string, to: string) => void;
   /** The pointer is on a variable's row (null: off them all): the Flow marks the blocks that use it. */
   onHover: (name: string | null) => void;
+  /** The station's own variables as it started, the names this flow changed (a dot; Reset to the station's), its name. */
+  starter: List;
+  changed: ReadonlySet<string>;
+  station: string;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const groups = new Map<string, List>();
@@ -45,7 +49,10 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
           <VariableGroup key={g} title={g || undefined}>
             {vs.map((v) => {
               const shown = v.expr ? values[v.name] : v.value ?? values[v.name];
+              const theirs = changed.has(v.name) ? starter.find((x) => x.name === v.name) : undefined;
               return (
+                <div key={v.name} className={theirs ? "var-ov" : "var-own"}
+                  title={theirs ? `Changed by this flow; ${station} says ${theirs.expr ? `ƒ ${theirs.expr}` : valueText(theirs.value, theirs.type)}` : undefined}>
                 <VariableRow key={v.name} name={v.name} type={typeLine(v)} value={valueText(shown, v.type)} open={open === v.name}
                   off={locked && !v.tunable} why={locked && !v.tunable ? "Not tunable: it changes after the run" : v.note}
                   error={error?.at === v.name ? error.text : undefined} onOpen={() => setOpen(open === v.name ? null : v.name)}
@@ -55,8 +62,10 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
                       onChange(withVariable(list, v.name, next));
                       if (next.name !== v.name) { onRename(v.name, next.name); setOpen(next.name); }
                     }}
-                    onRemove={() => { onChange(list.filter((x) => x.name !== v.name)); setOpen(null); }} />
+                    onRemove={() => { onChange(list.filter((x) => x.name !== v.name)); setOpen(null); }}
+                    onReset={theirs && (() => onChange(list.map((x) => (x.name === v.name ? theirs : x))))} />
                 </VariableRow>
+                </div>
               );
             })}
           </VariableGroup>
@@ -69,7 +78,9 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
 }
 
 /** An open row: its name, type, value (or a number's or boolean's formula), unit, tunable; Remove. */
-function Editor({ v, list, locked, onChange, onRemove }: { v: Variable; list: List; locked: boolean; onChange: (v: Variable) => void; onRemove: () => void }) {
+function Editor({ v, list, locked, onChange, onRemove, onReset }: {
+  v: Variable; list: List; locked: boolean; onChange: (v: Variable) => void; onRemove: () => void; onReset?: () => void;
+}) {
   const [name, setName] = useState(v.name);
   const nameError = name === v.name ? "" : badName(name, list, v.name);
   const formula = v.expr !== undefined;
@@ -141,6 +152,7 @@ function Editor({ v, list, locked, onChange, onRemove }: { v: Variable; list: Li
           </span>
         )}
         <span className="grow" />
+        {onReset && <Key size="sm" kind="quiet" onClick={onReset}>Reset to the station's</Key>}
         <RemoveKey label={`Remove ${v.name}`} onClick={onRemove} />
       </div>
     </div>

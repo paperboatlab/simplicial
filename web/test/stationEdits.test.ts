@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { entitiesOf, graphPos, objectOfEntity, propValue, setLink, setPos, setProp } from "../src/station/stationEdits.ts";
+import { entitiesOf, graphPos, objectOfEntity, propValue, resetProp, setLink, setPos, setProp } from "../src/station/stationEdits.ts";
 import type { ObjectDef, Station } from "../src/protocol.ts";
 
 const station: Station = { objects: [{ id: "cart", type: "cart", props: { mass: 1 } }, { id: "hinge", type: "hinge", links: { a: "cart" } }] };
@@ -30,4 +30,11 @@ test("a prop reads its own value, else its type's default", () => {
   assert.equal(propValue(station.objects[0], def, "mass"), 1);
   assert.equal(propValue(station.objects[0], def, "len"), 3);
   assert.equal(propValue(station.objects[0], undefined, "len"), undefined);
+});
+
+test("a prop goes back to the station's", () => {
+  const starter: Station = { objects: [{ id: "a", type: "cart", props: { mass: 1 } }] };
+  const now: Station = { objects: [{ id: "a", type: "cart", props: { mass: 3, x0: 2 } }] };
+  assert.deepEqual(resetProp(now, starter, "a", "mass").objects[0].props, { mass: 1, x0: 2 });
+  assert.deepEqual(resetProp(now, starter, "a", "x0").objects[0].props, { mass: 3 }, "not the station's: its type's default");
 });
