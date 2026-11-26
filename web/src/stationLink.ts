@@ -68,7 +68,8 @@ export function fromSearch(search: string): Opening {
   try { which = start ? (JSON.parse(start) as Which) : undefined; } catch { which = undefined; }
   return {
     ...(q.get("station") ? { station: q.get("station")! } : {}),
-    ...(open && i >= 0 ? { open: { ...(i > 0 ? { hub: open.slice(0, i) } : {}), path: open.slice(i + 1) } } : {}),
+    // `<hub>:<path>`; a bare path (another app's `?open=`, Malachite's Open in Simplicial) is in the server's folder
+    ...(open ? { open: i >= 0 ? { ...(i > 0 ? { hub: open.slice(0, i) } : {}), path: open.slice(i + 1) } : { path: open } } : {}),
     ...(q.get("use") ? { use: true } : {}),
     ...(which ? { start: which } : {}),
     ...(q.get("nostation") ? { nostation: true } : {}),

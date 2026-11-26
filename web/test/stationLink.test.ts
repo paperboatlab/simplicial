@@ -44,4 +44,5 @@ test("?open= survives the switch, with what started the station", () => {
   assert.match(s, /theme=dark/);
   assert.deepEqual(fromSearch(toSearch({ open: { path: "a.psf" }, nostation: true, use: true })), { open: { path: "a.psf" }, use: true, nostation: true });
   assert.deepEqual(fromSearch("start=nope"), {});
+  assert.deepEqual(fromSearch("open=flows%2Fa.psf"), { open: { path: "flows/a.psf" } });  // another app's bare path
 });
