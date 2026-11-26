@@ -16,4 +16,5 @@ version's manual is the reference: `paperboat-legacy docs/api
    user_manual
    stations
    technical_manual
+   flow_files
    tutorials

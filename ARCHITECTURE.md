@@ -28,8 +28,11 @@ come back out of process over `paperboat-runtime/0` (#7).
 - `engine/core/`: `paperboat::core`, the graph compiler (`graph.cpp`: sort, loops), the run loop and
   executors, the cache, the record, the `paperboat/0` session and server (`session.cpp`, `serve.cpp`),
   `ProcessRunner` and the `StationManager`. `hubs.cpp`: the hubs for the page server (`serve_files`):
-  `paperboat hub list --json` (no shell, a timeout), a hub's tree (no dot entries), a path kept inside its hub;
-  the hub routes answer this computer only, and write only `.psf` with the page's own header.
+  `paperboat hub list --json` (no shell, a timeout), a hub's tree (no dot entries) with its stations (a `.pst`'s
+  `station.toml`, read in the zip by `scripts/package_station.py info`; a `.psf`'s header and the `.pst` it resolves
+  to), a path kept inside its hub, and finding a flow's station (`find`: its path, the hub, installed, running);
+  the hub and station routes (`/__paperboat/hub/…`, `/__paperboat/station/find|start|log`) answer this computer
+  only, write only `.psf` and start a station only with the page's own header.
 - `engine/tools/`: the `paperboat` CLI, `paperboat-catalog`, `paperboat-toolkit` and `paperboat new`.
 - `engine/scratchpad/`: the scratchpad station (the built-in toolkits, no domain).
 - `engine/tests/`: the Catch2 suite (`paperboat_tests`, run by `ctest`), its fixtures and the SDK test
@@ -62,12 +65,18 @@ come back out of process over `paperboat-runtime/0` (#7).
     kit's `OpenFile`/`SaveFile`; without, the browser's picker and a download. The file decides the hub: one
     opened from or saved in a hub shows the kit's `HubSelector` in the bar and the file's path in the hub. An
     opened file is `file.open` in `engine.ts` (its flow, objects and variables; the canvas takes it over edits).
-  - `src/project.ts` (pure, tested): the flow file (`StationFlow`): building one (empty parts left out), checking one
-    (`parseFlow`: what is wrong, and where), and what the browser keeps (Open recent, five files; the unsaved work, per
-    station). `src/projectSession.ts` (`useProject`): whether the project is saved (its snapshot against what was
-    last opened or saved, once the canvas settles), the word before unsaved work is replaced, Open recent, and the
-    restore offer after a reload. New project is the station's starter (`starter` in `engine.ts`: the first
-    `graph.load`, `station.load` and `variables.load`, before any edit).
+  - `src/project.ts` (pure, tested): the flow file (`StationFlow`, format 1: plans/2026-11-26_12-55_psf_pst_rework.md):
+    the diff from the station's starter (`diff`: overridden variables, objects changed, added, removed; the flow's own
+    variables) and applying it back (`applyOverrides`: what no longer fits kept apart as `Misfit`s), format 0 read
+    (`upgrade`), building one (empty parts left out), checking one (`parseFlow`: what is wrong, and where), and what
+    the browser keeps (Open recent, five files; the unsaved work, per station). `src/projectSession.ts`
+    (`useProject`): whether the project is saved (its snapshot against what was last opened or saved, once the
+    canvas settles), the word before unsaved work is replaced, Open recent, and the restore offer after a reload.
+    New project is the station's starter (`starter` in `engine.ts`: the first `graph.load`, `station.load` and
+    `variables.load`, before any edit). `src/stationLink.ts` (pure, tested): what opening a flow on its station says
+    (E2–E4, E8, where E1 looked) and the address across a station switch (`?open=<hub>:<path>`, `start`, `use`,
+    `nostation`); App.tsx finds the station (`/__paperboat/station/find`), asks (E1, E5), starts it and reopens the
+    window on it, and marks what the flow changed (a dot, Reset to the station's) on the Station page and Variables.
   - `src/StationPicker.tsx`, `src/stations.ts`: finding a station (the recent ones, the open one, the station ports);
     `useStations` feeds the picker and Ctrl K's Stations.
   - `src/flow/`: the Flow canvas on React Flow, ported from legacy's `FlowEditor`. Pure, and tested: `flowModel.ts`
@@ -120,3 +129,7 @@ come back out of process over `paperboat-runtime/0` (#7).
     `JULIA_*` and the like; its environment is built from station-owned paths only.
 11. **The schema is the source of truth.** `protocol/schema/paperboat-0.schema.json` defines every
     message; `web/src/protocol.ts` is generated from it, never edited.
+12. **A `.pst` is the station; a `.psf` is its child.** Simplicial never writes a `.pst` (a new version is packed);
+    a `.psf` holds only what differs from its station's starter and points to it (name, version, sha256, a path
+    relative to itself). An override that no longer fits is kept in the file, never dropped unasked. One station
+    per window.
