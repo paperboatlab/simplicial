@@ -8,7 +8,8 @@ import { SceneView, type Entity, type View } from "@paperboatlab/ui/stage";
 import {
   Background, Position, ReactFlow, ReactFlowProvider, applyNodeChanges, type Connection, type Edge, type Node, type NodeChange, type NodeProps,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
+import { Vars } from "../flow/flowContexts.ts";
 import type { ObjectDef, ParamValue, Station, StationObject } from "../protocol.ts";
 import { entitiesOf, graphPos, objectOfEntity, propValue, setLink, setPos, setProp } from "./stationEdits.ts";
 
@@ -56,6 +57,7 @@ function Properties({ object, def, station, locked, onChange, onBlock, onClose }
   object: StationObject; def?: ObjectDef; station: Station; locked: boolean;
   onChange: (s: Station) => void; onBlock: (id: string) => void; onClose: () => void;
 }) {
+  const { hints } = useContext(Vars);
   return (
     <div className="fprops" role="dialog" aria-label={`${def?.label ?? object.type} ${object.id}`}>
       <div className="fh">
@@ -65,7 +67,7 @@ function Properties({ object, def, station, locked, onChange, onBlock, onClose }
       </div>
       <div className="block-params">
         {(def?.props ?? []).map((p) => (
-          <ParamRow key={p.id} def={p} value={propValue(object, def, p.id)} disabled={locked} onChange={(v) => onChange(setProp(station, object.id, p.id, v))} />
+          <ParamRow key={p.id} def={p} value={propValue(object, def, p.id)} disabled={locked} vars={hints} onChange={(v) => onChange(setProp(station, object.id, p.id, v))} />
         ))}
         {(def?.links ?? []).map((slot) => (
           <label key={slot} className="flink">
@@ -93,6 +95,7 @@ type ObjectNode = Node<ObjectData, "object">;
 /** An object or joint as the kit's card: its link slots on the left, its body (what fills another's slot) on the right. */
 function ObjectCard({ data, selected }: NodeProps<ObjectNode>) {
   const { object, def, locked, onProp } = data;
+  const { hints } = useContext(Vars);
   const slots = def?.links ?? [];
   const rows = Math.max(slots.length, 1);
   return (
@@ -107,7 +110,7 @@ function ObjectCard({ data, selected }: NodeProps<ObjectNode>) {
         )),
       }}
       params={def?.props.length ? def.props.map((p) => (
-        <ParamRow key={p.id} def={p} value={propValue(object, def, p.id)} disabled={locked} onChange={(v) => onProp(p.id, v)} />
+        <ParamRow key={p.id} def={p} value={propValue(object, def, p.id)} disabled={locked} vars={hints} onChange={(v) => onProp(p.id, v)} />
       )) : undefined} />
   );
 }

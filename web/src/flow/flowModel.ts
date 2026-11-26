@@ -2,7 +2,7 @@
 // catalog, wires between their ports, and keeping both in step with the station and the catalog.
 
 import { addEdge, type Connection, type Edge, type Node } from "@xyflow/react";
-import { iconValid, type RotationDeg, iconEnd, inForm, signalEnd, type PortSides, type WireEnd, type Point as WirePoint } from "@paperboatlab/ui/canvas";
+import { iconValid, refersTo, type RotationDeg, iconEnd, inForm, signalEnd, type PortSides, type WireEnd, type Point as WirePoint } from "@paperboatlab/ui/canvas";
 import type { GroupNode } from "./groups.ts";
 import type { BlockDef, Connectors, GraphNode, ObjectDef, ParamValue, Station } from "../protocol.ts";
 
@@ -204,4 +204,15 @@ export function withoutLooseWires(nodes: FlowNode[], edges: Wire[]): Wire[] {
   };
   const kept = edges.filter((e) => has(e.source, e.sourceHandle) && has(e.target, e.targetHandle));
   return kept.length === edges.length ? edges : kept;
+}
+
+/** `shown` with the blocks that use variable `name` marked `var-use`, and the subsystems holding such a block (hover in the Variables card). */
+export function markUses<N extends FlowNode>(shown: N[], all: readonly FlowNode[], name: string | null): N[] {
+  if (!name) return shown;
+  const byId = new Map(all.map((n) => [n.id, n]));
+  const marked = new Set<string>();
+  for (const n of all)
+    if (isBlock(n) && Object.values(n.data.params).some((p) => refersTo(p, name)))
+      for (let id: string | undefined = n.id, guard = 0; id && guard < 64; id = byId.get(id)?.parentId, guard++) marked.add(id);
+  return marked.size ? shown.map((n) => (marked.has(n.id) ? { ...n, className: `${n.className ?? ""} var-use`.trim() } : n)) : shown;
 }

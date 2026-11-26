@@ -12,7 +12,7 @@
 // to the system's: the file decides the hub, and the bar then shows the hub's selector and the file's path in it.
 import {
   About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
-  Toasts, ago, isEnabled, readStored, typing, ownKeys, useShortcuts, useTheme, useToasts, writeStored,
+  Toasts, ago, isEnabled, readStored, typeLine, typing, ownKeys, useShortcuts, useTheme, useToasts, valueText, writeStored,
   type Credit, type PaneRect, type SearchItem, type Theme,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
@@ -374,7 +374,11 @@ export function App() {
         }} />
       )} />
   );
-  const vars = useMemo(() => ({ list: state.variables, values: state.varValues, show: () => toggle("r", true) }), [state.variables, state.varValues]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [hoverVar, setHoverVar] = useState<string | null>(null); // the Variables row the pointer is on: its blocks are marked
+  const vars = useMemo(() => ({
+    list: state.variables, values: state.varValues, show: () => toggle("r", true), hover: hoverVar,
+    hints: state.variables.map((v) => ({ name: v.name, type: typeLine(v), value: valueText(v.expr ? state.varValues[v.name] : v.value ?? state.varValues[v.name], v.type) })),
+  }), [state.variables, state.varValues, hoverVar]); // eslint-disable-line react-hooks/exhaustive-deps
   /** The Console's block: picked on the canvas, on its level, in view. */
   const pick = (id: string) => {
     const n = nodes.find((x) => x.id === id);
@@ -441,8 +445,10 @@ export function App() {
                       {sview === "3d" && <Key size="sm" kind="quiet" aria-pressed={gridOn} title="The floor grid" onClick={() => setFloor(!gridOn)}>Grid</Key>}
                       <Segmented size="sm" label="Station view" value={sview} onChange={setSview} options={[{ value: "3d", label: "3D" }, { value: "graph", label: "Graph" }]} />
                     </>}>
+                    <Vars.Provider value={vars}>
                     <StationPage station={state.station} defs={state.objects} scene={sceneOf(state)} view={state.view} grid={gridOn} mode={sview}
                       locked={running} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }} />
+                    </Vars.Provider>
                   </Panel>
                 </div>
               )}
@@ -492,7 +498,7 @@ export function App() {
             {mode !== "lookout" && dock}
           </div>
           <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running}
-              onChange={(variables) => send({ type: "variables.set", variables })}
+              onHover={setHoverVar} onChange={(variables) => send({ type: "variables.set", variables })}
               onRename={(from, to) => setNodes((ns) => ns.map((n) => (isBlock(n) && Object.values(n.data.params).some((p) => JSON.stringify(p).includes(from))
                 ? { ...n, data: { ...n.data, params: Object.fromEntries(Object.entries(n.data.params).map(([k, p]) => [k, renameRef(p, from, to)])) } } : n)))} />
         </div>

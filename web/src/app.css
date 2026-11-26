@@ -236,3 +236,5 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .fprops .ffoot { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px 12px; border-top: 1px solid var(--line); color: var(--text-muted); }
 .fprops .ffoot code { font: var(--size-3xs) var(--font-mono); color: var(--text); }
 @container (max-width: 560px) { .fprops { display: none; } }
+/* The blocks that use the variable under the pointer in the Variables card: a broad tinted ring, softer than selection's outline. */
+.react-flow__node.var-use :is(.plate, .block, .frame) { outline: 4px solid color-mix(in srgb, var(--accent) 30%, transparent); outline-offset: 2px; transition: outline-color var(--motion); }

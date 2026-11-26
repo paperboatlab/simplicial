@@ -11,7 +11,7 @@ import { newVariable, withVariable } from "./variableEdits.ts";
 const TYPES: Variable["type"][] = ["number", "boolean", "text", "enum", "matrix"];
 
 
-export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename }: {
+export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename, onHover }: {
   hidden: boolean;
   onHidden: (hidden: boolean) => void;
   list: List;
@@ -23,6 +23,8 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   onChange: (next: List) => void;
   /** A variable renamed: the Flow's params bound to it follow. */
   onRename: (from: string, to: string) => void;
+  /** The pointer is on a variable's row (null: off them all): the Flow marks the blocks that use it. */
+  onHover: (name: string | null) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const groups = new Map<string, List>();
@@ -46,7 +48,8 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
               return (
                 <VariableRow key={v.name} name={v.name} type={typeLine(v)} value={valueText(shown, v.type)} open={open === v.name}
                   off={locked && !v.tunable} why={locked && !v.tunable ? "Not tunable: it changes after the run" : v.note}
-                  error={error?.at === v.name ? error.text : undefined} onOpen={() => setOpen(open === v.name ? null : v.name)}>
+                  error={error?.at === v.name ? error.text : undefined} onOpen={() => setOpen(open === v.name ? null : v.name)}
+                  onDismiss={() => setOpen(null)} onHover={(on) => onHover(on ? v.name : null)}>
                   <Editor v={v} list={list} locked={locked && !v.tunable}
                     onChange={(next) => {
                       onChange(withVariable(list, v.name, next));

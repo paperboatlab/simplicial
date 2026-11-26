@@ -11,13 +11,13 @@ import type { BlockDef, Connectors } from "../protocol.ts";
 import { Block } from "./Block.tsx";
 import { flipBlock, rotateBlock } from "./blockEdits.ts";
 import { BLOCK_SIZE, useCardDrop, type Hint } from "./cardDrop.ts";
-import { Branch, CommentedOutContext, ConnectorsContext, GroupActions, HotWire, IconWires, Lit, Lock, RunStates, SetBends, WireRoutes } from "./flowContexts.ts";
+import { Branch, CommentedOutContext, ConnectorsContext, GroupActions, HotWire, IconWires, Lit, Lock, RunStates, SetBends, Vars, WireRoutes } from "./flowContexts.ts";
 import { useFlowClipboard } from "./flowClipboard.ts";
 import { withBlock } from "./flowGraph.ts";
 import { useFlowGroups } from "./flowGroups.ts";
 import { arrangeFlowNodes, clearWireBends } from "./flowLayout.ts";
 import { useFlowLevels } from "./flowLevels.ts";
-import { hasStepPorts, inForm, isBlock, portType, type BlockNode, type FlowNode, type Wire } from "./flowModel.ts";
+import { hasStepPorts, inForm, isBlock, markUses, portType, type BlockNode, type FlowNode, type Wire } from "./flowModel.ts";
 import { commentedOutIds, iconWireCounts, nodeGeometry, routeCanvasWires } from "./flowWires.ts";
 import { Boundary, GroupBox } from "./Groups.tsx";
 import { display, isFrame, isLevel, type GroupData, type GroupNode } from "./groups.ts";
@@ -74,6 +74,7 @@ type Props = {
 
 export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, setNodes, setEdges, onNodesChange, onEdgesChange, active, minimap, level: wanted, setLevel, lock, controls, onQuickAdd, fit }: Props) {
   const states = useContext(RunStates);
+  const hoverVar = useContext(Vars).hover;
   // ---- Levels (#68): a subsystem or story opens on the canvas; the way back is the breadcrumb ----
   const { level, go, path } = useFlowLevels(wanted, setLevel, nodes, edges, setNodes, setEdges);
   // Which wires may join which ports, and the type a new one takes.
@@ -275,7 +276,7 @@ export function FlowEditor({ blocks, connectors = NO_CONNECTORS, nodes, edges, s
         <WireDragContext.Provider value={wireDrag}>
           <ReactFlow
             connectionLineComponent={ConnectionLine}
-            nodes={shown.nodes}
+            nodes={markUses(shown.nodes, nodes, hoverVar)}
             edges={shown.edges}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
