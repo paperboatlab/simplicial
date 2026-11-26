@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import type { StationFlow } from "./protocol.ts";
 import { addRecent, clearAutosave, loadAutosave, loadRecent, saveAutosave, saveRecent, type Stored } from "./project.ts";
 
-/** A question before something is replaced, and its answers; the last is the safe one (Esc). */
-export type Notice = { title: string; text: string[]; actions: { label: string; primary?: boolean; run?: () => void }[] };
+/** A question before something is replaced, and its answers; the last is the safe one (Esc). `looked`: where it looked (E1). */
+export type Notice = { title: string; text: string[]; looked?: [string, string][]; actions: { label: string; primary?: boolean; run?: () => void }[] };
 
 export function useProject(
   /** The station's name (hello.engine): unsaved work is kept per station. */
@@ -70,19 +70,22 @@ export function useProject(
   return {
     dirty, notice, recent,
     close: () => setNotice(null),
+    /** Ask something of the page's own (E1, E5). */
+    tell: setNotice,
     /** Do `verb` now, or after a word when it would replace unsaved work. */
     ask: (title: string, verb: string, go: () => void) => {
       if (!dirty) return go();
       setNotice({ title, text: [`“${name}” has changes that weren't saved. ${verb} replaces them.`], actions: [{ label: verb, primary: true, run: go }, { label: "Cancel" }] });
     },
-    /** A project was opened (or started): unsaved from what it settles to; kept in Open recent when it has a name. */
-    opened: (s?: Omit<Stored, "savedAt">) => {
-      setBaseline(null);
+    /** A project was opened (or started): unsaved from what it settles to (`changed`: unsaved until saved, its station
+     *  found elsewhere, E2); kept in Open recent when it has a name. */
+    opened: (s?: Omit<Stored, "savedAt">, changed = false) => {
+      setBaseline(changed ? "changed" : null);
       if (s) setRecent((list) => saveRecent(addRecent(list, { ...s, savedAt: Date.now() })));
     },
     /** It was saved as `s`: saved from here on, and kept in Open recent. */
     saved: (s: Omit<Stored, "savedAt">) => {
-      setBaseline(JSON.stringify(s.project));
+      setBaseline(JSON.stringify(take.current()));  // the project as the page holds it (`s.project` also has its station's place)
       setRecent((list) => saveRecent(addRecent(list, { ...s, savedAt: Date.now() })));
       clearAutosave(engine);
     },

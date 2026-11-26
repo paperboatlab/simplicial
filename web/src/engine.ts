@@ -2,7 +2,7 @@ import type { Entity as StageEntity } from "@paperboatlab/ui/stage";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { TraceStore } from "./traces.ts";
 import { ReplayStore, type ReplayRecord, type ReplayState } from "./replay.ts";
-import type { AnalysisDef, BlockDef, ClientMsg, Connectors, BoardLayout, Entity, FlowType, Graph, MonitorState, ObjectDef, RunSettings, RunStatus, ServerMsg, Station, StationFlow, StationView, ToolkitStatus, Variables, VectorComponent, View } from "./protocol.ts";
+import type { AnalysisDef, BlockDef, ClientMsg, Connectors, BoardLayout, Entity, FlowType, Graph, MonitorState, ObjectDef, RunSettings, RunStatus, ServerMsg, Station, StationView, ToolkitStatus, Variables, VectorComponent, View } from "./protocol.ts";
 
 /** The run the station is on, or last ran. */
 export type RunState = {
@@ -144,8 +144,9 @@ export type ReplayAction =
   | { type: "replay.advance"; dt: number }
   | { type: "replay.load"; record: ReplayRecord };
 
-/** A flow file opened from File › Open: the page's own, not the station's. */
-export type OpenAction = { type: "file.open"; psf: StationFlow };
+/** A flow file opened from File › Open, its overrides applied (project.ts): the page's own, not the station's. */
+export type Opened = { flow: Graph; station: Station | null; variables: Variables };
+export type OpenAction = { type: "file.open"; opened: Opened };
 
 export type Action = ServerMsg | ReplayAction | OpenAction | { type: "signals"; list: SignalMsg[] } | { type: "reset" } | { type: "connection"; value: EngineState["connection"] }
   /** The page's own edit of what the station keeps without sending back. */
@@ -241,10 +242,12 @@ export function reduce(s: EngineState, m: Action): EngineState {
     case "variables.remote":
       // A message without a list (or a malformed one) means none, never `undefined`.
       return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [] };
-    case "psf.load":  // the flow file the station was started with (--psf): it holds its objects and variables too
-      return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables };
-    case "file.open":  // a file without variables has none (an empty list is left out of it)
-      return { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? [], opened: s.opened + 1 };
+    case "psf.load":  // the flow file the station was started with (--psf, format 0): it holds its objects and variables too
+      return m.psf.paperboat === 0
+        ? { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables }
+        : { ...s, loaded: m.psf.flow };
+    case "file.open":
+      return { ...s, loaded: m.opened.flow, station: m.opened.station ?? s.station, variables: m.opened.variables, opened: s.opened + 1 };
     case "variables.values":
       return { ...s, varValues: m.values, varError: m.error ? { text: m.error, at: m.at } : null };
     case "variables.patch":
@@ -459,6 +462,7 @@ export function useEngine(url: string) {
       };
     };
     dispatch({ type: "reset" });
+    if (!url) return;  // a flow opened without a station (?nostation): nothing to connect to
     connect();
     return () => {
       stopped = true;
@@ -508,12 +512,13 @@ export function useEngine(url: string) {
     dispatch({ type: "log", level, text, ...(node ? { node } : {}) });
   }, []);
 
-  /** Open a flow file: the canvas, the station's objects and the variables become the file's; the station is told. */
-  const open = useCallback((psf: StationFlow) => {
-    dispatch({ type: "file.open", psf });
+  /** Open a flow file: the canvas, the station's objects and the variables become the file's; the station is told, the
+   *  variables first (the scene is built with them). */
+  const open = useCallback((o: Opened) => {
+    dispatch({ type: "file.open", opened: o });
     const tell = (m: ClientMsg) => socket.current?.readyState === WebSocket.OPEN && socket.current.send(JSON.stringify(m));
-    if (psf.station_objects) tell({ type: "station.set", station: psf.station_objects });
-    tell({ type: "variables.set", variables: psf.variables ?? [] });
+    tell({ type: "variables.set", variables: o.variables });
+    if (o.station) tell({ type: "station.set", station: o.station });
   }, []);
 
   /** The replay's controls (#284): the app's own, not sent to the station. */

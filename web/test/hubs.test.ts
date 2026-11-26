@@ -21,14 +21,18 @@ test("the server's rows become the tree's entries", () => {
     { path: "p", kind: "folder", name: "p", depth: 0 },
     { path: "p/a.psf", kind: "file", name: "a.psf", depth: 1 },
   ]);
+  // the fields the nested picker reads ride along
+  const [flowRow] = toEntries([{ path: "f/a.psf", kind: "file", station: { name: "rig" }, parent: null, warn: "rig not found" }]);
+  assert.equal(flowRow.parent, null);
+  assert.equal(flowRow.warn, "rig not found");
 });
 
 test("a flow file opens; anything else says why", () => {
   const f = parseFlow(JSON.stringify({ paperboat: 0, station: "pendulum", flow: { nodes: [], edges: [] } }));
-  assert.equal(f.station, "pendulum");
+  assert.equal(f.station, "pendulum");  // format 0
   assert.throws(() => parseFlow("nope"), /not JSON/);
   assert.throws(() => parseFlow("{}"), /isn't a flow file/);
-  assert.throws(() => parseFlow(JSON.stringify({ paperboat: 1, station: "x", flow: {} })), /newer Simplicial/);
+  assert.throws(() => parseFlow(JSON.stringify({ paperboat: 2, station: { name: "x" }, flow: {} })), /newer Simplicial/);
   assert.throws(() => parseFlow(JSON.stringify({ paperboat: 0, station: "x" })), /flow must be an object/);
   assert.equal(stem("projects/pendulum/pendulum.psf"), "pendulum");
 });

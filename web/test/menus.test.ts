@@ -5,7 +5,7 @@ import { MENUS, registry, type Do, type View } from "../src/menus.ts";
 
 const view: View = { mode: "navigator", page: "flow", station: true, hidden: () => false, console: false, theme: "system", running: false, whyNot: "",
   flow: { lock: "", undo: true, redo: false, copy: true, paste: false, arrange: true }, board: false,
-  unsaved: "", recent: [{ name: "balance.psf", when: "5 min ago" }] };
+  unsaved: "", recent: [{ name: "balance.psf", when: "5 min ago" }], misfits: 0 };
 const calls: string[] = [];
 const act = new Proxy({} as Do, { get: (_, k) => (...a: unknown[]) => calls.push(`${String(k)}(${a.join(",")})`) });
 const find = (cs: ReturnType<typeof registry>, id: string) => cs.find((c) => c.id === id)!;
@@ -91,4 +91,9 @@ test("File: a recent file reopens by index; nothing is opened while a run is in 
   const running = registry({ ...view, running: true }, act);
   for (const id of ["file.new", "file.open", "file.recent.0"]) assert.equal(on(find(running, id)), false, id);
   assert.equal(on(find(running, "file.save")), true);
+});
+
+test("Review changes waits for a change that doesn't fit", () => {
+  assert.equal(on(find(registry(view, act), "file.review")), false);
+  assert.equal(on(find(registry({ ...view, misfits: 2 }, act), "file.review")), true);
 });
