@@ -282,6 +282,30 @@ def cmd_unpack(pkg_path: Path, dest_dir: Path, verify: bool) -> dict:
     }
 
 
+def cmd_info(paths: list[Path]) -> dict:
+    """Each .pst's station: its name and version (station.toml read in the zip, else PACKAGE.json) and its sha256."""
+    out = []
+    for p in paths:
+        try:
+            with zipfile.ZipFile(p) as zf:
+                names = zf.namelist()
+                info = {}
+                if "station.toml" in names:
+                    try:
+                        import tomllib
+                    except ImportError:
+                        import tomli as tomllib
+                    info = tomllib.loads(zf.read("station.toml").decode("utf-8")).get("station", {})
+                elif "PACKAGE.json" in names:
+                    info = json.loads(zf.read("PACKAGE.json").decode("utf-8"))
+            if not isinstance(info.get("name"), str):
+                raise ValueError("no station.toml with a name")
+            out.append({"path": str(p), "name": info["name"], "version": str(info.get("version", "0.1.0")), "sha256": sha256_file(p)})
+        except Exception as e:
+            out.append({"path": str(p), "error": str(e)})
+    return {"ok": True, "stations": out}
+
+
 def read_manifest_info(station_dir: Path) -> tuple[str, str]:
     manifest_file = station_dir / "station.toml"
     name = station_dir.name
@@ -317,6 +341,9 @@ def main():
     unpack_p.add_argument("--dir", type=Path, required=True, help="Target extraction directory")
     unpack_p.add_argument("--verify", action="store_true", default=True, help="Verify file checksums")
 
+    info_p = subparsers.add_parser("info")
+    info_p.add_argument("pkgs", nargs="*", type=Path, help="Package paths (.pst)")
+
     args = parser.parse_args()
 
     if args.subcommand == "pack":
@@ -332,6 +359,8 @@ def main():
             print(json.dumps({"ok": False, "error": "missing package file"}))
             sys.exit(1)
         res = cmd_unpack(pkg_file.resolve(), args.dir.resolve(), args.verify)
+    elif args.subcommand == "info":
+        res = cmd_info(args.pkgs)
     else:
         res = {"ok": False, "error": "unknown subcommand"}
 
