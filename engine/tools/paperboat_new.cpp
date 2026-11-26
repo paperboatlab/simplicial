@@ -202,9 +202,7 @@ int cmd_new(const std::vector<std::string_view>& args) {
                  "                      in a Paperboat checkout `npm run build:python`, else `pip install ./python`\n";
   }
   std::cout << "  paperboat check     verify it: manifest, catalog, protocol smoke test, golden run\n"
-               "  paperboat run       serve it on " << url << "\n"
-               "  paperboat start     the web app (in another terminal), then open\n"
-               "                      http://localhost:30471/?station=" << url << " and press Run\n"
+               "  paperboat run       build if needed, serve it on " << url << " and open it in Simplicial\n"
                "Then make it yours: add blocks in domain/, use them in descriptor.toml's [graph], and update\n"
                "expected.json to what your starter graph should end with.\n";
   return 0;

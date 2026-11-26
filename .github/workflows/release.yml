@@ -2,8 +2,8 @@ name: release
 
 # A tag v<version> publishes simplicial-<version>.tar.gz (one top folder: bin/, web/dist/, icon.png, ...), the asset
 # `paperboat app install simplicial` unpacks. A tag with a pre-release part (v0.1.0-beta.1) is a prerelease:
-# only the beta channel sees it. bin/simplicial runs bin/simplicial-engine (the engine's `paperboat` tool,
-# renamed so it is never taken for the platform CLI); toolkits.toml and engine/toolkit/ mark the folder as
+# only the beta channel sees it. bin/simplicial runs bin/simplicial-engine (the engine's CLI, named
+# so it is never taken for the platform CLI); toolkits.toml and engine/toolkit/ mark the folder as
 # the engine's root (PAPERBOAT_ROOT).
 # ponytail: Linux x86_64 only (built on glibc 2.39, engine static, libstdc++ static); no optional toolkits
 # (they need the shared engine and its SDK): per-OS assets and a shared build when the CLI picks by platform.
@@ -30,7 +30,7 @@ jobs:
       - run: |
           cmake -S engine -B engine/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=OFF \
             -DPAPERBOAT_SHARED_LIBS=OFF -DPAPERBOAT_STATIC_RUNTIME=ON
-          cmake --build engine/build --target paperboat paperboat-scratchpad
+          cmake --build engine/build --target simplicial-engine paperboat-scratchpad
       - name: Pack
         run: |
           v=${GITHUB_REF_NAME#v}
@@ -38,7 +38,7 @@ jobs:
           top=simplicial-$v
           mkdir -p $top/bin $top/web $top/engine/toolkit
           cp bin/simplicial engine/build/scratchpad/paperboat-scratchpad $top/bin/
-          cp engine/build/tools/paperboat $top/bin/simplicial-engine
+          cp engine/build/tools/simplicial-engine $top/bin/simplicial-engine
           cp -r web/dist $top/web/
           cp -r protocol scripts commands.toml toolkits.toml LICENSE README.md $top/
           cp node_modules/@paperboatlab/ui/src/marks/simplicial/icon.png $top/

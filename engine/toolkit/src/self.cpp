@@ -568,7 +568,7 @@ fs::path paperboat_home() {
 }
 
 fs::path paperboat_bin_dir() {
-  if (const char* v = std::getenv("PAPERBOAT_BIN"); v && *v) return fs::path(v);
+  if (const char* v = std::getenv("PAPERBOAT_BIN_DIR"); v && *v) return fs::path(v);
 #ifdef _WIN32
   return paperboat_home() / "bin";
 #else
