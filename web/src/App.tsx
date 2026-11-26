@@ -264,8 +264,9 @@ export function App() {
   }, [state.engine]);
 
   /** Open a flow file read from `at`: on this window's station when it is the flow's (`use`: whatever it names), else after
-   *  a word: Can't find it (E1), or Open it on its station (E5). */
-  const take = async (doc: StationFlow | StationFlow0, at: OpenedFile, use = false) => {
+   *  a word: Can't find it (E1), or Open it on its station (E5); `auto` (the window opened on the file, ?open=): its
+   *  station starts, no word. */
+  const take = async (doc: StationFlow | StationFlow0, at: OpenedFile, use = false, auto = false) => {
     const made = stationOf(doc);
     const name = baseName(at.path);
     const root = rootOf(at);
@@ -277,7 +278,7 @@ export function App() {
     } catch { /* the page has no server of its own: by name, as before */ }
     if (!mine) {
       if (!f || !("found" in f)) return cantFind(doc, at, f);
-      return otherStation(at, f.found);
+      return auto ? guard(() => void switchTo(f.found, at)) : otherStation(at, f.found);
     }
     const place = f && "found" in f ? f.found : null;
     guard(() => {
@@ -304,9 +305,11 @@ export function App() {
       const search = toSearch({ station: `ws://localhost:${port}`, open: open ? { hub: open.hub, path: open.path } : undefined, use: o.use, start: start ?? undefined }, location.search);
       if (o.tab) o.tab.location.href = `${location.pathname}?${search}`;
       else location.search = search;
+      return true;
     } catch (e) {
       o.tab?.close();
       failed(`Can't start ${"name" in to && to.name ? to.name : "the station"}`, e);
+      return false;
     }
   };
   /** Open the flow without a station: read only, its blocks lost blocks, nothing runs. */
@@ -502,7 +505,9 @@ export function App() {
   useEffect(() => {
     const o = OPENING.open;
     // the station's starter first (variables.load comes before graph.load, station.load right after it)
-    if (!o || opening.current || !(WITHOUT || (booted && state.engine && state.starter.graph))) return;
+    // a window opened on a file with no station of its own (Malachite's Open in Simplicial): straight to the flow's station
+    const first = !OPENING.station && !OPENING.start && !WITHOUT;
+    if (!o || opening.current || !(WITHOUT || first || (booted && state.engine && state.starter.graph))) return;
     opening.current = true;
     const t = window.setTimeout(async () => {
       try {
@@ -510,12 +515,18 @@ export function App() {
         setWs(served.workspace);
         const root: Root | undefined = o.hub ? { hub: o.hub } : rootOf(served.workspace);
         if (!root) throw new Error("no folder open");
-        await take(await readFlow(root, o.path), { ...root, path: o.path }, OPENING.use);
+        if (first) {
+          const f = await findStation({ ...root, path: o.path });
+          // the station the flow itself points to: take it whatever it names (`use`); on its way, the page reloads there
+          if ("found" in f && await switchTo(f.found, { ...root, path: o.path }, { use: true })) return;
+        }
+        // auto once: after the switch (?start=) the flow is on its station; a mismatch then asks, it doesn't loop
+        await take(await readFlow(root, o.path), { ...root, path: o.path }, OPENING.use, !OPENING.start);
       } catch (e) { failed(`Can't open ${o.path}`, e); }
       setPending(false);
       // asked once: a reload doesn't ask again (unsaved work comes back as Restore)
       window.history.replaceState(null, "", `?${toSearch({ station: OPENING.station, nostation: WITHOUT, ...(WITHOUT ? { open: o } : {}) }, location.search)}`);
-    }, WITHOUT ? 0 : 400);
+    }, WITHOUT || first ? 0 : 400);
     return () => window.clearTimeout(t);
   }, [booted, state.engine, state.starter.graph]); // eslint-disable-line react-hooks/exhaustive-deps -- once
   // E6: while the window waits for its station, what the station's start says (`/__paperboat/status`): failed, and why.
@@ -815,7 +826,7 @@ export function App() {
         </div>
       </>}
 
-      {(picker || (!booted && retrying && !startFailed && !OPENING.start)) && <StationPicker current={URL_} wait={!booted} onClose={() => setPicker(false)} />}
+      {(picker || (!booted && retrying && !startFailed && !OPENING.start && !pending)) && <StationPicker current={URL_} wait={!booted} onClose={() => setPicker(false)} />}
       {about && <About app="simplicial" role="Visual flow, station and block-diagram simulation" version={__VERSION__}
         info={[state.engine ? `engine ${state.version ?? "?"} · protocol paperboat/0 · station ${state.engine}` : "no station", __COMMIT__ && `commit ${__COMMIT__}`].filter(Boolean).join(" · ")}
         repo="paperboatlab/simplicial" credits={CREDITS} onClose={() => setAbout(false)} />}
