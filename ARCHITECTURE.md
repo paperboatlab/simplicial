@@ -100,11 +100,13 @@ come back out of process over `paperboat-runtime/0` (#7).
   - `src/flow/`: the Flow canvas on React Flow, ported from legacy's `FlowEditor`. Pure, and tested: `flowModel.ts`
     (blocks, wires, missing and linked blocks), `flowGraph.ts` (canvas ⇄ `Graph`), `groups.ts` (subsystems, stories,
     frames and what each level shows), `portBlocks.ts` (In and Out), `flowLayout.ts` (Arrange, on the kit's graph
-    layout), `flowWires.ts` (routing, on the kit's router), `blockEdits.ts`, `portDirection.ts`, `wireRules.ts`. Hooks:
+    layout), `flowWires.ts` (routing, on the kit's router), `blockEdits.ts`, `portDirection.ts`, `wireRules.ts`, `librarySearch.ts`. Hooks:
     `canvasSync.ts` (graph.load, linked blocks), `flowLevels.ts`, `flowGroups.ts`, `flowClipboard.ts`, `wireDrag.ts`,
     `cardDrop.ts`, `litWires.ts`, `usePortDirections.ts`. Drawn with the kit's faces (`@paperboatlab/ui/canvas`:
     `CompactBlock`, `BlockCard`, `ParamRow`, `CanvasTools`): `FlowEditor.tsx` (the canvas, minimap, breadcrumb, drop
-    hint), `Block.tsx` (plate, card, In and Out pills), `Groups.tsx`, `WireEdge.tsx`, `SelectionDialog.tsx`;
+    hint), `Block.tsx` (plate, card, In and Out pills), `Groups.tsx`, `WireEdge.tsx`, `SelectionDialog.tsx`,
+    `BlockLibrary.tsx` (Add block: the catalog's blocks as cards by package in the kit's `Dialog`; a click, Enter or a
+    drop on the canvas adds one; `/` stays quick add, the kit's `Search` at the cursor);
     `flowContexts.ts` is what they share. A run locks the edits (`Lock`). The tests load the kit's TypeScript through
     `web/scripts/kit.ts` (node strips no types under `node_modules`).
   - `src/board/`: the Board, ported from legacy's `Board.tsx`. `boardLayout.ts` (pure, tested: the grid of equal cells,

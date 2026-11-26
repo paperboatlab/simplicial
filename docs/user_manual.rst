@@ -35,7 +35,16 @@ takes the value Julix has then. A name the flow has itself is the flow's (its Ju
 Julix fills in only what the flow doesn't define, as MATLAB's workspace does under a Simulink model's.
 They are never saved in the flow file, and they go when Julix closes.
 
-.. note:: Not written yet: placing blocks, the Graph view.
+**Add block**, in the Flow's head, opens the block library: every block the station offers, as a card
+with its name, its kind, what it does and its ports (inputs → outputs), its packages (Base, Signal,
+Math, …, then installed toolkits) down the left. Type to search names, descriptions, ports and params.
+Arrows choose a card, Enter or a click adds it in the middle of the Flow, or drag it onto the canvas:
+dropped on a wire it fits, it goes into the wire; near a free port, it is wired to it. Esc closes. Optional
+toolkits that aren't installed are listed under **Not installed**, with their blocks and how to install
+them. To add a block where you are, press ``/`` or double-click the canvas: quick add, a search at the
+cursor.
+
+.. note:: Not written yet: the Graph view.
 
 Run
 ---
@@ -67,7 +76,7 @@ Help › Keyboard shortcuts (Ctrl /) opens Settings on Shortcuts, the full list.
 on the Flow, Ctrl / comments it out instead. The ones you use most:
 
 - Ctrl K: search the commands, blocks, variables and stations; ``/`` or a double-click on the Flow:
-  add a block there.
+  add a block there (the Flow's **Add block** opens the whole library).
 - Ctrl N, Ctrl O, Ctrl Shift O, Ctrl S, Ctrl Shift S: new flow, open a file, open a folder, save,
   save as.
 - Ctrl R: run; Esc: cancel the run.
