@@ -2,16 +2,18 @@
 // its name and its value at the right. + Variable (in its head) adds one and opens it; an open row edits its name, type, value or
 // formula, unit and tunable, and removes it. A rename follows the variable into other formulas and the Flow's bound
 // params. The list is the session's: the page tells the station (variables.set), which checks it and resolves the formulas.
+// Under them, another app's live variables (Julix's session), read-only: bound like any variable, and a name the flow
+// also has is the flow's (Simulink's model workspace over the base workspace).
 import { Key, NumberField, Panel, RemoveKey, Segmented, Switch, VariableGroup, VariableList, VariableRow, typeLine, valueText } from "@paperboatlab/ui";
 import { badName, emptyOf } from "@paperboatlab/ui/canvas";
 import { useState } from "react";
 import type { Variable, Variables as List } from "./protocol.ts";
-import { newVariable, withVariable } from "./variableEdits.ts";
+import { liveRows, newVariable, sourceLabel, withVariable } from "./variableEdits.ts";
 
 const TYPES: Variable["type"][] = ["number", "boolean", "text", "enum", "matrix"];
 
 
-export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename, onHover, starter, changed, station }: {
+export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename, onHover, starter, changed, station, live = [], liveFrom = "" }: {
   hidden: boolean;
   onHidden: (hidden: boolean) => void;
   list: List;
@@ -29,6 +31,9 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   starter: List;
   changed: ReadonlySet<string>;
   station: string;
+  /** Another app's live variables (variables.remote), and who sent them ("julix"). */
+  live?: List;
+  liveFrom?: string;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const groups = new Map<string, List>();
@@ -43,7 +48,7 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
       tools={<>
         <Key size="sm" kind="quiet" icon="add" disabled={locked} title={locked ? "Wait for the run to end" : "A new variable, to bind to blocks' params"} onClick={add}>Variable</Key>
       </>}>
-      {!list.length && <p className="vnone">No variables yet: add one, then bind a block's param to it</p>}
+      {!list.length && !live.length && <p className="vnone">No variables yet: add one, then bind a block's param to it</p>}
       <VariableList>
         {[...groups].map(([g, vs]) => (
           <VariableGroup key={g} title={g || undefined}>
@@ -70,6 +75,16 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
             })}
           </VariableGroup>
         ))}
+        {live.length > 0 && (
+          <VariableGroup title={`From ${sourceLabel(liveFrom)}`} detail="read-only">
+            {liveRows(list, live).map(({ v, shadowed }) => (
+              <VariableRow key={`live:${v.name}`} name={v.name} type={typeLine(v)} value={v.value !== undefined ? valueText(v.value, v.type) : "—"} live
+                off={shadowed || v.value === undefined}
+                why={shadowed ? `The flow's own ${v.name} is used` : v.note ?? `${sourceLabel(liveFrom)}'s, as it last ran: not saved in the flow`}
+                onHover={(on) => onHover(on ? v.name : null)} />
+            ))}
+          </VariableGroup>
+        )}
       </VariableList>
       {error && !error.at && <p className="verr">{error.text}</p>}
       <div className="vfoot">Shared by the Station and the Flow</div>

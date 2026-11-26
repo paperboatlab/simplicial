@@ -22,6 +22,7 @@ Default address: `ws://localhost:51301`.
 | `station.load` | `station: Station`                          | on connect, after `graph.load`, if the catalog has `objects` |
 | `variables.load` | `variables: Variable[]`                   | on connect, before `graph.load`, if the station has default variables (its descriptor's `[[variables]]`) |
 | `variables.values` | `values: { name: value }`, `error?: string`, `at?: string` | on connect and after each `variables.set`: what every variable comes to (a formula's result), or why they don't hold (`at`: the variable or block at fault) |
+| `variables.remote` | `source: string`, `variables: Variable[]` | another app's live variables (Julix's session), on connect and whenever it sends them; empty once it disconnects. Read-only, never part of the flow |
 | `variables.patch` | `values: { name: value }` | during a run, when a block set tunable variables (`Context::set_variable`, #166): what changed, formulas that follow included. The UI keeps the non-formula ones in the project; the station already keeps them for the next run |
 | `scene.patch`  | `entities: ({id} & Partial<Entity>)[]`      | during a run                 |
 | `run.started`  | `run: string`                               | when a run starts            |
@@ -45,6 +46,7 @@ Default address: `ws://localhost:51301`.
 | `graph.run`  | `graph: { nodes, edges }`, `station?: Station` (the station's current one if absent), `settings?: RunSettings` (overrides the station's defaults for this run), `variables?: Variable[]` (the station's current ones if absent) |
 | `station.set` | `station: Station`: an edit on the Station page; the station checks it and answers with a `scene` (or a `log` error) |
 | `variables.set` | `variables: Variable[]`: the user's variables changed; the station checks them, keeps them for the next run and answers with a `scene` (the station they shape), or a `log` error. During a run it answers with `variables.values` only, and the run takes the `tunable` ones (below) |
+| `variables.set` with `source` | `source: string` (`"julix"`), `variables: Variable[]`: another app's live variables. The server keeps them (not this session's flow), sends every page `variables.remote` (`source`, `variables`; `GET /variables.remote` gives the same), and drops them when that connection closes. Every resolve takes the flow's own variables first and these under the names left |
 | `run.cancel` | —                          |
 | `run.speed`  | `speed: number` (as `RunSettings.speed`: times real time, 0 as fast as it can): the speed changed during a run (#219). The run goes on from where it is at the new speed, neither jumping ahead nor stalling, and answers with a `run.speed`. One out of range is refused with a `log` error; between runs (the run ended on the way) it is ignored, as the next `graph.run` brings its own speed |
 | `input`      | `key: string` (a `KeyboardEvent.code`, e.g. `"Space"`), `down: boolean` |

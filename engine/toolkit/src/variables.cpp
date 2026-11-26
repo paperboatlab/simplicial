@@ -298,4 +298,20 @@ json resolve_station(const json& station, const Catalog& catalog, const Variable
   return out;
 }
 
+json with_live(const json& own, const json& live) {
+  json out = own.is_array() ? own : json::array();
+  if (!live.is_array() || live.empty()) return out;
+  std::set<std::string, std::less<>> taken;
+  for (const auto& v : out)
+    if (v.is_object() && v.contains("name") && v["name"].is_string()) taken.insert(v["name"].get<std::string>());
+  for (const auto& v : live) {
+    if (!v.is_object() || !v.contains("value") || !v.contains("name") || !v["name"].is_string() || !v.contains("type")) continue;
+    const auto name = v["name"].get<std::string>();
+    if (taken.contains(name) || !valid_variable_name(name)) continue;
+    taken.insert(name);
+    out.push_back({{"name", name}, {"type", v["type"]}, {"value", v["value"]}});
+  }
+  return out;
+}
+
 }  // namespace paperboat::toolkit

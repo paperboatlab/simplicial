@@ -20,8 +20,11 @@ namespace paperboat::core {
 class Session {
  public:
   using Send = std::function<void(const std::string& text)>;
-  using Remote = std::function<void(const json& variables)>;
-  Session(const Station& station, Send send, Remote remote = {});  // sends the handshake
+  // A live client's variables (variables.set with a source: Julix), for the server to share.
+  using Remote = std::function<void(const json& variables, const std::string& source)>;
+  // The live variables the server has now: a run and the station's show take them under the flow's own.
+  using Live = std::function<json()>;
+  Session(const Station& station, Send send, Remote remote = {}, Live live = {});  // sends the handshake
   ~Session();
   Session(const Session&) = delete;
   Session& operator=(const Session&) = delete;

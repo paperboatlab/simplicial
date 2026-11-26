@@ -50,8 +50,10 @@ export type EngineState = {
   variables: Variables;
   /** What the station started with, before any edit: what New project goes back to. */
   starter: { graph: Graph | null; station: Station | null; variables: Variables };
-  /** Live variables from Squero MX (variables.remote); not part of the project. */
+  /** Live variables from another client (variables.remote: Julix's session); never part of the flow. */
   remoteVariables: Variables;
+  /** Who sent them ("julix"). */
+  remoteSource: string;
   /** What the variables come to (variables.values), and why not when they don't hold. */
   varValues: Record<string, number | boolean | string>;
   varError: { text: string; at?: string } | null;
@@ -106,6 +108,7 @@ export const initial: EngineState = {
   variables: [],
   starter: { graph: null, station: null, variables: [] },
   remoteVariables: [],
+  remoteSource: "",
   varValues: {},
   varError: null,
   run: null,
@@ -241,7 +244,7 @@ export function reduce(s: EngineState, m: Action): EngineState {
       return { ...s, ...(m.station ? { station: m.station } : {}), ...(m.variables ? { variables: m.variables } : {}) };
     case "variables.remote":
       // A message without a list (or a malformed one) means none, never `undefined`.
-      return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [] };
+      return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [], remoteSource: typeof m.source === "string" ? m.source : "" };
     case "psf.load":  // the flow file the station was started with (--psf, format 0): it holds its objects and variables too
       return m.psf.paperboat === 0
         ? { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables }
@@ -408,7 +411,7 @@ export function useEngine(url: string) {
       pending = [];
       dispatch({ type: "signals", list });
     };
-    // Live variables from Squero MX are shared by the station across sessions. The WebSocket
+    // Live variables from Julix are shared by the station across sessions. The WebSocket
     // broadcast covers most cases; polling the small HTTP snapshot keeps an open tab current even
     // when the broadcast races a reconnect.
     const http = url.replace(/^ws/, "http").replace(/\/$/, "");
@@ -417,8 +420,8 @@ export function useEngine(url: string) {
       try {
         const response = await fetch(`${http}/variables.remote`, { cache: "no-store" });
         if (!response.ok) return;
-        const body = (await response.json()) as { variables?: Variables };
-        if (!stopped) dispatch({ type: "variables.remote", source: "mx", variables: body.variables ?? [] });
+        const body = (await response.json()) as { source?: string; variables?: Variables };
+        if (!stopped) dispatch({ type: "variables.remote", source: body.source ?? "", variables: body.variables ?? [] });
       } catch {
         // the station is between restarts; the next tick tries again
       }

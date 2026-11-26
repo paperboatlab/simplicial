@@ -168,3 +168,23 @@ edges = []
   CHECK_THAT(bad("domain = \"v\"\nimport = [\"math\"]\n[graph]\nnodes = [{ id = \"g\", type = \"gain\", params = { k = { var = \"nope\" } } }]\nedges = []\n"),
              ContainsSubstring("starter: g.k: unknown variable \"nope\""));
 }
+
+TEST_CASE("live variables (Julix) fill in under the flow's own, Simulink's base workspace under the model's") {
+  const json own = json::array({{{"name", "k"}, {"type", "number"}, {"value", 2}}});
+  const json live = json::array({{{"name", "k"}, {"type", "number"}, {"value", 99}},                            // the flow's k wins
+                                 {{"name", "m"}, {"type", "number"}, {"value", 1.5}, {"group", "Julix"}},      // fills in
+                                 {{"name", "A"}, {"type", "matrix"}, {"value", "1 2; 3 4"}},
+                                 {{"name", "big"}, {"type", "matrix"}, {"note", "too large to share live"}},  // no value
+                                 {{"name", "θ"}, {"type", "number"}, {"value", 1}},                           // not a variable's name
+                                 {{"name", "pi"}, {"type", "number"}, {"value", 3}}});
+  const json all = tk::with_live(own, live);
+  REQUIRE(all.size() == 3);
+  CHECK(all[0] == own[0]);
+  CHECK(all[1] == json{{"name", "m"}, {"type", "number"}, {"value", 1.5}});  // name, type and value only
+  CHECK(all[2]["name"] == "A");
+  const tk::Variables vars(all);
+  CHECK(vars.values()["k"] == 2);
+  CHECK(vars.values()["m"] == 1.5);
+  CHECK(tk::with_live(own, json::array()) == own);
+  CHECK(tk::with_live(own, nullptr) == own);
+}

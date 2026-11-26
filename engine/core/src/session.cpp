@@ -23,10 +23,11 @@
 namespace paperboat::core {
 
 struct Session::State {
-  State(const Station& b, Send s, Session::Remote r)
+  State(const Station& b, Send s, Session::Remote r, Session::Live l)
       : spec(b),
         send(std::move(s)),
         remote(std::move(r)),
+        live(std::move(l)),
         station(!b.initial_psf.is_null() && b.initial_psf.contains("station")
                     ? b.initial_psf["station"]
                     : (b.catalog->station.empty() ? json() : json::parse(b.catalog->station))),
@@ -36,7 +37,11 @@ struct Session::State {
 
   const Station& spec;
   Send send;
-  Session::Remote remote;  // variables.set from a live client (MX): the server shares them
+  Session::Remote remote;  // variables.set from a live client (Julix): the server shares them
+  Session::Live live;      // what the live client last sent, as the server keeps it
+  // The flow's variables and, under the names it doesn't use, the live client's (never while holding `mutex`:
+  // the server's lock is taken).
+  json with_live(const json& own) const { return toolkit::with_live(own, live ? live() : json::array()); }
   std::mutex mutex;  // guards keys, station and variables: the socket thread writes, the run thread reads
   toolkit::KeySet keys;
   toolkit::KeySet pressed;  // pressed since the run last read the keys: a short tap still shows for one pass
@@ -167,7 +172,7 @@ struct Session::State {
   // VariableError, GraphError or json::exception.
   // `report`: also send what the variables come to (variables.values), for the UI.
   void show(const json& with_station, const json& with_variables, bool report = false) {
-    const toolkit::Variables vars(with_variables);
+    const toolkit::Variables vars(with_live(with_variables));
     if (report) emit({{"type", "variables.values"}, {"values", vars.values()}});
     const auto objects = make_station(toolkit::resolve_station(with_station, *spec.catalog, vars), *spec.catalog);
     const auto state = spec.state ? spec.state() : nullptr;
@@ -175,8 +180,8 @@ struct Session::State {
   }
 };
 
-Session::Session(const Station& station, Send send, Remote remote)
-    : state_(std::make_unique<State>(station, std::move(send), std::move(remote))) {
+Session::Session(const Station& station, Send send, Remote remote, Live live)
+    : state_(std::make_unique<State>(station, std::move(send), std::move(remote), std::move(live))) {
   auto& s = *state_;
   const auto& catalog = *station.catalog;
   json station_view = {{"view", catalog.station_view}};
@@ -245,11 +250,17 @@ void Session::on_message(const std::string& text) {
       s.tuned.reset();    // nor changes to the variables from before it
       s.speed.reset();    // nor a speed asked of an earlier run
     }
+    variables = s.with_live(variables);  // the run takes Julix's values as they are now
     const int number = ++s.runs;
     const std::string id = "run-" + std::to_string(number);
     auto tune_now = [&s]() -> std::optional<json> {
-      std::lock_guard lock(s.mutex);
-      return std::exchange(s.tuned, std::nullopt);
+      std::optional<json> tuned;
+      {
+        std::lock_guard lock(s.mutex);
+        tuned = std::exchange(s.tuned, std::nullopt);
+      }
+      if (tuned) tuned = s.with_live(*tuned);
+      return tuned;
     };
     auto speed_now = [&s]() -> std::optional<double> {
       std::lock_guard lock(s.mutex);
@@ -332,10 +343,10 @@ void Session::on_message(const std::string& text) {
       s.log("error", std::string("invalid station: ") + err.what());
     }
   } else if (type == "variables.set") {
-    // Another client's live variables (Squero MX): share them through the server, not this
-    // session's project. They are read-only in the Variables sheet.
-    if (msg.value("source", "") == "mx") {
-      if (state_->remote) state_->remote(msg.value("variables", json::array()));
+    // Another client's live variables (Julix; Squero MX before it): share them through the server, not
+    // this session's flow. They are read-only in the Variables card.
+    if (const std::string source = msg.value("source", ""); !source.empty()) {
+      if (state_->remote) state_->remote(msg.value("variables", json::array()), source);
       return;
     }
     // The variables changed (#36): check them, keep them, and show the station they shape.
@@ -344,7 +355,7 @@ void Session::on_message(const std::string& text) {
       if (s.live_run != 0) {
         // During a run (#75): the run owns the scene, so it isn't shown again. Keep the list for
         // the next run and hand it to this one, which takes the tunable variables' values.
-        s.emit({{"type", "variables.values"}, {"values", toolkit::Variables(variables).values()}});
+        s.emit({{"type", "variables.values"}, {"values", toolkit::Variables(s.with_live(variables)).values()}});
         std::lock_guard lock(s.mutex);
         s.variables = variables;
         s.tuned = variables;
@@ -373,7 +384,7 @@ void Session::on_message(const std::string& text) {
       station = s.station;
       variables = s.variables;
     }
-    s.emit(analyse(msg, s.spec, station, variables));
+    s.emit(analyse(msg, s.spec, station, s.with_live(variables)));
   } else if (type == "run.cancel") {
     s.run.request_stop();
   } else if (type == "run.speed") {

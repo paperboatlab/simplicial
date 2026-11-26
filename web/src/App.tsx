@@ -32,7 +32,7 @@ import { sceneOf, useEngine } from "./engine.ts";
 import { lengthText, parseLength } from "./runLength.ts";
 import { useNews } from "./news.ts";
 import { StationPicker, useStations } from "./StationPicker.tsx";
-import { renameRef } from "./variableEdits.ts";
+import { bindable, renameRef } from "./variableEdits.ts";
 import { Variables } from "./Variables.tsx";
 import { StationPage } from "./station/StationPage.tsx";
 import { openStation, remember } from "./stations.ts";
@@ -666,10 +666,12 @@ export function App() {
       )} />
   );
   const [hoverVar, setHoverVar] = useState<string | null>(null); // the Variables row the pointer is on: its blocks are marked
+  // what a param can be bound to: the flow's variables, then Julix's live ones they don't hide (the station resolves them so)
+  const boundable = useMemo(() => bindable(state.variables, state.remoteVariables), [state.variables, state.remoteVariables]);
   const vars = useMemo(() => ({
-    list: state.variables, values: state.varValues, show: () => toggle("r", true), hover: hoverVar,
-    hints: state.variables.map((v) => ({ name: v.name, type: typeLine(v), value: valueText(v.expr ? state.varValues[v.name] : v.value ?? state.varValues[v.name], v.type) })),
-  }), [state.variables, state.varValues, hoverVar]); // eslint-disable-line react-hooks/exhaustive-deps
+    list: boundable, values: state.varValues, show: () => toggle("r", true), hover: hoverVar,
+    hints: boundable.map((v) => ({ name: v.name, type: typeLine(v), value: valueText(v.expr ? state.varValues[v.name] : v.value ?? state.varValues[v.name], v.type) })),
+  }), [boundable, state.varValues, hoverVar]); // eslint-disable-line react-hooks/exhaustive-deps
   /** The Console's block: picked on the canvas, on its level, in view. */
   const pick = (id: string) => {
     const n = nodes.find((x) => x.id === id);
@@ -807,6 +809,7 @@ export function App() {
           <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running || WITHOUT}
               onHover={setHoverVar} onChange={(variables) => send({ type: "variables.set", variables })}
               starter={state.starter.variables} changed={changedVars} station={state.engine}
+              live={state.remoteVariables} liveFrom={state.remoteSource}
               onRename={(from, to) => setNodes((ns) => ns.map((n) => (isBlock(n) && Object.values(n.data.params).some((p) => JSON.stringify(p).includes(from))
                 ? { ...n, data: { ...n.data, params: Object.fromEntries(Object.entries(n.data.params).map(([k, p]) => [k, renameRef(p, from, to)])) } } : n)))} />
         </div>

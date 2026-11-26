@@ -562,7 +562,7 @@ export type RunSettings = {
 export type Variable = {
   /** Letters, digits and _; not t, pi, e or a function's name. */
   name: string;
-  /** matrix: a matrix by its rows ("1 2; 3 4"), either a flow file variable or a live Squero MX variable (source mx). */
+  /** matrix: a matrix by its rows ("1 2; 3 4"), either a flow file variable or a live variable from Julix. */
   type: "number" | "boolean" | "enum" | "text" | "file" | "matrix";
   /** Of its type: a number, true / false, text (enum: one of options), or matrix rows ("1 2; 3 4"). A live matrix too large to share has none and says why in note. */
   value?: number | boolean | string;
@@ -570,7 +570,7 @@ export type Variable = {
   expr?: string;
   /** A number's unit (m, N, rad…). */
   unit?: string;
-  /** UI only: a live variable broadcast by Squero Studio MX, not saved in the flow file. */
+  /** UI only: a live variable broadcast by Squero Studio MX, not saved in the flow file (unused: the page keeps live variables apart, variables.remote). */
   source?: "mx";
   min?: number;
   max?: number;
@@ -786,9 +786,10 @@ export type ServerMsg =
     variables: Variables;
   }
   | {
-    /** Live variables from another client (Squero MX), shared across the station's sessions. */
+    /** Live variables from another client (Julix), shared across the station's sessions: the last list it sent, empty once it disconnects. */
     type: "variables.remote";
-    source: "mx";
+    /** Who sent them ("julix"). */
+    source: string;
     variables: Variables;
   }
   | {
@@ -922,8 +923,8 @@ export type ClientMsg =
   | {
     type: "variables.set";
     variables: Variables;
-    /** Another client's live variables (Squero MX): share them, do not make them this session's flow file. */
-    source?: "mx";
+    /** A live client's variables ("julix"; "mx" before it): the server shares them with every session (variables.remote) and they never become this session's flow file. A run and the station's show take them under the names the flow's own don't use. */
+    source?: string;
   }
   | {
     type: "run.cancel";

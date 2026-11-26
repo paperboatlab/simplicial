@@ -1700,10 +1700,8 @@
           "$ref": "#/$defs/Variables"
         },
         "source": {
-          "enum": [
-            "mx"
-          ],
-          "description": "Another client's live variables (Squero MX): share them, do not make them this session's flow file."
+          "type": "string",
+          "description": "A live client's variables (\"julix\"; \"mx\" before it): the server shares them with every session (variables.remote) and they never become this session's flow file. A run and the station's show take them under the names the flow's own don't use."
         }
       },
       "required": [
@@ -3274,7 +3272,7 @@
             "file",
             "matrix"
           ],
-          "description": "matrix: a matrix by its rows (\"1 2; 3 4\"), either a flow file variable or a live Squero MX variable (source mx)."
+          "description": "matrix: a matrix by its rows (\"1 2; 3 4\"), either a flow file variable or a live variable from Julix."
         },
         "value": {
           "type": [
@@ -3296,7 +3294,7 @@
           "enum": [
             "mx"
           ],
-          "description": "UI only: a live variable broadcast by Squero Studio MX, not saved in the flow file."
+          "description": "UI only: a live variable broadcast by Squero Studio MX, not saved in the flow file (unused: the page keeps live variables apart, variables.remote)."
         },
         "min": {
           "type": "number"
@@ -3739,14 +3737,15 @@
     },
     "variables.remote": {
       "type": "object",
-      "description": "Live variables from another client (Squero MX), shared across the station's sessions.",
+      "description": "Live variables from another client (Julix), shared across the station's sessions: the last list it sent, empty once it disconnects.",
       "properties": {
         "type": {
           "const": "variables.remote",
-          "description": "Live variables from another client (Squero MX), shared across the station's sessions."
+          "description": "Live variables from another client (Julix), shared across the station's sessions: the last list it sent, empty once it disconnects."
         },
         "source": {
-          "const": "mx"
+          "type": "string",
+          "description": "Who sent them (\"julix\")."
         },
         "variables": {
           "$ref": "#/$defs/Variables"
