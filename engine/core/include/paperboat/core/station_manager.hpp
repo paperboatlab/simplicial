@@ -224,7 +224,8 @@ class StationManager {
   static std::vector<ExampleStation> status_examples(const std::filesystem::path& examples_dir = {});
 
   // Web application management
-  static bool start_app(int port = 30471, const std::string& host = "0.0.0.0", bool daemon = false);
+  static bool start_app(int port = 30471, const std::string& host = "0.0.0.0", bool daemon = false,
+                        const std::filesystem::path& folder = {});
   static bool stop_app(int port = 30471);
   static bool restart_app(int port = 30471, const std::string& host = "0.0.0.0");
   static bool build_app();

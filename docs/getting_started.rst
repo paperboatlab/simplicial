@@ -1,8 +1,17 @@
 Getting started
 ===============
 
-.. note:: Not written yet: installing with ``paperboat app install simplicial`` once Simplicial is in
-   the app registry, opening a station, and a first run.
+Install
+-------
+
+.. code-block:: sh
+
+   paperboat app install simplicial
+   paperboat app open simplicial ~/flows
+
+``app open`` opens Simplicial in that folder (the current one when none is given).
+
+.. note:: Not written yet: opening a station and a first run.
 
 Ports
 -----

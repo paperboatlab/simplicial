@@ -132,6 +132,7 @@ Stations:
 
 Paperboat Web UI:
   web start|stop|restart     The same as start, stop and restart without a target
+                             (web start --folder <path>: the page starts in that folder)
   web build                  Run the production frontend build
   (start --daemon and web start --daemon keep it in the background; stop ends it)
 
@@ -1162,10 +1163,13 @@ int cmd_web(const std::vector<std::string_view>& args) {
   int port = 30471;
   std::string host = "0.0.0.0";
   bool daemon = false;
+  fs::path folder;
 
   for (std::size_t i = 1; i < args.size(); ++i) {
     if (args[i] == "--port" && i + 1 < args.size()) {
       port = std::stoi(std::string(args[++i]));
+    } else if (args[i] == "--folder" && i + 1 < args.size()) {
+      folder = std::string(args[++i]);
     } else if (args[i] == "--host" && i + 1 < args.size()) {
       host = std::string(args[++i]);
     } else if (args[i] == "--daemon") {
@@ -1175,7 +1179,7 @@ int cmd_web(const std::vector<std::string_view>& args) {
 
   if (sub == "start") {
     start_scratchpad();
-    return core::StationManager::start_app(port, host, daemon) ? 0 : 1;
+    return core::StationManager::start_app(port, host, daemon, folder) ? 0 : 1;
   } else if (sub == "stop") {
     return core::StationManager::stop_app(port) ? 0 : 1;
   } else if (sub == "restart") {

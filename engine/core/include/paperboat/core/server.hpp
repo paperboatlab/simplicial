@@ -93,8 +93,9 @@ int serve(const Station& station, int port);
 
 // Serves a built web app's folder (index.html, assets/) over HTTP until killed: an installed
 // paperboat's `start` with no checkout (share/paperboat/web). Unknown paths get index.html, as a
-// single-page app wants. Returns 1 when the port can't be taken.
-int serve_files(const std::filesystem::path& dir, int port, const std::string& host);
+// single-page app wants. `folder`, when given, is the workspace the page starts in (the folder, or the
+// hub that holds it), as `paperboat app open simplicial <folder>` asks. Returns 1 when the port can't be taken.
+int serve_files(const std::filesystem::path& dir, int port, const std::string& host, const std::filesystem::path& folder = {});
 
 // The same server, started and stopped by the caller (a host such as the Python
 // bindings, which must keep its own main loop for Ctrl+C).

@@ -22,6 +22,9 @@ endif()
 
 add_executable(paperboat-scratchpad main.cpp)
 target_link_libraries(paperboat-scratchpad PRIVATE paperboat_scratchpad paperboat_warnings)
+if(PAPERBOAT_STATIC_RUNTIME AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_link_options(paperboat-scratchpad PRIVATE -static-libstdc++ -static-libgcc)
+endif()
 
 if(PROJECT_IS_TOP_LEVEL)
   install(TARGETS paperboat-scratchpad RUNTIME DESTINATION bin COMPONENT runtime)
