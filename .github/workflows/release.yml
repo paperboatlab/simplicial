@@ -30,7 +30,7 @@ jobs:
       - run: |
           cmake -S engine -B engine/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DPAPERBOAT_BUILD_TESTS=OFF \
             -DPAPERBOAT_SHARED_LIBS=OFF -DPAPERBOAT_STATIC_RUNTIME=ON
-          cmake --build engine/build --target simplicial-engine paperboat-scratchpad
+          cmake --build engine/build  # everything: the SDK install below needs every library it lists
       - name: Pack
         run: |
           v=${GITHUB_REF_NAME#v}
@@ -39,6 +39,9 @@ jobs:
           mkdir -p $top/bin $top/web $top/engine/toolkit
           cp bin/simplicial engine/build/scratchpad/paperboat-scratchpad $top/bin/
           cp engine/build/tools/simplicial-engine $top/bin/simplicial-engine
+          # the SDK (lib/cmake/Paperboat, headers, static libraries): C++ stations build against it, as
+          # Articula's exported ones do; the engine finds it beside its own bin/ (installer sdk_dir)
+          cmake --install engine/build --prefix $top --component dev
           cp -r web/dist $top/web/
           cp -r protocol scripts commands.toml toolkits.toml LICENSE README.md $top/
           cp node_modules/@paperboatlab/ui/src/marks/simplicial/icon.png $top/
