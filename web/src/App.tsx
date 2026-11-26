@@ -1,6 +1,6 @@
 // Simplicial's page (agent-docs/rebrand/apps/simplicial): the bar (lockup, menus, the workspace well, the view
-// mode, the Console, Panels and theme keys), the page rail in Navigator, the three pages laid out by the view
-// mode, the Variables card, the run dock, the Console window and the floating search. The parts are the kit's
+// mode, the Console and Panels keys), the page rail in Navigator, the three pages laid out by the view
+// mode, the Variables card, the run dock, the Console window, the floating search and Settings (SettingsWindow.tsx: the theme is there). The parts are the kit's
 // (@paperboatlab/ui); the station speaks paperboat/0 (engine.ts). Until a station says hello: the splash, and
 // once the first try finds none, Choose a station over it (StationPicker.tsx).
 // The Flow canvas (flow/FlowEditor.tsx) edits the nodes and wires held here: a run sends them, undo steps them. The
@@ -13,7 +13,7 @@
 // Start page fills the bay. In a hub, Open and Save as are our picker over it; outside one, the system's dialogs in a
 // Paperboat window (`shell()`), else a typed path and a download. Recent and the theme are the store every app shares.
 import {
-  About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs, ThemePicker,
+  About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs,
   Toasts, WindowKeys, isEnabled, readStored, typeLine, typing, ownKeys, useShortcuts, useTheme, useToasts, valueText, writeStored,
   type Credit, type PaneRect, type SearchItem, type Theme, type Toast,
 } from "@paperboatlab/ui";
@@ -46,6 +46,7 @@ import { isPortType } from "./flow/portBlocks.ts";
 import { fileItems, MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode, type Page, type Pane } from "./menus.ts";
 import { applyOverrides, buildProject, diff, mergeOverrides, relPath, stationOf, upgrade, type Misfit } from "./project.ts";
 import { useProject } from "./projectSession.ts";
+import { SettingsWindow } from "./SettingsWindow.tsx";
 import {
   clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
@@ -136,6 +137,9 @@ export function App() {
   useEffect(() => writeStored("paperboat.theme", theme), [theme]);
   /** The theme picked here: every app starts in it next time (settings.json), and this one takes it at once. */
   const pickTheme = (t: Theme) => { setTheme(t); saveTheme(t).catch(() => {}); };
+  const [minimap, setMinimap] = useState(() => readStored("simplicial.minimap", (v): v is boolean => typeof v === "boolean") ?? true);
+  useEffect(() => writeStored("simplicial.minimap", minimap), [minimap]);
+  const [settings, setSettings] = useState<string | null>(null); // the Settings window, on this page
   const [mode, setMode] = useState<Mode>(() => readStored("simplicial.mode", isMode) ?? "navigator");
   const [page, setPage] = useState<Page>(() => readStored("simplicial.page", isPage) ?? "flow");
   const [hidden, setHidden] = useState<Record<Mode, Pane[]>>(() => readStored("simplicial.hidden", isHidden) ?? HIDDEN);
@@ -577,17 +581,18 @@ export function App() {
   const files = fileItems(fileMenu({
     noun: "flow", workspace: ws, file: booted && !showStart, hubs: hubs.length > 0, recent: recentItems,
     onNew: newProject, onOpenFile: () => void openFile(), onOpenFolder: () => void openFolder(), onConnect: () => void askConnect(),
-    onSave: saveFile, onSaveAs: () => void saveFileAs(), onCloseFile: closeFile, onCloseWorkspace: closeWorkspace, onSettings: () => {},
+    onSave: saveFile, onSaveAs: () => void saveFileAs(), onCloseFile: closeFile, onCloseWorkspace: closeWorkspace, onSettings: () => setSettings("general"),
   }), running);
   const commands = [...files, ...registry(
     {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
-      flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level) },
+      flow: { lock, undo: history.canUndo, redo: history.canRedo, copy: picked, paste: !!flow.current?.canPaste(), arrange: canArrangeFlow(nodes, level),
+        picked: !lock && (nodes.some((n) => n.selected) || edges.some((e) => e.selected)) },
       board: arranging,
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme: pickTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true),
+      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -704,7 +709,6 @@ export function App() {
             <PanelsKey layout={sketch(mode, station)} onToggle={(id) => toggle(id as Pane)}
               panels={PANES[mode].filter((p) => station || p !== "st").map((p) => ({ id: p, label: PANE_NAME[p][0], keys: PANE_NAME[p][1], shown: !hid(p) }))} />
             <span className="lsep" />
-            <ThemePicker theme={theme} onChange={pickTheme} />
             <WindowKeys />
           </span>
         </>}
@@ -773,7 +777,7 @@ export function App() {
                     <OnBlocks.Provider value={onBlocks}>
                     <Vars.Provider value={vars}>
                       <FlowEditor blocks={state.blocks} connectors={state.connectors} nodes={nodes} edges={edges} setNodes={setNodes} setEdges={setEdges}
-                        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} active={booted && flowInView} minimap={mode === "navigator" && shownPage === "flow"}
+                        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} active={booted && flowInView} minimap={minimap && mode === "navigator" && shownPage === "flow"}
                         level={level} setLevel={setLevel} lock={lock} controls={flow} onQuickAdd={quickAdd} fit={fit} />
                     </Vars.Provider>
                     </OnBlocks.Provider>
@@ -812,6 +816,9 @@ export function App() {
       {about && <About app="simplicial" role="Visual flow, station and block-diagram simulation" version={__VERSION__}
         info={[state.engine ? `engine ${state.version ?? "?"} · protocol paperboat/0 · station ${state.engine}` : "no station", __COMMIT__ && `commit ${__COMMIT__}`].filter(Boolean).join(" · ")}
         repo="paperboatlab/simplicial" credits={CREDITS} onClose={() => setAbout(false)} />}
+      {settings && <SettingsWindow key={settings} page={settings} onClose={() => setSettings(null)} theme={theme} onTheme={pickTheme}
+        station={state.engine || undefined} address={URL_} runDefaults={state.runDefaults} minimap={minimap} onMinimap={setMinimap} workspace={ws} home={userHome}
+        onMalachite={ws?.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined} commands={commands} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
       {search && <Search items={searchItems} at={search.at} action={search.at ? "add here" : "run"} onClose={() => setSearch(null)}

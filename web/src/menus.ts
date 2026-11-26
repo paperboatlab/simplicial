@@ -34,8 +34,9 @@ export type View = {
   running: boolean;
   /** Why Run can't start now; "" when it can. */
   whyNot: string;
-  /** The Flow canvas: what its Edit items can do now, and why the flow can't be edited ("" when it can). */
-  flow: { lock: string; undo: boolean; redo: boolean; copy: boolean; paste: boolean; arrange: boolean };
+  /** The Flow canvas: what its Edit items can do now, and why the flow can't be edited ("" when it can).
+   *  `picked`: something is picked on it, so Ctrl / comments it out there (the canvas's key) instead of opening the shortcuts. */
+  flow: { lock: string; undo: boolean; redo: boolean; copy: boolean; paste: boolean; arrange: boolean; picked: boolean };
   /** The Board is being arranged (its instruments moved and sized, decorations and tabs edited). */
   board: boolean;
 };
@@ -52,6 +53,8 @@ export type Do = {
   station: () => void;
   report: () => void;
   about: () => void;
+  /** Settings on its Shortcuts page. */
+  shortcuts: () => void;
   /** The Flow canvas's edits; their keys are the canvas's own (they leave a field's text alone). */
   undo: () => void;
   redo: () => void;
@@ -68,12 +71,11 @@ const later = (id: string, label: string, menu: string, group: string, shortcut?
 
 /**
  * The File menu as the kit's `fileMenu` makes it (the same items in every app), as Simplicial runs it: while a run is in
- * progress nothing opens or closes; Settings… waits for a settings page (the theme is the bar's).
+ * progress nothing opens or closes.
  */
 export function fileItems(items: Command[], running: boolean): Command[] {
   const busy = new Set(["file.new", "file.open", "file.openFolder", "file.recent", "file.connect", "file.close", "file.closeWorkspace"]);
-  return items.map((c) => (c.id === "file.settings" ? { ...c, enabled: false, why: LATER }
-    : running && busy.has(c.id) ? { ...c, enabled: false, why: RUNNING } : c));
+  return items.map((c) => (running && busy.has(c.id) ? { ...c, enabled: false, why: RUNNING } : c));
 }
 
 export function registry(v: View, a: Do): Command[] {
@@ -121,7 +123,8 @@ export function registry(v: View, a: Do): Command[] {
     later("run.export", "Export station…", "run", "station"),
 
     later("help.docs", "Docs", "help", "docs", "F1"),
-    later("help.keys", "Keyboard shortcuts", "help", "docs", "Ctrl /"),
+    { id: "help.keys", label: "Keyboard shortcuts", menu: "help", group: "docs", shortcut: "Ctrl /",
+      chord: v.flow.picked ? undefined : { key: "/", ctrl: true }, run: a.shortcuts },
     { id: "help.report", label: "Report an issue…", menu: "help", group: "docs", run: a.report },
     { id: "help.about", label: "About Simplicial", menu: "help", group: "about", run: a.about },
   ];

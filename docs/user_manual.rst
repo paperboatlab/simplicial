@@ -37,7 +37,32 @@ Live monitoring: progress, plots and logs.
 .. note:: Not written yet: run styles (Signal, Step, Once), the run dock, endless runs and Cancel,
    Board tiles, run records.
 
+Settings
+--------
+
+File › Settings… (Ctrl ,) opens one window with its pages in a rail; a change applies at once, with
+no Save.
+
+- **General**: the theme, Light, Dark or System (it follows your computer's). It applies to every
+  Paperboat app and is the one they all start in next time.
+- **Simplicial**: the station this window is on, with Choose a station…, and its run defaults (a
+  flow's own length and speed are set in the run dock and kept in its file); the Flow's minimap in
+  Navigator, on or off.
+- **Hub**, while Simplicial works in a hub: its name and folder, Switch hub… and Close hub. The hub's
+  own settings (its name, author and history) are set in Malachite.
+- **Shortcuts**: every key, by menu, and the Flow canvas's.
+
 Keyboard shortcuts
 ------------------
 
-.. note:: Not written yet.
+Help › Keyboard shortcuts (Ctrl /) opens Settings on Shortcuts, the full list. With something picked
+on the Flow, Ctrl / comments it out instead. The ones you use most:
+
+- Ctrl K: search the commands, blocks, variables and stations; ``/`` or a double-click on the Flow:
+  add a block there.
+- Ctrl N, Ctrl O, Ctrl Shift O, Ctrl S, Ctrl Shift S: new flow, open a file, open a folder, save,
+  save as.
+- Ctrl R: run; Esc: cancel the run.
+- Alt 1, Alt 2, Alt 3: the Station, Flow and Board pages; Alt M: the next view mode.
+- Ctrl Alt B: the Variables card; Ctrl J: the Board drawer (Commander); Ctrl \`: the Console.
+- On the Flow canvas, ``?`` lists what the pointer and the keys do there.

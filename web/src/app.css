@@ -15,7 +15,7 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .bar .menu { min-width: 250px; }
 .bar .menu-item { white-space: nowrap; }
 .modes { margin-right: var(--space-2); }
-/* icon keys in the bar are rounded squares (the theme key's shape), pressed as every kit key; the Console key's count of errors in red */
+/* icon keys in the bar are rounded squares (the Panels key's shape), pressed as every kit key; the Console key's count of errors in red */
 .bar-key.round { border-radius: var(--radius-md); }
 
 /* the page rail steps aside in Commander and Lookout (every page is in view there), down to a gutter before the bay */
