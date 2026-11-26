@@ -23,11 +23,25 @@ Simplicial works file by file:
   variables, the flow, the Board, the run settings). It points to its station by name, version and
   a path relative to itself; :doc:`flow_files` has the format.
 
-**File › Open…** (Ctrl O) and **Save as…** (Ctrl Shift S) ask where first: this computer (the
-browser's own picker; Save as downloads the file) or one of your Malachite hubs, with how many flows
-and stations each holds. A flow opened from a hub, or saved into one, puts Simplicial in that hub:
-the bar shows the hub's selector and the file's path in it, and **Save** (Ctrl S) writes it back
-there. Without Malachite there are no hubs, and Open goes straight to the browser's picker.
+Simplicial works in a **workspace**: a folder on this computer, or a Malachite hub. With none, the
+**Start** page fills the window: Open folder…, Open file…, New flow, Connect to a hub… and Recent
+(the folders, hubs and flows you opened last, in every Paperboat app). The workspace is named after
+the menu bar; its menu opens another folder, switches the hub, or closes it (back to Start). The
+File menu is the same in every app: New flow, Open file… (Ctrl O), Open folder… (Ctrl K Ctrl O),
+Open recent, Connect to a hub…, Save (Ctrl S), Save as… (Ctrl Shift S), Close file, Close folder (or
+Close hub) and Settings….
+
+- **In a hub**, Open file… and Save as… are Simplicial's own picker over the hub: **By station** shows
+  each ``.pst`` with its flows under it wherever they sit, and the flows whose station isn't found
+  under **No station**; **Folders** shows the hub's tree.
+- **Outside a hub**, Open file… asks: a local file, or Connect to a hub… (without Malachite there are
+  no hubs, and it goes straight to the local file). In a Paperboat window the local file, a folder
+  and Save as… are your system's dialogs; in a browser you type the path, and Save as… downloads.
+- A file opened from **outside the workspace** switches to its folder, or to the hub that holds it.
+- **Closing** a flow with changes not saved asks first: Save, Don't save, or Cancel.
+
+The theme and Recent are kept in ``$PAPERBOAT_HOME`` (``recent.json``, ``settings.json``) for every
+Paperboat app: a theme picked here is the one every app starts in.
 
 A window works on one station. Opening a flow finds its station: at the flow's path first, then by
 name in the hub, among the installed stations (yours and the examples), and the running ones (the
@@ -41,21 +55,19 @@ What Simplicial says when a flow and its station don't meet:
 - **Can't find** the station anywhere it looked: **Find the station…** (a ``.pst`` in the hub; one
   with another name asks before it is used), **Open without a station** (the flow read only, its
   blocks unknown, nothing runs), or Cancel.
-- Found **elsewhere** than the flow's path: it opens there, and the flow is marked changed; Save
-  keeps the new place.
-- Another **version** of the station, or the same one changed since the flow was saved: a
-  notification. A change that no longer fits (a variable gone, an object or property renamed, an
-  object of a type the station hasn't) is kept in the file, unused, like a lost block;
-  **File › Review changes…** keeps or removes each.
+- Found **elsewhere** than the flow's path: it opens there, and the flow is marked changed; the
+  notification's **Save** keeps the new place.
+- Another **version** of the station, or the same one changed since the flow was saved: a warning.
+  A change that no longer fits (a variable gone, an object or property renamed, an object of a type
+  the station hasn't) is kept in the file, unused, like a lost block; the warning's **Review** keeps
+  or removes each. The bell keeps both notifications, their keys too.
 - The station **doesn't start** (its build fails, say): the wait screen says why, with **Show log**,
   **Retry** and **Open without a station**.
-- Saved in **another hub** than its station's: the flow finds it by name next time.
+- Saved in **another hub or folder** than its station's: the flow finds it by name next time.
 
 A value the flow changed of its station's has a dot after its name, in the **Variables** card and in
 an object's properties on the Station page; point at it to see the station's value. **Reset to the
-station's** (in an open variable; the dot itself on the Station page) puts it back. A dot after the
-file's name in the bar means there are changes not saved, and opening another file or starting a new
-one asks first. **File › New project** goes back to what the station started with. **Open recent**,
-in the File menu, lists the last five files you opened or saved; one in a hub is read again from
-there. The browser also keeps unsaved work as you go: after a reload Simplicial offers it back
-(**Restore your last session?**).
+station's** (in an open variable; the dot itself on the Station page) puts it back. The Flow's head
+names the file; a dot after it means there are changes not saved. **File › New flow** starts again from
+what the station started with. The browser also keeps unsaved work as you go: after a reload Simplicial
+offers it back (**Restore your last session?**).

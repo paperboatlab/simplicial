@@ -31,8 +31,13 @@ come back out of process over `paperboat-runtime/0` (#7).
   `paperboat hub list --json` (no shell, a timeout), a hub's tree (no dot entries) with its stations (a `.pst`'s
   `station.toml`, read in the zip by `scripts/package_station.py info`; a `.psf`'s header and the `.pst` it resolves
   to), a path kept inside its hub, and finding a flow's station (`find`: its path, the hub, installed, running);
-  the hub and station routes (`/__paperboat/hub/…`, `/__paperboat/station/find|start|log`) answer this computer
-  only, write only `.psf` and start a station only with the page's own header.
+  the hub and station routes (`/__paperboat/hub/…`, `/__paperboat/station/find|start|log`) take the workspace as
+  `hub=<id>` or `folder=<absolute path>`, answer this computer only, write only `.psf` and start a station only with
+  the page's own header. `workspace.cpp`: the one file workflow's server side (plans/2026-11-26_11-05_one_file_workflow.md,
+  "The contract every app follows"): `$PAPERBOAT_HOME` (as paperboat's `paths.cpp`), the store every app shares
+  (`recent.json`, `settings.json`, written whole to a temp file, then renamed) and the workspace a folder is (the hub
+  whose folder holds it, else itself); `serve.cpp` keeps the page server's workspace, switched at runtime
+  (`/__paperboat/workspace`), and records each workspace and each flow read or written in Recent.
 - `engine/tools/`: the `paperboat` CLI, `paperboat-catalog`, `paperboat-toolkit` and `paperboat new`.
 - `engine/scratchpad/`: the scratchpad station (the built-in toolkits, no domain).
 - `engine/tests/`: the Catch2 suite (`paperboat_tests`, run by `ctest`), its fixtures and the SDK test
@@ -59,22 +64,25 @@ come back out of process over `paperboat-runtime/0` (#7).
   - `src/Variables.tsx`: the Variables card on the kit's `VariableList`: + Variable, an open row edits a variable;
     `variableEdits.ts` (pure, tested) is what an edit does to the list. The page sends the list (`variables.set`) and
     keeps it as the state's (`engine.ts`), since the station doesn't send it back.
-  - `src/hubs.ts`: File › Open… and Save as… (paperboat#16). The hubs come from the page's server
-    (`/__paperboat/hubs`, which runs `paperboat hub list --json`: no Malachite, no hub), so does a hub's tree and
-    its `.psf` files (`/__paperboat/hub/files`, `/__paperboat/hub/file`). With hubs, Open and Save as are the
-    kit's `OpenFile`/`SaveFile`; without, the browser's picker and a download. The file decides the hub: one
-    opened from or saved in a hub shows the kit's `HubSelector` in the bar and the file's path in the hub. An
+  - `src/hubs.ts`: the workspace and its files, as the page's server gives them: the workspace, switched at runtime
+    (`/__paperboat/workspace`: a folder, a hub, a file's folder or hub, nothing), the hubs (`/__paperboat/hubs`, which
+    runs `paperboat hub list --json`: no Malachite, no hub), a workspace's tree and its `.psf` files
+    (`/__paperboat/hub/files`, `/hub/file`, by `Root`: `hub=` or `folder=`), and the shared Recent and theme. App.tsx
+    draws the one file workflow with the kit's `@paperboatlab/ui/workspace` and `/hub`: the Start page in the bay
+    while no flow is open, the File menu (`fileMenu`, through `fileItems` in menus.ts), the `WorkspaceWell` after the
+    menu bar (no document field in the bar: the Flow's head names the file), `AskOpen`, `ConnectHub`, `TypedPath`,
+    `Unsaved`; in a hub, Open and Save as are the kit's `OpenFile` (`byParent`: By station) and `SaveFile`; outside
+    one, the Paperboat window's `shell()` dialogs, else a typed path and a download. `WindowKeys` end the bar. An
     opened file is `file.open` in `engine.ts` (its flow, objects and variables; the canvas takes it over edits).
   - `src/project.ts` (pure, tested): the flow file (`StationFlow`, format 1: plans/2026-11-26_12-55_psf_pst_rework.md):
     the diff from the station's starter (`diff`: overridden variables, objects changed, added, removed; the flow's own
     variables) and applying it back (`applyOverrides`: what no longer fits kept apart as `Misfit`s), format 0 read
     (`upgrade`), building one (empty parts left out), checking one (`parseFlow`: what is wrong, and where), and what
-    the browser keeps (Open recent, five files; the unsaved work, per station). `src/projectSession.ts`
-    (`useProject`): whether the project is saved (its snapshot against what was last opened or saved, once the
-    canvas settles), the word before unsaved work is replaced, Open recent, and the restore offer after a reload.
-    New project is the station's starter (`starter` in `engine.ts`: the first `graph.load`, `station.load` and
+    the browser keeps (the unsaved work, per station). `src/projectSession.ts` (`useProject`): whether the project is
+    saved (its snapshot against what was last opened or saved, once the canvas settles) and the restore offer after a
+    reload. New flow is the station's starter (`starter` in `engine.ts`: the first `graph.load`, `station.load` and
     `variables.load`, before any edit). `src/stationLink.ts` (pure, tested): what opening a flow on its station says
-    (E2–E4, E8, where E1 looked) and the address across a station switch (`?open=<hub>:<path>`, `start`, `use`,
+    (E2–E4, E8, where E1 looked; E2's note offers Save, E3/E4's warning Review, as the kit's note keys) and the address across a station switch (`?open=<hub>:<path>`, `start`, `use`,
     `nostation`); App.tsx finds the station (`/__paperboat/station/find`), asks (E1, E5), starts it and reopens the
     window on it, and marks what the flow changed (a dot, Reset to the station's) on the Station page and Variables.
   - `src/StationPicker.tsx`, `src/stations.ts`: finding a station (the recent ones, the open one, the station ports);
