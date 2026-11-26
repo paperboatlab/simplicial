@@ -89,11 +89,12 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 /* nothing moves at start-up: the saved layout is simply there */
 .still *, .still *::before, .still *::after { transition: none !important; }
 
-/* ---- Flow: the canvas (React Flow) on the dotted panel; blocks, wires and ports are the kit's (canvas.css) ---- */
+/* ---- Flow: the canvas (React Flow) on the dotted panel; blocks, wires and ports are the kit's (canvas.css).
+   React Flow reads --xy-x before its own --xy-x-default, so the canvas's colours are set without -default. ---- */
 .flow-canvas { position: relative; height: 100%; min-height: 0;
-  --xy-background-color-default: var(--surface-panel); --xy-selection-background-color-default: color-mix(in srgb, var(--accent) 8%, transparent);
-  --xy-selection-border-default: 1px dashed var(--line-ink); --xy-connectionline-stroke-default: var(--line-ink); --xy-connectionline-stroke-width-default: 1.2;
-  --xy-resize-background-color-default: var(--line-ink); }
+  --xy-background-color: var(--surface-panel); --xy-selection-background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+  --xy-selection-border: 1px dashed var(--line-ink); --xy-connectionline-stroke: var(--line-ink); --xy-connectionline-stroke-width: 1.2;
+  --xy-resize-background-color: var(--line-ink); }
 .flow-canvas .react-flow__node { font: var(--size-2xs) var(--font-sans); color: var(--text); }
 .flow-canvas .react-flow__node.selectable:focus-visible { outline: none; }
 .flow-canvas .react-flow__node:focus-visible > :first-child { outline: 2px solid var(--focus); outline-offset: 3px; }
