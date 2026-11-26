@@ -1689,7 +1689,7 @@ std::vector<ExampleStation> StationManager::status_examples(const fs::path& exam
   return get_examples(examples_dir);
 }
 
-bool StationManager::start_app(int port, const std::string& host, bool daemon) {
+bool StationManager::start_app(int port, const std::string& host, bool daemon, const fs::path& folder) {
   const fs::path root = toolkit::find_repo_root();
   // An installed paperboat (.tar.gz, .zip) has no checkout to run `npm run dev`
   // in: it serves the web app built into share/paperboat/web itself.
@@ -1704,12 +1704,14 @@ bool StationManager::start_app(int port, const std::string& host, bool daemon) {
     free_port(port, 2000);
     if (daemon) {
       const fs::path log_path = platform::shared_tmp_dir() / "paperboat-web.log";
-      const int pid = ProcessRunner::run_detached({exe.string(), "web", "start", "--port", std::to_string(port), "--host", host}, web, {}, log_path);
+      std::vector<std::string> argv = {exe.string(), "web", "start", "--port", std::to_string(port), "--host", host};
+      if (!folder.empty()) argv.insert(argv.end(), {"--folder", folder.string()});
+      const int pid = ProcessRunner::run_detached(argv, web, {}, log_path);
       if (pid <= 0) return false;
       std::cout << "Web app on http://localhost:" << port << "/ in the background (PID " << pid << ", log: " << log_path << ")\n";
       return true;
     }
-    return serve_files(web, port, host) == 0;
+    return serve_files(web, port, host, folder) == 0;
   }
 
   free_port(port, 2000);

@@ -166,6 +166,12 @@ ix::HttpResponsePtr station_route(const std::string& path, const ix::HttpRequest
   return respond(200, "application/json", json{{"port", port}, {"url", "ws://localhost:" + std::to_string(port)}}.dump());
 }
 
+// The paperboat CLI (Malachite adds `hub`), or $PAPERBOAT: a stand-in for tests.
+std::string paperboat_cli() {
+  const char* env = std::getenv("PAPERBOAT");
+  return env && *env ? env : "paperboat";
+}
+
 // What the page works in, switched at runtime (one per page server; plans/2026-11-26_11-05_one_file_workflow.md).
 std::mutex workspace_lock;
 json current_workspace = nullptr;  // {kind, root, name, hub?} or null: the Start page
@@ -226,8 +232,7 @@ ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr&
   const bool store = path == "/__paperboat/workspace" || path == "/__paperboat/recent" || path == "/__paperboat/settings";
   if (!path.starts_with("/__paperboat/hub") && !station && !store) return nullptr;
   if (!from_here(remote)) return respond(403, "text/plain", "hubs are only for this computer\n");
-  const char* env = std::getenv("PAPERBOAT");  // the paperboat CLI (Malachite adds `hub`); a stand-in for tests
-  const std::string cli = env && *env ? env : "paperboat";
+  const std::string cli = paperboat_cli();
   if (station) return station_route(path, request, cli);
   if (store) return workspace_route(path, request, cli);
   if (path == "/__paperboat/hubs") return respond(200, "application/json", hubs::list(cli).dump());
@@ -273,9 +278,17 @@ ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr&
 
 }  // namespace
 
-int serve_files(const fs::path& dir, int port, const std::string& host) {
+int serve_files(const fs::path& dir, int port, const std::string& host, const fs::path& folder) {
   ix::initNetSystem();
   std::error_code ec;
+  if (!folder.empty()) {
+    if (!fs::is_directory(folder, ec)) {
+      std::cerr << "error: " << folder.string() << " is not a folder\n";
+      return 1;
+    }
+    current_workspace = workspace::place_of(fs::absolute(folder, ec), hubs::known(paperboat_cli()));
+    workspace::remember(current_workspace["kind"], current_workspace["root"].get<std::string>(), current_workspace.value("hub", ""));
+  }
   const fs::path root = fs::weakly_canonical(dir, ec);
   ix::HttpServer server(port, host);
   server.setOnConnectionCallback([&root](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>& conn) {

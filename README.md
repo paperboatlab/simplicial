@@ -11,6 +11,16 @@ Visual flow, station and block-diagram simulation: a C++20/Python/Julia engine, 
 
 **Docs:** <https://paperboatlab.org/apps/simplicial/> (sources in [`docs/`](docs/))
 
+## Install
+
+```sh
+paperboat app install simplicial
+paperboat app open simplicial ~/flows       # or: bin/simplicial ~/flows --port 30471
+```
+
+From a checkout (the engine built in `engine/build`, the page in `web/dist`): `paperboat app install simplicial --from .`.
+Pushing a tag `v<version>` (package.json's) publishes the release `app install` downloads ([release.yml](.github/workflows/release.yml), Linux x86_64).
+
 ## The page
 
 ```sh

@@ -1,0 +1,34 @@
+#!/bin/sh
+# Paperboat Simplicial. `simplicial [<folder>] [--port N]` is the app server `paperboat app open` runs (the page,
+# web/dist, on 127.0.0.1:N, in that folder); `simplicial <command> ...` runs a command of commands.toml (run,
+# build, check, station list, ...) as typed. Both go to the engine: bin/simplicial-engine in a release,
+# engine/build/tools/paperboat in a checkout (never the platform's paperboat on PATH).
+here=$(dirname "$(readlink -f "$0")")
+root=$(dirname "$here")
+engine=$here/simplicial-engine
+[ -x "$engine" ] || engine=$root/engine/build/tools/paperboat
+[ -x "$engine" ] || { echo "simplicial: no engine at $engine (build it: cmake --build engine/build)" >&2; exit 1; }
+export PAPERBOAT_ROOT="$root"  # this app, not a checkout the folder happens to be in
+
+case $1 in
+  "" | -* | /* | . | ./* | .. | ../*)
+    folder= port=30471
+    while [ $# -gt 0 ]; do
+      case $1 in
+        --port) port=$2; shift 2 ;;
+        -*) shift ;;
+        *) folder=$(cd "$1" && pwd) || exit 1; shift ;;
+      esac
+    done
+    set -- web start --port "$port" --host 127.0.0.1
+    [ -n "$folder" ] && set -- "$@" --folder "$folder"
+    exec "$engine" "$@" ;;
+  # commands.toml's words the engine spells differently
+  station)
+    case $2 in
+      list) shift 2; exec "$engine" stations "$@" ;;
+      examples) shift 2; exec "$engine" examples fetch "$@" ;;
+    esac ;;
+  toolkit) [ "$2" = blocks ] && { shift 2; exec "$engine" toolkit list "$@"; } ;;
+esac
+exec "$engine" "$@"
