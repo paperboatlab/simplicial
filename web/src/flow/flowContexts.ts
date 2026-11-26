@@ -4,7 +4,7 @@
 import { createContext } from "react";
 import type { Connectors, Variables } from "../protocol.ts";
 import type { GroupData } from "./groups.ts";
-import type { Anchor, Point as WirePoint, WireRoute } from "@paperboatlab/ui/canvas";
+import type { Anchor, Point as WirePoint, VarHint, WireRoute } from "@paperboatlab/ui/canvas";
 
 /** What the last run said about blocks (`node.state`): where a Step flow is, which failed. */
 export const RunStates = createContext<{
@@ -44,8 +44,13 @@ export const SetBends = createContext<((id: string, bends: WirePoint[]) => void)
 
 /** Why the flow can't be edited now (a run is in progress); "" while it can. */
 export const Lock = createContext("");
-/** The station's variables and what they come to: a bound param's chip says its value; Show opens the Variables card. */
-export const Vars = createContext<{ list: Variables; values: Readonly<Record<string, unknown>>; show: (name: string) => void }>({ list: [], values: {}, show: () => {} });
+/**
+ * The station's variables and what they come to: a bound param's chip says its value; Show opens the Variables card;
+ * `hints` are what a typed param suggests; `hover` is the variable the pointer is on in the card (its blocks are marked).
+ */
+export const Vars = createContext<{ list: Variables; values: Readonly<Record<string, unknown>>; show: (name: string) => void; hints: readonly VarHint[]; hover: string | null }>(
+  { list: [], values: {}, show: () => {}, hints: [], hover: null },
+);
 
 /** Actions a group offers, provided by the Flow editor. */
 export const GroupActions = createContext<{

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connect, freeId, hasStepPorts, makeNode, makeWire, missingDef, resolveBlocks, syncLinked, withoutLooseWires, type FlowNode, type Wire } from "../src/flow/flowModel.ts";
+import { connect, freeId, hasStepPorts, makeNode, markUses, makeWire, missingDef, resolveBlocks, syncLinked, withoutLooseWires, type FlowNode, type Wire } from "../src/flow/flowModel.ts";
 import type { BlockDef } from "../src/protocol.ts";
 
 const gain: BlockDef = { type: "gain", label: "Gain", kind: "function", inputs: [{ id: "in", type: "signal" }], outputs: [{ id: "out", type: "signal" }], params: [{ id: "k", type: "number", default: 1 }] };
@@ -83,4 +83,17 @@ test("wires that lost a block or a port go; groups and missing blocks keep their
   assert.deepEqual(withoutLooseWires([a, b, lost], edges).map((w) => w.id), ["a.out-b.in", "lost.whatever-b.in"]);
   const kept = edges.slice(0, 1);
   assert.equal(withoutLooseWires([a, b], kept), kept); // all stay: the same array
+});
+
+test("hovering a variable marks the blocks that use it, and the subsystems they are in", () => {
+  const nodes = [
+    makeNode(gain, "a", 0, 0, { k: { var: "kp" } }),
+    { ...makeNode(gain, "b", 0, 0, { k: { expr: "kp / 5" } }), parentId: "sub" },
+    makeNode(gain, "c", 0, 0),
+    { id: "sub", type: "group", position: { x: 0, y: 0 }, data: {} },
+  ] as FlowNode[];
+  const shown = [nodes[0], nodes[2], nodes[3]];
+  assert.deepEqual(markUses(shown, nodes, "kp").map((n) => n.className ?? ""), ["var-use", "", "var-use"]);
+  assert.equal(markUses(shown, nodes, null), shown);
+  assert.equal(markUses(shown, nodes, "mass"), shown, "nothing uses it: the same nodes");
 });

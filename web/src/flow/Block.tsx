@@ -132,7 +132,7 @@ function BlockFace({ id, data, selected }: NodeProps<BlockNode>) {
       glyph={def.view?.glyph && !def.view.icon ? <Glyph name={captionValue(def.view.glyph, params)} /> : undefined}
       ports={ports}
       params={def.params.length > 0 && def.params.map((p) => (
-        <ParamRow key={p.id} def={p} value={params[p.id]} disabled={missing || !!lock} computed={valueOf(params[p.id])}
+        <ParamRow key={p.id} def={p} value={params[p.id]} disabled={missing || !!lock} computed={valueOf(params[p.id])} vars={vars.hints}
           onChange={(v) => setParam(p.id, v)} onBound={() => setBound((b) => (b === p.id ? null : p.id))} />
       ))}
     />
