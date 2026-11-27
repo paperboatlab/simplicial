@@ -52,6 +52,7 @@ add_executable(paperboat_tests
   process_test.cpp
   hubs_test.cpp
   workspace_test.cpp
+  examples_test.cpp
   remote_test.cpp
 )
 target_link_libraries(paperboat_tests

@@ -2,6 +2,8 @@
 
 #include "paperboat/core/workspace.hpp"
 
+#include "paperboat/core/examples.hpp"
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
@@ -71,12 +73,14 @@ json recent() {
   for (const auto& e : doc["recent"]) {
     if (!e.is_object() || !e.value("path", json()).is_string() || !e.value("at", json()).is_number()) continue;
     if (const auto k = e.value("kind", ""); k != "folder" && k != "hub" && k != "file") continue;
+    if (examples::inside(e["path"].get<std::string>())) continue;  // one written before examples were read-only
     if (out["recent"].size() < kRecentMax) out["recent"].push_back(e);
   }
   return out;
 }
 
 void remember(const std::string& kind, const fs::path& path, const std::string& hub) {
+  if (examples::inside(path)) return;  // an example opened where it is isn't the user's (paperboat#75)
   // ponytail: read, change, write; two apps opening at the same instant may lose one entry
   const auto at = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
   json entry = {{"kind", kind}, {"path", path.generic_string()}, {"app", "simplicial"}, {"at", at}};
@@ -124,7 +128,9 @@ json place_of(const fs::path& dir, const json& hubs) {
     if (!in.empty() && *in.begin() != "..")
       return {{"kind", "hub"}, {"root", root.string()}, {"name", h.value("name", root.filename().string())}, {"hub", h["id"]}};
   }
-  return {{"kind", "folder"}, {"root", at.string()}, {"name", at.filename().string()}};
+  json out = {{"kind", "folder"}, {"root", at.string()}, {"name", at.filename().string()}};
+  if (examples::inside(at)) out["example"] = true;
+  return out;
 }
 
 fs::path typed(const std::string& path) {

@@ -77,11 +77,13 @@ const later = (id: string, label: string, menu: string, group: string, shortcut?
 
 /**
  * The File menu as the kit's `fileMenu` makes it (the same items in every app), as Simplicial runs it: while a run is in
- * progress nothing opens or closes.
+ * progress nothing opens or closes; in an example's window (`readOnly`: why) nothing saves (paperboat#75).
  */
-export function fileItems(items: Command[], running: boolean): Command[] {
+export function fileItems(items: Command[], running: boolean, readOnly = ""): Command[] {
   const busy = new Set(["file.new", "file.open", "file.openFolder", "file.recent", "file.connect", "file.close", "file.closeWorkspace"]);
-  return items.map((c) => (running && busy.has(c.id) ? { ...c, enabled: false, why: RUNNING } : c));
+  const saves = new Set(["file.save", "file.saveAs"]);
+  return items.map((c) => (readOnly && saves.has(c.id) ? { ...c, enabled: false, why: readOnly }
+    : running && busy.has(c.id) ? { ...c, enabled: false, why: RUNNING } : c));
 }
 
 export function registry(v: View, a: Do): Command[] {

@@ -41,6 +41,7 @@
 #include <nlohmann/json.hpp>
 #include <toml++/toml.hpp>
 
+#include "paperboat/core/examples.hpp"
 #include "paperboat/core/server.hpp"
 #include "paperboat/core/process.hpp"
 #include "paperboat/core/run.hpp"
@@ -676,7 +677,7 @@ std::string StationManager::status_json(std::string_view filter) {
 }
 
 bool StationManager::needs_rebuild(const fs::path& station_dir, const fs::path& build_dir) {
-  const fs::path bdir = build_dir.empty() ? (station_dir / "build") : build_dir;
+  const fs::path bdir = build_dir.empty() ? examples::build_dir(station_dir) : build_dir;
   const fs::path stamp_file = bdir / ".paperboat-build.stamp";
 
   if (!fs::exists(bdir / "CMakeCache.txt") || !fs::is_regular_file(stamp_file)) {
@@ -779,8 +780,10 @@ bool StationManager::ensure_built(const fs::path& station_dir,
     return true;
   }
 
-  const fs::path build_dir = station_dir / "build";
+  // an example's build is the user's, out of its folder: an example is read-only (paperboat#75)
+  const fs::path build_dir = examples::build_dir(station_dir);
   std::error_code ec;
+  if (build_dir.parent_path() != station_dir) fs::create_directories(build_dir.parent_path(), ec);
 
   if (clean) {
 #ifdef _WIN32
@@ -1236,16 +1239,18 @@ int StationManager::run_station(const fs::path& path_or_domain, const StationRun
     }
 
     // Locate binary in build/ (or use installed prebuilt scratchpad executable directly)
+    // station.toml's `run` names build/<program>; an example's build/ is its scratch (examples.hpp)
+    const fs::path build = is_prebuilt_wb ? fs::path{} : examples::build_dir(dir);
+    const fs::path run = manifest.run.empty() ? fs::path{} : fs::path(manifest.run).lexically_normal();
+    const fs::path named = !run.empty() && *run.begin() == "build" ? build / run.lexically_relative("build") : dir / run;
     fs::path bin = is_prebuilt_wb
                        ? wb_bin
-                       : (manifest.has_manifest && !manifest.run.empty() && fs::is_regular_file(dir / manifest.run)
-                              ? dir / manifest.run
-                              : built_binary(dir / "build"));
+                       : (manifest.has_manifest && !run.empty() && fs::is_regular_file(named) ? named : built_binary(build));
     if (bin.empty() && dir.filename() == "scratchpad") {
       const fs::path root = toolkit::find_repo_root(dir);
       if (!root.empty()) bin = scratchpad_binary(root);
     }
-    if (bin.empty()) return failed("compiled binary not found in " + (dir / "build").string());
+    if (bin.empty()) return failed("compiled binary not found in " + (is_prebuilt_wb ? dir / "build" : build).string());
     const fs::path run_cwd = is_prebuilt_wb ? dir.parent_path() : dir;
 
     std::vector<std::string> args = {bin.string(), "--port", std::to_string(port)};

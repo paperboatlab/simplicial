@@ -14,7 +14,8 @@
 namespace paperboat::core::hubs {
 
 // `<cli> hub list --json` as it answers (each hub's id, name, path, place, shown, missing, conflicts), run with
-// no shell and a timeout; [] when the command is missing, fails or says something else.
+// no shell and a timeout; [] when the command is missing, fails or says something else. A hub in an example
+// (examples.hpp: Malachite once listed the ones it opened) is left out: the user's hubs only.
 nlohmann::json known(const std::string& cli);
 
 // Paperboat's examples for Simplicial (paperboat#72): `<cli> example list --app simplicial --json` as it answers

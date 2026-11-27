@@ -84,6 +84,14 @@ test("File is the kit's menu: nothing opens or closes while a run is in progress
   for (const id of ["file.new", "file.open", "file.openFolder", "file.close"]) assert.equal(on(find(running, id)), false, id);
   assert.equal(find(running, "file.open").why, "A run is in progress");
   assert.equal(on(find(running, "file.save")), true);
+  // an example's window (paperboat#75): nothing saves, and the menu says why; the rest stays
+  const example = fileItems(kit, false, "An example is read-only: copy it to change it");
+  for (const id of ["file.save", "file.saveAs"]) {
+    assert.equal(on(find(example, id)), false, id);
+    assert.equal(find(example, id).why, "An example is read-only: copy it to change it");
+  }
+  assert.ok(on(find(example, "file.open")) && on(find(example, "file.new")));
+  assert.equal(find(fileItems(kit, true, "read-only"), "file.save").why, "read-only");
   const chords = [...idle, ...registry(view, act)].filter((c) => c.chord).map((c) => JSON.stringify(c.chord));
   assert.equal(new Set(chords).size, chords.length, "no two commands share a key");
 });

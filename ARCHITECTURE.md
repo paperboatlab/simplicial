@@ -48,7 +48,13 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
   Paperboat's examples (paperboat#72: `paperboat example list --app simplicial --json`, `[]` without the CLI, and
   `example open <id> [--to <folder>] --json`, which opens one where it is, in a new window, and `example copy <id>
   --to <folder> --open --json` for its banner's Copy (paperboat#75); `/__paperboat/examples`, `/__paperboat/example/open`,
-  `/__paperboat/example/copy`). Nothing copies an example on open, so installed stations are only the user's. The engine finds no examples of its own: `run` takes a path,
+  `/__paperboat/example/copy`). Nothing copies an example on open, so installed stations are only the user's.
+  `examples.cpp`: an example is read-only (paperboat#75). The platform tells only the page (its URL), so the engine
+  knows one by where it is (`examples::inside`: `$PAPERBOAT_EXAMPLES_DIR`, the CLI's `$PAPERBOAT_HOME/cache/examples`,
+  or a paperboat-examples checkout by its markers, `golden.py` beside `<group>/<example>/example.toml`; a copy is not
+  one): `/hub/file` refuses to write there (403), `workspace::remember` skips it and `recent()` leaves it out,
+  `place_of` marks its folder `example`, `hubs::known` drops an example's hub, and a C++ example builds in
+  `examples::scratch` (`$PAPERBOAT_HOME/cache/simplicial/examples/<name>-<hash>/build`; `ensure_built`, `start_station`). The engine finds no examples of its own: `run` takes a path,
   an installed station, `scratchpad` or an installed toolkit's example (`StationManager::toolkit_examples`, `ocv-01`);
   the hub and station routes (`/__paperboat/hub/…`, `/__paperboat/station/find|start|log`) take the workspace as
   `hub=<id>` or `folder=<absolute path>`, answer this computer only, write only `.psf` and start a station only with
@@ -107,7 +113,10 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
     (`listExamples`, once at load: Ctrl K's **Open example: <name>**, the kit's `exampleCommands`, in no menu; `--to`
     the window's folder). An example's window (`exampleFromUrl`, read at load beside `OPENING`; `toSearch` keeps its
     params) has the kit's `ExampleBanner` across the top of the bay: Copy is `copyExample` (`--to` the folder it was
-    opened from, else one picked as Open folder… picks it), the copy opening in a new window. App.tsx
+    opened from, else one picked as Open folder… picks it), the copy opening in a new window. Such a window, or one
+    whose folder the server marks `example`, is read-only (`READ_ONLY`): the Flow locked as in a run, the Station page
+    and Variables (tunable ones too) locked, Save and Save as greyed (`fileItems`), a save refused with Copy offered;
+    a run, Run settings and the Board's layout (the browser's) still work. App.tsx
     draws the one file workflow with the kit's `@paperboatlab/ui/workspace` and `/hub`: the Start page in the bay
     while no flow is open, the File menu (`fileMenu`, through `fileItems` in menus.ts), the `WorkspaceWell` after the
     menu bar (no document field in the bar: the Flow's head names the file), `AskOpen`, `ConnectHub`, `TypedPath`,
@@ -189,3 +198,6 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
     a `.psf` holds only what differs from its station's starter and points to it (name, version, sha256, a path
     relative to itself). An override that no longer fits is kept in the file, never dropped unasked. One station
     per window.
+13. **An example is read-only.** Nothing Simplicial does writes into a paperboat-examples folder (`examples.hpp`):
+    the page edits nothing there, the server refuses a write, a build goes to the user's cache, and neither Recent
+    nor the hubs list one (tested: `examples_test.cpp`, the e2e's example window).

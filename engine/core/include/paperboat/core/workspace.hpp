@@ -24,7 +24,7 @@ constexpr int kRecentMax = 40;
 // recent.json as read: {version: 1, recent: [{kind: "folder" | "hub" | "file", path, hub?, app?, at}]}.
 nlohmann::json recent();
 // `path` (absolute) put first, as opened by Simplicial now; an older entry of the same kind and path goes, 40 at
-// most. `hub`: the hub's id (a hub, or a file in one).
+// most. `hub`: the hub's id (a hub, or a file in one). Nothing in an example (examples.hpp): recent() leaves those out.
 void remember(const std::string& kind, const std::filesystem::path& path, const std::string& hub = "");
 // Clear recent.
 void forget();
@@ -36,7 +36,7 @@ nlohmann::json settings();
 bool save_settings(const nlohmann::json& change);
 
 // The workspace a folder is: the hub whose folder holds it (`hubs` as hubs::known gives them), else the folder
-// itself: {kind: "folder" | "hub", root, name, hub?}.
+// itself: {kind: "folder" | "hub", root, name, hub?, example?} (`example`: true in an example, which is read-only).
 nlohmann::json place_of(const std::filesystem::path& dir, const nlohmann::json& hubs);
 
 // A path as typed: ~ and ~/… are the home folder; empty when it isn't absolute.

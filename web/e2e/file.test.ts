@@ -178,3 +178,102 @@ test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+/** Every file under `dir` and what it holds: the same before and after a run means it wrote nothing there. */
+const snapshot = (dir: string): Record<string, string> => Object.fromEntries(
+  (fs.readdirSync(dir, { recursive: true, withFileTypes: true }) as fs.Dirent[])
+    .map((e) => { const p = path.join(e.parentPath, e.name); return [path.relative(dir, p) + (e.isDirectory() ? "/" : ""), e.isDirectory() ? "" : fs.readFileSync(p, "base64")]; }));
+
+test("an example opened where it is is read-only: no save, no edit, a run writes nothing there, no Recent, no example hub", { skip: missing, timeout: 180_000 }, async () => {
+  const tmp = fs.mkdtempSync(path.join(process.env.SIMPLICIAL_E2E_TMP ?? os.tmpdir(), "simplicial-e2e-ro-"));
+  const profile = path.join(tmp, "profile"), home = path.join(tmp, "home"), mine = path.join(tmp, "mine");
+  // a paperboat-examples checkout, as `paperboat example open` opens one: golden.py at its top, <group>/<example>/example.toml
+  const repo = path.join(tmp, "paperboat-examples"), folder = path.join(repo, "simplicial", "00-loop"), hub = path.join(repo, "hubs", "lab");
+  fs.mkdirSync(folder, { recursive: true });
+  fs.mkdirSync(hub, { recursive: true });
+  fs.mkdirSync(mine);
+  fs.writeFileSync(path.join(repo, "golden.py"), "# the golden harness\n");
+  fs.writeFileSync(path.join(folder, "example.toml"), 'kind = "simplicial"\napp = "simplicial"\nname = "00 Loop"\n');
+  fs.writeFileSync(path.join(hub, "example.toml"), 'kind = "hub"\napp = "malachite"\nname = "Lab"\n');
+  fs.writeFileSync(path.join(folder, "loop.psf"), `${JSON.stringify({ paperboat: 1, station: { name: "scratchpad" },
+    flow: { nodes: [{ id: "c1", type: "constant", params: {}, pos: [0, 0] }], edges: [] }, run: { duration: 0.5 } }, null, 2)}\n`);
+  const git = (...a: string[]) => spawnSync("git", ["-C", repo, ...a], { encoding: "utf8" });
+  const tracked = git("init", "-q").status === 0 && git("add", "-A").status === 0
+    && git("-c", "user.name=e2e", "-c", "user.email=e2e@localhost", "commit", "-qm", "examples").status === 0;
+  const before = snapshot(repo);
+  // a stand-in CLI that knows two hubs: the example's (as Malachite once listed the ones it opened) and the user's
+  const cli = path.join(tmp, "paperboat");
+  const hubList = [{ id: "h_lab", name: "Lab", path: hub, place: "local", shown: hub }, { id: "h_mine", name: "mine", path: mine, place: "local", shown: mine }];
+  fs.writeFileSync(cli, `#!/bin/sh\ncase "$1 $2" in\n  "hub list") echo '${JSON.stringify(hubList)}'; exit 0 ;;\n  "example list") echo '[]'; exit 0 ;;\nesac\nexit 1\n`, { mode: 0o755 });
+  const env: NodeJS.ProcessEnv = { ...process.env, PAPERBOAT_HOME: home, PAPERBOAT_ROOT: ROOT, PAPERBOAT_BIN: cli };
+  delete env.PAPERBOAT_EXAMPLES_DIR;  // the checkout is found by its markers, as the CLI's sibling one
+  const [station, web, debug] = [port(), port(), port()];
+  const kids: ChildProcess[] = [
+    spawn(STATION, ["--port", String(station)], { cwd: folder, env, stdio: "ignore" }),
+    spawn(ENGINE, ["web", "start", "--port", String(web), "--host", "127.0.0.1", "--folder", folder], { cwd: folder, env, stdio: "ignore" }),
+  ];
+  const [bin, pre] = browser()!;
+  const flatpak = bin === "flatpak" ? [`--filesystem=${tmp}`] : [];
+  kids.push(spawn(bin, [...pre.slice(0, 1), ...flatpak, ...pre.slice(1), "--headless=new", "--disable-gpu", ...(process.env.CI ? ["--no-sandbox"] : []), `--remote-debugging-port=${debug}`,
+    `--user-data-dir=${profile}`, "--no-first-run", "about:blank"], { stdio: "ignore" }));
+  let page: Awaited<ReturnType<typeof connect>> | undefined;
+  try {
+    page = await connect(debug);
+    const { cmd, run, until, click, key } = page;
+    const flowHead = `document.querySelector(".pg-flow .sum")?.textContent ?? ""`;
+    const base = `http://127.0.0.1:${web}`;
+    for (let i = 0; i < 80; i++) { try { await fetch(`${base}/`); break; } catch { await sleep(250); } }
+
+    // the server: the workspace is an example; a write into it is refused; Recent and the hubs leave it out
+    const served = (await (await fetch(`${base}/__paperboat/workspace`)).json()) as { workspace: { example?: boolean } };
+    assert.equal(served.workspace.example, true);
+    const write = (p: string) => fetch(`${base}/__paperboat/hub/file?${new URLSearchParams({ folder, path: p })}`,
+      { method: "POST", headers: { "X-Paperboat-Page": "1" }, body: "{}" });
+    for (const p of ["loop.psf", "new.psf", "flows/new.psf"]) {
+      const r = await write(p);
+      assert.equal(r.status, 403, p);
+      assert.match(await r.text(), /is in an example, which is read-only: copy the example to change it/);
+    }
+    assert.equal((await fetch(`${base}/__paperboat/hub/file?${new URLSearchParams({ folder, path: "loop.psf" })}`)).status, 200);  // reading is fine
+    assert.deepEqual(((await (await fetch(`${base}/__paperboat/hubs`)).json()) as { id: string }[]).map((h) => h.id), ["h_mine"]);
+    const switched = await fetch(`${base}/__paperboat/workspace`, { method: "POST", headers: { "X-Paperboat-Page": "1" }, body: JSON.stringify({ hub: "h_lab" }) });
+    assert.equal(switched.status, 404);  // the example's hub is no hub to work in
+
+    // the page, as `paperboat example open` opens it: the banner, the flow on its station, nothing to edit or save
+    await cmd("Page.navigate", { url: `${base}/?station=ws://localhost:${station}&open=:loop.psf&example=simplicial/00-loop&name=00%20Loop&to=${encodeURIComponent(mine)}` });
+    await until("the example's flow", `(${flowHead}).startsWith("loop.psf") && (${flowHead}).includes("1 block")`, 40000);
+    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("00 Loop: an example.")`);
+    await sleep(1500);  // the opened flow settles (projectSession.ts)
+    assert.equal(await run<boolean>(`[...document.querySelectorAll(".pg-flow .key")].find((k) => k.textContent.includes("Add block"))?.disabled`), true);
+    assert.equal(await run<boolean>(`[...document.querySelectorAll("button")].find((k) => k.textContent.trim() === "Variable")?.disabled`), true);
+    await click(".menubar .menu-title", "File");
+    const item = (label: string) => `[...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent.trim().startsWith(${JSON.stringify(label)}))`;
+    await until("the File menu", item("Save as"));
+    for (const label of ["Save", "Save as"]) {
+      assert.equal(await run<boolean>(`(() => { const m = ${item(label)}; return m.disabled || m.getAttribute("aria-disabled") === "true"; })()`), true, label);
+    }
+    assert.match(await run<string>(`${item("Save")}.title || ${item("Save")}.textContent`), /read-only|copy it/);
+    await key("Escape", "Escape", 27);
+    await key("s", "KeyS", 83, 2);  // Ctrl S: nothing to save into an example
+    await key("z", "KeyZ", 90, 2);  // nor anything to undo
+
+    // a run: it goes, and leaves the example as it was
+    await key("r", "KeyR", 82, 2);
+    await until("the run to end", `document.querySelector(".run-status.status-done, .run-status.status-failed")`, 40000);
+    assert.equal(await run<boolean>(`!!document.querySelector(".run-status.status-done")`), true);
+    await sleep(500);
+    assert.deepEqual(snapshot(repo), before);
+    if (tracked) assert.equal(git("status", "--porcelain", "--ignored").stdout, "");
+    // Recent has none of it: not the folder, not the flow
+    const recent = fs.existsSync(path.join(home, "recent.json")) ? JSON.parse(fs.readFileSync(path.join(home, "recent.json"), "utf8")).recent as { path: string }[] : [];
+    assert.deepEqual(recent.filter((e) => e.path.includes("paperboat-examples")), []);
+    assert.deepEqual(page.errors, []);
+  } finally {
+    await Promise.race([page?.cmd("Browser.close"), sleep(2000)]);
+    page?.close();
+    for (const k of kids) k.kill();
+    spawnSync("pkill", ["-f", "--", `--user-data-dir=${profile}`]);
+    await sleep(500);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
