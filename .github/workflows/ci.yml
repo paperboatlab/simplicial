@@ -24,6 +24,11 @@ jobs:
         run: cmake --build engine/build
       - name: Test
         run: ctest --test-dir engine/build --output-on-failure
+      # end to end: the engine just built, the page, and the runner's Chrome
+      - uses: actions/setup-node@v5
+        with: { node-version: 22, cache: npm }
+      - run: npm ci && npm run build
+      - run: npm run e2e
 
   protocol:
     name: Protocol types current

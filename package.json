@@ -16,7 +16,8 @@
     "build": "node web/scripts/build.ts",
     "dev": "node web/scripts/build.ts --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./web/scripts/kit.ts --test web/test/*.test.ts engine/toolkit/src/*/*/web/*.test.ts"
+    "test": "node --import ./web/scripts/kit.ts --test web/test/*.test.ts engine/toolkit/src/*/*/web/*.test.ts",
+    "e2e": "node --test web/e2e/*.test.ts"
   },
   "devDependencies": {
     "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#f23a9a9ac84f2de39146b8c8d4641fdbfdd77ce0",
