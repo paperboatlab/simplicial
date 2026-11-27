@@ -190,7 +190,7 @@ ix::HttpResponsePtr workspace_route(const std::string& path, const ix::HttpReque
     return respond(200, "application/json", workspace::recent().dump());
   }
   if (path == "/__paperboat/settings") {
-    if (post && !workspace::set_theme(body.value("theme", ""))) return respond(400, "text/plain", "theme: light, dark or system\n");
+    if (post && !workspace::save_settings(body)) return respond(400, "text/plain", "theme: light, dark or system; scale: 0.75, 1 or 1.25\n");
     return respond(200, "application/json", workspace::settings().dump());
   }
   std::lock_guard lock(workspace_lock);

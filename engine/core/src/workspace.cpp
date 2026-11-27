@@ -91,18 +91,26 @@ void remember(const std::string& kind, const fs::path& path, const std::string& 
 
 void forget() { write(home() / "recent.json", {{"version", 1}, {"recent", json::array()}}); }
 
+static bool is_scale(const json& s) { return s.is_number() && (s == 0.75 || s == 1 || s == 1.25); }
+
 json settings() {
   const json doc = read(home() / "settings.json");
-  const std::string t = doc.is_object() ? doc.value("theme", "") : "";
-  return {{"version", 1}, {"theme", t == "light" || t == "dark" ? t : "system"}};
+  const std::string t = doc.is_object() && doc.contains("theme") && doc["theme"].is_string() ? doc["theme"].get<std::string>() : "";
+  const json s = doc.is_object() ? doc.value("scale", json(1)) : json(1);
+  return {{"version", 1}, {"theme", t == "light" || t == "dark" ? t : "system"}, {"scale", is_scale(s) ? s : json(1)}};
 }
 
-bool set_theme(const std::string& theme) {
-  if (theme != "light" && theme != "dark" && theme != "system") return false;
+bool save_settings(const json& change) {
+  if (change.contains("theme")) {
+    const json& t = change["theme"];
+    if (!(t == "light" || t == "dark" || t == "system")) return false;
+  }
+  if (change.contains("scale") && !is_scale(change["scale"])) return false;
   json doc = read(home() / "settings.json");
   if (!doc.is_object()) doc = json::object();
   doc["version"] = 1;
-  doc["theme"] = theme;
+  for (const char* k : {"theme", "scale"})
+    if (change.contains(k)) doc[k] = change[k];
   return write(home() / "settings.json", doc);
 }
 

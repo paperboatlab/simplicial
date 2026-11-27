@@ -77,8 +77,8 @@ Settings
 File › Settings… (Ctrl ,) opens one window with its pages in a rail; a change applies at once, with
 no Save.
 
-- **General**: the theme, Light, Dark or System (it follows your computer's). It applies to every
-  Paperboat app and is the one they all start in next time.
+- **General**: the theme, Light, Dark or System (it follows your computer's), and the interface scale, Compact (75 %), Default or Large (125 %), which sizes text, icons and keys alike. Both
+  apply to every Paperboat app and are the ones they all start in next time.
 - **Simplicial**: **Station**, the one this window is on, with Choose a station… and Toolkits…; **Runs**, the
   station's run defaults, with Run settings… (what a flow changes is kept in its file); **Canvas**,
   the Flow's minimap in Navigator, on or off.

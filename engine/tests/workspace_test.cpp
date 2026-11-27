@@ -55,7 +55,7 @@ TEST_CASE("recent.json: newest first, one per kind and path, 40 at most, written
   fs::remove_all(home);
 }
 
-TEST_CASE("settings.json: the theme, its other keys kept") {
+TEST_CASE("settings.json: the theme and the scale, its other keys kept") {
   const fs::path home = fs::temp_directory_path() / "pb_ws_settings";
   fs::remove_all(home);
   setenv("PAPERBOAT_HOME", home.c_str(), 1);
@@ -63,8 +63,12 @@ TEST_CASE("settings.json: the theme, its other keys kept") {
   fs::create_directories(home);
   std::ofstream(home / "settings.json") << R"({"version": 1, "theme": "light", "launcher": {"tray": true}})";
   CHECK(ws::settings()["theme"] == "light");
-  CHECK(ws::set_theme("dark"));
-  CHECK_FALSE(ws::set_theme("blue"));
+  CHECK(ws::settings()["scale"] == 1);
+  CHECK(ws::save_settings({{"theme", "dark"}}));
+  CHECK_FALSE(ws::save_settings({{"theme", "blue"}}));
+  CHECK(ws::save_settings({{"scale", 1.25}}));
+  CHECK_FALSE(ws::save_settings({{"scale", 2}}));
+  CHECK(ws::settings()["scale"] == 1.25);
   const json doc = ws::read(home / "settings.json");
   CHECK(doc["theme"] == "dark");
   CHECK(doc["launcher"]["tray"] == true);

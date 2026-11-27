@@ -49,9 +49,10 @@ Close hub) and Settings… (Ctrl ,).
 - A file opened from **outside the workspace** switches to its folder, or to the hub that holds it.
 - **Closing** a flow with changes not saved asks first: Save, Don't save, or Cancel.
 
-The theme (Light, Dark or System, in Settings › General or View › Theme) and Recent are kept in
-``$PAPERBOAT_HOME`` (``recent.json``, ``settings.json``) for every Paperboat app: a theme picked here
-is the one every app starts in.
+The theme (Light, Dark or System, in Settings › General or View › Theme), the interface scale
+(Compact, Default or Large, in Settings › General) and Recent are kept in ``$PAPERBOAT_HOME``
+(``recent.json``, ``settings.json``) for every Paperboat app: a theme or scale picked here is the one
+every app starts in.
 
 A window works on one station. Opening a flow finds its station: at the flow's path first, then by
 name in the hub, among the installed stations (yours and the examples), and the running ones (the

@@ -15,8 +15,8 @@
 // Paperboat window (`shell()`), else a typed path and a download. Recent and the theme are the store every app shares.
 import {
   About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs,
-  Toasts, WindowKeys, isEnabled, readStored, typeLine, typing, ownKeys, useShortcuts, useTheme, useToasts, valueText, writeStored,
-  type Credit, type PaneRect, type SearchItem, type Theme, type Toast,
+  Toasts, WindowKeys, isEnabled, isScale, readStored, typeLine, typing, ownKeys, useScale, useShortcuts, useTheme, useToasts, valueText, writeStored,
+  type Credit, type PaneRect, type Scale, type SearchItem, type Theme, type Toast,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
 import type { FileEntry } from "@paperboatlab/ui/files";
@@ -53,7 +53,7 @@ import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
 import { Toolkits } from "./Toolkits.tsx";
 import { changed } from "./runSettings.ts";
 import {
-  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveTheme, setWorkspace,
+  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
 } from "./hubs.ts";
 import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote, type Note } from "./stationLink.ts";
@@ -137,6 +137,17 @@ export function App() {
   useEffect(() => writeStored("paperboat.theme", theme), [theme]);
   /** The theme picked here: every app starts in it next time (settings.json), and this one takes it at once. */
   const pickTheme = (t: Theme) => { setTheme(t); saveTheme(t).catch(() => {}); };
+  const [scale, setScale] = useState<Scale>(() => readStored("paperboat.scale", isScale) ?? 1);
+  useScale(scale);
+  useEffect(() => writeStored("paperboat.scale", scale), [scale]);
+  const pickScale = (s: Scale) => { setScale(s); saveScale(s).catch(() => {}); };
+  // another app may change them: read again when the window comes back
+  useEffect(() => {
+    const read = () => getSettings().then((v) => { const s = parseSettings(v); setTheme(s.theme); setScale(s.scale); }, () => {});
+    read();
+    addEventListener("focus", read);
+    return () => removeEventListener("focus", read);
+  }, []);
   const [minimap, setMinimap] = useState(() => readStored("simplicial.minimap", (v): v is boolean => typeof v === "boolean") ?? true);
   useEffect(() => writeStored("simplicial.minimap", minimap), [minimap]);
   const [settings, setSettings] = useState<string | null>(null); // the Settings window, on this page
@@ -202,7 +213,6 @@ export function App() {
   const loadRecent = () => void getRecent().then((r) => setRecent(r.recent ?? []), () => {});
   useEffect(() => {
     getWorkspace().then((r) => { setWs(r.workspace); setUserHome(r.home); }, () => {});
-    getSettings().then((s) => setTheme(parseSettings(s).theme), () => {});
     loadRecent();
     void listHubs().then(setHubs);
   }, []);
@@ -835,7 +845,7 @@ export function App() {
         info={[state.engine ? `engine ${state.version ?? "?"} · protocol paperboat/0 · station ${state.engine}` : "no station", __COMMIT__ && `commit ${__COMMIT__}`].filter(Boolean).join(" · ")}
         repo="paperboatlab/simplicial" credits={CREDITS} onClose={() => setAbout(false)} />}
       {runDialog && <RunSettingsDialog defaults={state.runDefaults} value={runSettings} onChange={setRun} onClose={() => setRunDialog(false)} name={state.engine || undefined} />}
-      {settings && <SettingsWindow key={settings} page={settings} onClose={() => setSettings(null)} theme={theme} onTheme={pickTheme}
+      {settings && <SettingsWindow key={settings} page={settings} onClose={() => setSettings(null)} theme={theme} onTheme={pickTheme} scale={scale} onScale={pickScale}
         station={state.engine || undefined} address={URL_} runDefaults={state.runDefaults} minimap={minimap} onMinimap={setMinimap} workspace={ws} home={userHome}
         onMalachite={ws?.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined} commands={commands} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}

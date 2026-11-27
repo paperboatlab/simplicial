@@ -75,11 +75,11 @@ a path stays inside it, never through a dot entry, and only a ``.psf`` is writte
    "root", "name", "hub"?} | null, "home"}``. A folder inside a hub's is that hub; a file's is its
    folder's (or hub's), and the answer has its ``path`` in it; ``{}`` closes it.
 
-``GET /__paperboat/recent``, ``/__paperboat/settings``; ``POST`` ``{"clear": true}``, ``{"theme"}``
+``GET /__paperboat/recent``, ``/__paperboat/settings``; ``POST`` ``{"clear": true}``, ``{"theme"?, "scale"?}``
    The store every Paperboat app shares in ``$PAPERBOAT_HOME`` (else ``$XDG_DATA_HOME/paperboat``,
    else ``~/.local/share/paperboat``): ``recent.json`` (``{"version": 1, "recent": [{"kind", "path",
    "hub"?, "app", "at"}]}``, newest first, one per kind and path, 40 at most; a workspace and every flow
-   read or written are added) and ``settings.json`` (``{"version": 1, "theme"}``), each written whole
+   read or written are added) and ``settings.json`` (``{"version": 1, "theme", "scale"}``: ``scale`` is 0.75, 1 or 1.25), each written whole
    to a temporary file, then renamed.
 
 ``GET /__paperboat/hub/files?hub=`` (or ``?folder=``)
