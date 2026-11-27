@@ -3,7 +3,7 @@
 // search over names, descriptions, ports and params. A card says the block's name, kind, what it does and its ports.
 // Click or Enter adds it to the Flow (as quick add does), or drag it onto the canvas (cardDrop.ts plans the drop).
 // Arrows move between cards; Esc closes. Quick add (/) stays the fast way at the cursor.
-import { Dialog, Icon, Tag } from "@paperboatlab/ui";
+import { Dialog, Icon, Key, Tag } from "@paperboatlab/ui";
 import { BlockIcon, Glyph, captionValue } from "@paperboatlab/ui/canvas";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { BlockDef, ParamValue, ToolkitStatus } from "../protocol.ts";
@@ -26,7 +26,7 @@ function Plate({ def }: { def: BlockDef }) {
   );
 }
 
-export function BlockLibrary({ blocks, toolkits, used, onAdd, onClose }: {
+export function BlockLibrary({ blocks, toolkits, used, onAdd, onClose, onToolkits }: {
   /** The palette: the catalog's blocks, linked ones left out. */
   blocks: BlockDef[];
   toolkits: ToolkitStatus[];
@@ -34,6 +34,8 @@ export function BlockLibrary({ blocks, toolkits, used, onAdd, onClose }: {
   used: Record<string, number>;
   onAdd: (def: BlockDef) => void;
   onClose: () => void;
+  /** Run › Toolkits…, from a toolkit not installed. */
+  onToolkits?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("");  // "" every package; else one, or "tk:<name>" a toolkit not installed
@@ -132,7 +134,8 @@ export function BlockLibrary({ blocks, toolkits, used, onAdd, onClose }: {
               <div className="lib-absent">
                 <h3>{title(missing.name)} <Tag>not installed</Tag></h3>
                 {missing.description && <p>{missing.description}</p>}
-                <p>Install it, then restart the station: <code>paperboat toolkit install {missing.name}</code></p>
+                <p>Install it in Toolkits…, or with <code>paperboat toolkit install {missing.name}</code>, then restart the station.</p>
+                {onToolkits && <p><Key size="sm" icon="extensions" onClick={onToolkits}>Toolkits…</Key></p>}
                 {missing.blocks && <div className="lib-names">{missing.blocks.map((n) => <Tag key={n}>{n}</Tag>)}</div>}
               </div>
             ) : flat.length === 0 ? (

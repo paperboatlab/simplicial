@@ -51,6 +51,10 @@ export type Do = {
   cancel: () => void;
   /** Choose a station: the page opens on the one picked. */
   station: () => void;
+  /** Run settings…; absent without a station. */
+  runSettings?: () => void;
+  /** Toolkits…; absent without a station. */
+  toolkits?: () => void;
   report: () => void;
   about: () => void;
   /** Settings on its Shortcuts page. */
@@ -118,8 +122,9 @@ export function registry(v: View, a: Do): Command[] {
 
     { id: "run.run", label: "Run", menu: "run", group: "run", shortcut: "Ctrl R", chord: { key: "r", ctrl: true }, enabled: !v.whyNot, why: v.whyNot, run: a.run },
     { id: "run.cancel", label: "Cancel", menu: "run", group: "run", shortcut: "Esc", enabled: v.running, why: "Nothing is running", run: a.cancel },
-    later("run.settings", "Run settings…", "run", "flow"),
+    { id: "run.settings", label: "Run settings…", menu: "run", group: "flow", enabled: !!a.runSettings, why: "No station: open the flow on its station", run: () => a.runSettings?.() },
     { id: "run.station", label: "Choose a station…", menu: "run", group: "station", run: a.station },
+    { id: "run.toolkits", label: "Toolkits…", menu: "run", group: "station", enabled: !!a.toolkits, why: "No station: toolkits install into the engine that serves one", run: () => a.toolkits?.() },
     later("run.export", "Export station…", "run", "station"),
 
     later("help.docs", "Docs", "help", "docs", "F1"),

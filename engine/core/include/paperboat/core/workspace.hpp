@@ -2,7 +2,7 @@
 
 // The one file workflow (plans/2026-11-26_11-05_one_file_workflow.md, "The contract every app follows"): what the
 // page works in (a folder on this computer or a hub, switched at runtime), and the store every Paperboat app shares
-// under $PAPERBOAT_HOME: `recent.json` (folders, hubs and files opened, newest first) and `settings.json` (the theme).
+// under $PAPERBOAT_HOME: `recent.json` (folders, hubs and files opened, newest first) and `settings.json` (the theme and the interface scale).
 
 #include <filesystem>
 #include <string>
@@ -29,10 +29,11 @@ void remember(const std::string& kind, const std::filesystem::path& path, const 
 // Clear recent.
 void forget();
 
-// settings.json as read: {version: 1, theme: "light" | "dark" | "system"} ("system" when unset).
+// settings.json as read: {version: 1, theme: "light" | "dark" | "system", scale: 0.75 | 1 | 1.25} ("system", 1 when unset).
 nlohmann::json settings();
-// The theme every app starts in; the file's other keys stay.
-bool set_theme(const std::string& theme);
+// The theme and the interface scale every app starts in ({theme?, scale?}); false, and nothing written, on a
+// value not among them. The file's other keys stay.
+bool save_settings(const nlohmann::json& change);
 
 // The workspace a folder is: the hub whose folder holds it (`hubs` as hubs::known gives them), else the folder
 // itself: {kind: "folder" | "hub", root, name, hub?}.

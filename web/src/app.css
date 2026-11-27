@@ -275,7 +275,7 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 /* The block library (flow/BlockLibrary.tsx, the Flow's Add block): packages on the rail's ground at the left (as
    Settings' pages), the search, the cards in a grid; the chosen card tinted with the soft selection outline. While a
    card is dragged out, the library fades and lets the pointer through to the canvas. */
-.dialog.block-library { width: min(1080px, calc(100vw - 32px)); height: min(700px, calc(100vh - 64px)); padding-bottom: 0; }
+.dialog.block-library { width: min(1080px, calc(100vw / var(--page-zoom, 1) - 32px)); height: min(700px, calc(100vh / var(--page-zoom, 1) - 64px)); padding-bottom: 0; }
 .lib-body { flex: 1; min-height: 0; display: flex; gap: 18px; }
 .lib-nav { flex: none; width: 176px; display: flex; flex-direction: column; gap: 2px; padding: 6px; margin-bottom: 18px; border-radius: var(--radius-lg); background: var(--surface-sunken); overflow: auto; }
 .lib-nav button { all: unset; box-sizing: border-box; flex: none; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: var(--radius-md); color: var(--text-muted); cursor: pointer; transition: background var(--motion), color var(--motion); }
@@ -316,3 +316,7 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 .lib-foot { flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 10px 2px 12px; border-top: 1px solid var(--line); font-size: var(--size-meta); color: var(--text-muted); }
 .lib-foot kbd { font: var(--size-3xs) var(--font-mono); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-right: 4px; }
 body.lib-dragging .dialog-scrim:has(.block-library) { opacity: 0; pointer-events: none; transition: opacity var(--motion); }
+
+/* Run settings…: the controls in one column, a unit after each number */
+.dialog.run-settings .set-row .well { width: 150px; flex: none; }
+.dialog.run-settings .unit { width: 1.5em; color: var(--text-muted); font: var(--size-2xs) var(--font-mono); }
