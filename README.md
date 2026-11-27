@@ -35,9 +35,10 @@ Serve `web/dist/` and open it with `?station=ws://localhost:<port>` (a station s
 
 ```sh
 npm run typecheck && npm test
+npm run e2e         # open, edit, save, reopen in a headless Chromium; needs engine/build and web/dist
 ```
 
-[ci.yml](.github/workflows/ci.yml) builds and tests the engine, checks the protocol types and checks the page on every pull request.
+[ci.yml](.github/workflows/ci.yml) builds and tests the engine, runs the e2e on it, checks the protocol types and checks the page on every pull request.
 
 ## Licence
 

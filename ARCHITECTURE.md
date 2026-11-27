@@ -61,8 +61,12 @@ come back out of process over `paperboat-runtime/0` (#7).
   - `src/App.tsx`: the frame. The splash until a station says hello; the bar; the page rail (Navigator
     only); the Station, Flow and Board pages laid out by the view mode (Navigator, Commander, Lookout;
     hidden panes kept per mode); the Variables card; the run dock; the Console window; the floating
-    search and quick add; Settings (`SettingsWindow.tsx`, the kit's `Settings`: General with the theme, Simplicial,
-    Hub while in one, Shortcuts; no Editor, there is no editor pane). It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
+    search and quick add; Settings (`SettingsWindow.tsx`, the kit's `Settings`: General with the theme, Simplicial
+    (Station, Runs, Canvas), Hub while in one, Shortcuts; no Editor, there is no editor pane); Run settings…
+    (`RunSettingsDialog.tsx` on the kit's `Dialog` and Settings' rows; `runSettings.ts`, pure and tested: the solvers the
+    engine announced, the options each reads, and `changed`, what a flow keeps: only what differs from the station's);
+    Toolkits… (`Toolkits.tsx`: the kit's `PackageWindow` and `PackagePanel` over `toolkits.status`; `toolkit.install`,
+    `toolkit.uninstall`, `toolkit.versions` and `station.restart` are the station's). It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
     kit's `useUndo`) and the open level. `app.css` draws only what the kit doesn't.
   - `src/station/`: the Station page. `StationPage.tsx`: the 3D view on the kit's stage (`@paperboatlab/ui/stage`; a click
     picks the object a part belongs to, its properties float over the corner) and the Graph view (objects and joints as the
@@ -121,6 +125,9 @@ come back out of process over `paperboat-runtime/0` (#7).
     block to a kit face (reads the block's params and the run, hands the face plain values). The build
     gathers every built-in one into the bundle (`toolkit-web` in `scripts/build.ts`), `tsc` checks them with the page,
     and their `*.test.ts` run with `npm test`; the page names no instrument kind.
+  - `e2e/`: end to end (`npm run e2e`): the scratchpad station and the page server from `engine/build`, the built page in a
+    headless Chromium over CDP: open a flow from a folder, edit it, save it, reopen it. Skipped without an engine build, a
+    page build or a browser.
 
 ## 3. Invariants
 

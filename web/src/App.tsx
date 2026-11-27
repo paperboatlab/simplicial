@@ -49,6 +49,9 @@ import { fileItems, MENUS, MODES, NO_STATION, PAGES, PANES, registry, type Mode,
 import { applyOverrides, buildProject, diff, mergeOverrides, relPath, stationOf, upgrade, type Misfit } from "./project.ts";
 import { useProject } from "./projectSession.ts";
 import { SettingsWindow } from "./SettingsWindow.tsx";
+import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
+import { Toolkits } from "./Toolkits.tsx";
+import { changed } from "./runSettings.ts";
 import {
   clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
@@ -63,7 +66,6 @@ const WITHOUT = !!OPENING.nostation;
 const URL_ = WITHOUT ? "" : OPENING.station ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
 const PORT = Number(/:(\d+)/.exec(URL_.replace(/^wss?:\/\//, ""))?.[1] ?? 0);
 const ISSUES = "https://github.com/paperboatlab/simplicial/issues/new";
-const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
 /** What Simplicial ships beyond the kit: the engine's libraries (engine/CMakeLists.txt; licences from their own files). */
 const CREDITS: Credit[] = [
   ["nlohmann/json", "the station's JSON", "MIT", "https://github.com/nlohmann/json"],
@@ -110,11 +112,7 @@ function RunOptions({ defaults, value, onChange }: { defaults: RunSettings; valu
   useEffect(() => setDraft(lengthText(duration)), [duration]);
   const finite = useRef(duration || defaults.duration || 10); // what ∞ goes back to
   if (duration > 0) finite.current = duration;
-  const set = (change: RunSettings) => {
-    const next = { ...value, ...change };
-    for (const k of ["duration", "speed"] as const) if (next[k] === defaults[k]) delete next[k];  // only what changed goes with the run
-    onChange(next);
-  };
+  const set = (change: RunSettings) => onChange(changed({ ...value, ...change }, defaults));  // only what changed goes with the run
   const commit = () => { const d = parseLength(draft); if (d !== undefined) set({ duration: d }); else setDraft(lengthText(duration)); };
   return (
     <span className="run-options" title="The next run's length and speed (the station's defaults until changed; ∞ runs until cancelled)">
@@ -171,6 +169,8 @@ export function App() {
   useEffect(() => { if (state.connection === "closed") setRetrying(true); }, [state.connection]);
   useEffect(() => { if (state.engine) remember(URL_); }, [state.engine]);
   const [about, setAbout] = useState(false);
+  const [runDialog, setRunDialog] = useState(false);  // Run › Run settings…
+  const [toolkits, setToolkits] = useState(false);    // Run › Toolkits…
   const [picker, setPicker] = useState(false);   // Choose a station, from File; over the splash while none answers
   const [still, setStill] = useState(true);       // nothing moves at start-up: the saved layout is simply there
   const conKey = useRef<HTMLButtonElement>(null);
@@ -597,6 +597,12 @@ export function App() {
     });
   };
   const cancel = () => send({ type: "run.cancel" });
+  /** The next run's settings (the run dock's, Run settings…): a new speed reaches the run in progress at once. */
+  const setRun = (next: RunSettings) => {
+    const speed = (s: RunSettings) => s.speed ?? state.runDefaults.speed ?? 1;
+    if (running && speed(next) !== speed(runSettings)) send({ type: "run.speed", speed: speed(next) });
+    setRunSettings(next);
+  };
   const errors = state.logs.filter((l) => l.level === "error").length;
 
   const picked = nodes.some((n) => n.selected && !(isBlock(n) && n.data.def.linked));
@@ -616,7 +622,7 @@ export function App() {
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme: pickTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
+      run, cancel, station: () => setPicker(true), runSettings: WITHOUT ? undefined : () => setRunDialog(true), toolkits: WITHOUT ? undefined : () => setToolkits(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -682,11 +688,7 @@ export function App() {
   const dock = (
     <Dock canRun={!whyNot} whyNot={whyNot} running={running} status={status} statusText={statusText} onRun={run} onCancel={cancel}
       optionsSlot={state.runDefaults.mode === "clock" && (
-        <RunOptions defaults={state.runDefaults} value={runSettings} onChange={(next) => {
-          const speed = (s: RunSettings) => s.speed ?? state.runDefaults.speed ?? 1;
-          if (running && speed(next) !== speed(runSettings)) send({ type: "run.speed", speed: speed(next) });  // the run takes it at once
-          setRunSettings(next);
-        }} />
+        <RunOptions defaults={state.runDefaults} value={runSettings} onChange={setRun} />
       )} />
   );
   const [hoverVar, setHoverVar] = useState<string | null>(null); // the Variables row the pointer is on: its blocks are marked
@@ -842,12 +844,15 @@ export function App() {
       {about && <About app="simplicial" role="Visual flow, station and block-diagram simulation" version={__VERSION__}
         info={[state.engine ? `engine ${state.version ?? "?"} · protocol paperboat/0 · station ${state.engine}` : "no station", __COMMIT__ && `commit ${__COMMIT__}`].filter(Boolean).join(" · ")}
         repo="paperboatlab/simplicial" credits={CREDITS} onClose={() => setAbout(false)} />}
+      {runDialog && <RunSettingsDialog defaults={state.runDefaults} value={runSettings} onChange={setRun} onClose={() => setRunDialog(false)} name={state.engine || undefined} />}
       {settings && <SettingsWindow key={settings} page={settings} onClose={() => setSettings(null)} theme={theme} onTheme={pickTheme} scale={scale} onScale={pickScale}
         station={state.engine || undefined} address={URL_} runDefaults={state.runDefaults} minimap={minimap} onMinimap={setMinimap} workspace={ws} home={userHome}
         onMalachite={ws?.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined} commands={commands} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
-      {library && !lock && <BlockLibrary blocks={blocks} toolkits={state.toolkits} onClose={() => setLibrary(false)}
+      {toolkits && <Toolkits toolkits={state.toolkits} connected={state.connection === "open"} version={state.version} station={state.engine || undefined}
+        send={send} onClose={() => setToolkits(false)} />}
+      {library && !lock && <BlockLibrary blocks={blocks} toolkits={state.toolkits} onClose={() => setLibrary(false)} onToolkits={() => { setLibrary(false); setToolkits(true); }}
         used={nodes.filter(isBlock).reduce<Record<string, number>>((m, n) => ({ ...m, [n.data.def.type]: (m[n.data.def.type] ?? 0) + 1 }), {})}
         onAdd={(b) => {  // in the middle of the Flow in view, as quick add does at the cursor
           const r = flowBody.current?.getBoundingClientRect();
