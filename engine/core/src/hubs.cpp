@@ -11,6 +11,7 @@
 #include <system_error>
 #include <vector>
 
+#include "paperboat/core/examples.hpp"
 #include "paperboat/core/process.hpp"
 #include "paperboat/core/station_manager.hpp"
 #include "paperboat/toolkit/installer.hpp"
@@ -228,7 +229,8 @@ json known(const std::string& cli) {
   json out = json::array();
   if (!all.is_array()) return out;
   for (const auto& h : all) {
-    if (h.is_object() && h.value("id", "") != "" && h.value("path", "") != "") out.push_back(h);
+    // an example's hub (paperboat-examples' hubs/, its Malachite examples) is read-only, not one of the user's
+    if (h.is_object() && h.value("id", "") != "" && h.value("path", "") != "" && !examples::inside(h.value("path", ""))) out.push_back(h);
   }
   return out;
 }

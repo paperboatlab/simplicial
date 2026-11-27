@@ -112,8 +112,8 @@ export const copyExample = async (id: string, to: string): Promise<string> =>
 
 // ---- The workspace, switched at runtime, and the shared store ----
 
-/** What the page's server works in now, and the home folder (shown as ~). */
-export type Served = { workspace: Workspace | null; home?: string; path?: string };
+/** What the page's server works in now (`example`: an example's folder, read-only: paperboat#75), and the home folder (shown as ~). */
+export type Served = { workspace: (Workspace & { example?: boolean }) | null; home?: string; path?: string };
 export const getWorkspace = async (): Promise<Served> => (await ask("/__paperboat/workspace")).json();
 /** Work in a folder (or the hub that holds it), a hub, the folder or hub of a file (`path`: the file's in it), or nothing. */
 export const setWorkspace = async (to: { folder: string } | { hub: string } | { file: string } | Record<string, never>): Promise<Served> =>

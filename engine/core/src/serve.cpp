@@ -21,6 +21,7 @@
 
 #include "paperboat/toolkit/installer.hpp"
 #include "paperboat/toolkit/platform.hpp"
+#include "paperboat/core/examples.hpp"
 #include "paperboat/core/hubs.hpp"
 #include "paperboat/core/process.hpp"
 #include "paperboat/core/server.hpp"
@@ -281,6 +282,8 @@ ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr&
   }
   if (request->method != "POST" || !from_page(request))
     return respond(405, "text/plain", "POST from the page writes a file\n");
+  if (examples::inside(*file))  // read-only (paperboat#75): the banner's Copy makes one to change
+    return respond(403, "text/plain", file->filename().string() + " is in an example, which is read-only: copy the example to change it\n");
   // to a temp file, then renamed: a sync client never sees half a file
   fs::create_directories(file->parent_path(), ec);
   const fs::path tmp = file->string() + ".saving";

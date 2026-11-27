@@ -53,7 +53,7 @@ import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
 import { Toolkits } from "./Toolkits.tsx";
 import { changed } from "./runSettings.ts";
 import {
-  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listExamples, listHub, listHubs, copyExample, manageRuntimes, openExample, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
+  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listExamples, listHub, listHubs, copyExample, manageRuntimes, openExample, openInMalachite, readFlow, rootOf, type Served, saveScale, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
 } from "./hubs.ts";
 import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote, type Note } from "./stationLink.ts";
@@ -105,6 +105,8 @@ const PANE_NAME: Record<Pane, [string, string?]> = { r: ["Variables", "Ctrl Alt 
 const FIT: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "56px" }, maxZoom: 1.2 };  // clear of the canvas tools
 const FIT_DOCK: FitViewOptions = { padding: { top: "32px", left: "32px", right: "32px", bottom: "128px" }, maxZoom: 1.2 };  // clear of the dock and the minimap
 const LOCKED = "A run is in progress: cancel it to edit the flow";
+/** Why nothing in an example's window can be edited or saved (paperboat#75): it opened where it is. */
+const READ_ONLY = "An example is read-only: copy it to change it";
 const fmt = (v: unknown) => (typeof v === "number" ? String(Number(v.toPrecision(4))).replace("-", "−") : String(v));
 
 /** How long and how fast the next run goes, beside Run (legacy RunOptions): the station's defaults until changed; ∞ (0 s) runs until cancelled. */
@@ -180,7 +182,11 @@ export function App() {
   const mouse = useRef<{ x: number; y: number } | null>(null);
 
   const running = state.run?.status === "running";
-  const lock = running ? LOCKED : WITHOUT ? "No station: open the flow on its station to edit and run it" : "";
+  // the workspace (a folder or a hub, the page's server's: hubs.ts), below; an example's (its URL, or its folder as the
+  // server knows it: `example`) can't be edited or saved, only run (paperboat#75)
+  const [ws, setWs] = useState<Served["workspace"]>(null);
+  const example = !!EXAMPLE || !!ws?.example;
+  const lock = running ? LOCKED : WITHOUT ? "No station: open the flow on its station to edit and run it" : example ? READ_ONLY : "";
   // The Flow canvas: its blocks and wires (what a run sends), the level open on it, undo, and what its menus do.
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Wire>([]);
@@ -199,9 +205,8 @@ export function App() {
   const layout = saved ?? state.board;
   const [arranging, setArranging] = useState(false);
 
-  // The workspace (a folder or a hub, the page's server's: hubs.ts), the file open in it, and the store every app shares.
+  // The workspace's file open in it, and the store every app shares.
   // A flow is a child of its station (format 1, project.ts): it opens on it, found by its path, else by name (E1–E9 below).
-  const [ws, setWs] = useState<Workspace | null>(null);
   const [userHome, setUserHome] = useState<string>();
   const [recent, setRecent] = useState<RecentEntry[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
@@ -422,6 +427,9 @@ export function App() {
     const p = await sh.pickFolder("Copy the example to");
     if (p) copyTo(p);
   };
+  /** A save in an example's window: refused, its Copy offered (the server refuses one too). */
+  const refuse = () => notes.show({ title: `${EXAMPLE?.name ?? ws?.name ?? "This"} is an example`, detail: READ_ONLY, state: "warning",
+    ...(EXAMPLE ? { actions: [{ label: "Copy it", primary: true, run: () => void copyExampleTo() }] } : {}) });
   const newHub = () => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" });
   const askConnect = async (thenOpen = false) => { setHubs(await listHubs()); setAsk(thenOpen ? "connect-open" : "connect"); };
   /** Open file…: in a hub, our picker over it; outside one, a local file or a hub (Malachite installed), else a local file. */
@@ -486,6 +494,7 @@ export function App() {
   };
   /** Save as…: in a hub, our picker; else the system's dialog (its folder, or the hub that holds it, becomes the workspace), else a download. */
   const saveFileAs = async () => {
+    if (example) return refuse();
     if (ws?.kind === "hub") return setFilePick("save");
     const sh = shell();
     if (!sh) return download();
@@ -501,6 +510,7 @@ export function App() {
   };
   /** Write the flow to `path` in a hub or folder: its station's path from there (that place's station of its name), else by name (E8). */
   const writeIn = async (root: Root, path: string): Promise<Note | null> => {
+    if (example) throw new Error(READ_ONLY);
     let f: Finding | null = null;
     try { f = await findStation({ ...root, name: state.engine, version: ref.version }); } catch { /* by name */ }
     const place = f && "found" in f && (f.found.where === "path" || f.found.where === "workspace") ? f.found : null;
@@ -529,6 +539,7 @@ export function App() {
   };
   /** Save: back where it came from; a new flow, or a download, asks where (Save as…). */
   const saveFile = () => {
+    if (example) return refuse();
     const root = rootOf(file);
     if (!root || !file) return void saveFileAs();
     void saveIn(root, file.path);
@@ -634,7 +645,7 @@ export function App() {
     noun: "flow", workspace: ws, file: booted && !showStart, hubs: hubs.length > 0, recent: recentItems,
     onNew: newProject, onOpenFile: () => void openFile(), onOpenFolder: () => void openFolder(), onConnect: () => void askConnect(),
     onSave: saveFile, onSaveAs: () => void saveFileAs(), onCloseFile: closeFile, onCloseWorkspace: closeWorkspace, onSettings: () => setSettings("general"),
-  }), running);
+  }), running, example ? READ_ONLY : "");
   const commands = [...files, ...registry(
     {
       mode, page: shownPage, station, hidden: hid, console: consoleOpen, theme, running, whyNot,
@@ -801,7 +812,7 @@ export function App() {
                     </>}>
                     <Vars.Provider value={vars}>
                     <StationPage station={state.station} defs={state.objects} scene={sceneOf(state)} view={state.view} grid={gridOn} mode={sview}
-                      locked={running} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }}
+                      locked={running || example} onChange={(station) => send({ type: "station.set", station })} onBlock={(id) => { go("flow"); pick(id); }}
                       starter={state.starter.station} changed={changes.overrides.objects} name={state.engine} />
                     </Vars.Provider>
                   </Panel>
@@ -854,7 +865,7 @@ export function App() {
             </div>
             {mode !== "lookout" && !showStart && dock}
           </div>
-          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running || WITHOUT}
+          <Variables hidden={hid("r")} onHidden={(h) => toggle("r", !h)} list={state.variables} values={state.varValues} error={state.varError} locked={running || WITHOUT || example} readOnly={example ? READ_ONLY : undefined}
               onHover={setHoverVar} onChange={(variables) => send({ type: "variables.set", variables })}
               starter={state.starter.variables} changed={changedVars} station={state.engine}
               live={state.remoteVariables} liveFrom={state.remoteSource}

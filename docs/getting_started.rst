@@ -23,6 +23,11 @@ window works in (with none, Simplicial asks for one); the copy opens in a new wi
 example downloaded from GitHub is replaced after a day, so the line says changes there aren't kept.
 Without Paperboat installed the list is empty.
 
+An example is read-only: its Flow, Station page and Variables don't change, Save and Save as are off,
+and nothing is written into its folder. A run works as usual; a C++ example builds in
+``$PAPERBOAT_HOME/cache/simplicial/examples``, not in its own ``build/``. An example isn't added to
+Recent, and an example's hub isn't listed among the hubs. The copy is yours to change.
+
 Ports
 -----
 

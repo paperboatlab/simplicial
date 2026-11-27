@@ -13,7 +13,7 @@ import { liveRows, newVariable, sourceLabel, withVariable } from "./variableEdit
 const TYPES: Variable["type"][] = ["number", "boolean", "text", "enum", "matrix"];
 
 
-export function Variables({ hidden, onHidden, list, values, error, locked, onChange, onRename, onHover, starter, changed, station, live = [], liveFrom = "" }: {
+export function Variables({ hidden, onHidden, list, values, error, locked, readOnly, onChange, onRename, onHover, starter, changed, station, live = [], liveFrom = "" }: {
   hidden: boolean;
   onHidden: (hidden: boolean) => void;
   list: List;
@@ -22,6 +22,8 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   error?: { text: string; at?: string } | null;
   /** A run is going: the list waits for it (a tunable one's value still changes). */
   locked: boolean;
+  /** Why nothing can change, a tunable one included: an example's window (paperboat#75). */
+  readOnly?: string;
   onChange: (next: List) => void;
   /** A variable renamed: the Flow's params bound to it follow. */
   onRename: (from: string, to: string) => void;
@@ -36,6 +38,7 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   liveFrom?: string;
 }) {
   const [open, setOpen] = useState<string | null>(null);
+  const fixed = (v: Variable) => !!readOnly || (locked && !v.tunable);
   const groups = new Map<string, List>();
   for (const v of list) groups.set(v.group ?? "", [...(groups.get(v.group ?? "") ?? []), v]);
   const add = () => {
@@ -46,7 +49,7 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
   return (
     <Panel name="Variables" side="right" width={312} icon="a-variables" count={list.length} hidden={hidden} onHidden={onHidden}
       tools={<>
-        <Key size="sm" kind="quiet" icon="add" disabled={locked} title={locked ? "Wait for the run to end" : "A new variable, to bind to blocks' params"} onClick={add}>Variable</Key>
+        <Key size="sm" kind="quiet" icon="add" disabled={locked || !!readOnly} title={readOnly || (locked ? "Wait for the run to end" : "A new variable, to bind to blocks' params")} onClick={add}>Variable</Key>
       </>}>
       {!list.length && !live.length && <p className="vnone">No variables yet: add one, then bind a block's param to it</p>}
       <VariableList>
@@ -59,10 +62,10 @@ export function Variables({ hidden, onHidden, list, values, error, locked, onCha
                 <div key={v.name} className={theirs ? "var-ov" : "var-own"}
                   title={theirs ? `Changed by this flow; ${station} says ${theirs.expr ? `ƒ ${theirs.expr}` : valueText(theirs.value, theirs.type)}` : undefined}>
                 <VariableRow key={v.name} name={v.name} type={typeLine(v)} value={valueText(shown, v.type)} open={open === v.name}
-                  off={locked && !v.tunable} why={locked && !v.tunable ? "Not tunable: it changes after the run" : v.note}
+                  off={fixed(v)} why={readOnly || (fixed(v) ? "Not tunable: it changes after the run" : v.note)}
                   error={error?.at === v.name ? error.text : undefined} onOpen={() => setOpen(open === v.name ? null : v.name)}
                   onDismiss={() => setOpen(null)} onHover={(on) => onHover(on ? v.name : null)}>
-                  <Editor v={v} list={list} locked={locked && !v.tunable}
+                  <Editor v={v} list={list} locked={fixed(v)}
                     onChange={(next) => {
                       onChange(withVariable(list, v.name, next));
                       if (next.name !== v.name) { onRename(v.name, next.name); setOpen(next.name); }
