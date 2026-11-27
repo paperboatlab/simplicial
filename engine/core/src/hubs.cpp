@@ -13,7 +13,6 @@
 
 #include "paperboat/core/process.hpp"
 #include "paperboat/core/station_manager.hpp"
-#include "paperboat/core/workspace.hpp"
 #include "paperboat/toolkit/installer.hpp"
 
 namespace paperboat::core::hubs {
@@ -168,9 +167,8 @@ Elsewhere elsewhere() {
   Elsewhere out;
   std::vector<fs::path> dirs;
   std::error_code ec;
-  // the user's stations, and the examples `paperboat example open` copied ($PAPERBOAT_HOME/examples/simplicial/<name>)
-  for (const fs::path& parent : {StationManager::user_stations_dir(), workspace::home() / "examples" / "simplicial"}) {
-    if (parent.empty() || !fs::is_directory(parent, ec)) continue;
+  // the user's stations (an example opens where it is, a copy of one lives in the user's folder: paperboat#75)
+  if (const fs::path parent = StationManager::user_stations_dir(); !parent.empty() && fs::is_directory(parent, ec)) {
     for (const auto& d : fs::directory_iterator(parent, ec)) {
       if (fs::is_regular_file(d.path() / "station.toml", ec)) dirs.push_back(d.path());
     }
@@ -246,15 +244,38 @@ json examples(const std::string& cli) {
   return out;
 }
 
-json open_example(const std::string& cli, const std::string& id) {
-  if (id.empty() || id.starts_with('-')) return {{"error", "no example named"}};
-  const auto r = ProcessRunner::run_sync({cli, "example", "open", id, "--json"}, {}, {}, std::chrono::seconds(120));
+namespace {
+
+// `<cli> example <argv…> --json` (no shell): its JSON, or {error}: the CLI's, else its stderr, else "can't run".
+json run_example(const std::string& cli, std::vector<std::string> argv) {
+  const std::string what = cli + " example " + argv[0] + " " + argv[1];
+  argv.insert(argv.begin(), {cli, "example"});
+  argv.push_back("--json");
+  const auto r = ProcessRunner::run_sync(argv, {}, {}, std::chrono::seconds(120));
   const json doc = json::parse(r.stdout_text, nullptr, /*allow_exceptions=*/false);
   if (r.ok() && doc.is_object() && !doc.contains("error")) return doc;
   if (doc.is_object() && doc.contains("error") && doc["error"].is_string()) return {{"error", doc["error"]}};
   std::string why = r.stderr_text;
   while (!why.empty() && std::isspace(static_cast<unsigned char>(why.back()))) why.pop_back();
-  return {{"error", why.empty() ? "can't run " + cli + " example open " + id : why}};
+  return {{"error", why.empty() ? "can't run " + what : why}};
+}
+
+// A folder the page names for --to: absolute, never a flag for the CLI.
+bool folder_ok(const std::string& to) { return !to.starts_with('-') && fs::path(to).is_absolute(); }
+
+}  // namespace
+
+json open_example(const std::string& cli, const std::string& id, const std::string& to) {
+  if (id.empty() || id.starts_with('-')) return {{"error", "no example named"}};
+  if (to.empty()) return run_example(cli, {"open", id});
+  if (!folder_ok(to)) return {{"error", to + " is not an absolute folder"}};
+  return run_example(cli, {"open", id, "--to", to});
+}
+
+json copy_example(const std::string& cli, const std::string& id, const std::string& to) {
+  if (id.empty() || id.starts_with('-')) return {{"error", "no example named"}};
+  if (!folder_ok(to)) return {{"error", (to.empty() ? "no folder" : to + " is not an absolute folder")}};
+  return run_example(cli, {"copy", id, "--to", to, "--open"});
 }
 
 json list(const std::string& cli) {

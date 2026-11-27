@@ -1035,7 +1035,7 @@ fs::path StationManager::resolve_station_dir(const fs::path& path_or_domain) {
   }
 
   // The user's installed stations, a sibling folder, an installed toolkit's examples. Paperboat's examples are
-  // paths: `paperboat example open` copies one to $PAPERBOAT_HOME/examples (paperboat#72).
+  // paths: `paperboat example open` opens one where it is, `example copy` into the user's folder (paperboat#75).
   const fs::path root = toolkit::find_repo_root();
   const std::string name = p_check.string();
   const fs::path ub_dir = user_stations_dir();
