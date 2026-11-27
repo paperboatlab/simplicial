@@ -7,6 +7,7 @@ example's result fails here. Every message is also checked against the protocol 
     python3 protocol/golden.py                 # every example with an expected.json
     python3 protocol/golden.py parts-cpp       # some of them
     python3 protocol/golden.py --examples DIR  # default: $PAPERBOAT_EXAMPLES_DIR, else ../paperboat-examples
+                                               # (a checkout of it means its simplicial/ folder)
 
 expected.json: {"run": "build/paperboat-parts" | "station.py" | "station.jl", "status": "done",
                 "signals": {"node": value | [value, tolerance]},   # the node's last number
@@ -18,7 +19,6 @@ ones run through the engine ($PAPERBOAT_ENGINE, else engine/build/tools/simplici
 import json
 import os
 import subprocess
-import os
 import sys
 from pathlib import Path
 
@@ -27,6 +27,13 @@ import jsonschema
 ROOT = Path(__file__).resolve().parent.parent
 # The paperboat-examples repo: --examples DIR, else $PAPERBOAT_EXAMPLES_DIR, else a checkout next to this one.
 EXAMPLES = Path(os.environ.get("PAPERBOAT_EXAMPLES_DIR") or ROOT.parent / "paperboat-examples")
+
+
+def stations_of(p: Path) -> Path:
+    """paperboat-examples groups its examples by app: Simplicial's stations are in simplicial/."""
+    return p / "simplicial" if any((p / "simplicial").glob("*/station.toml")) else p
+
+
 SCHEMA = json.loads((ROOT / "protocol" / "schema" / "paperboat-0.schema.json").read_text())
 TO_UI = jsonschema.Draft202012Validator(SCHEMA)
 
@@ -101,6 +108,7 @@ def main() -> None:
         i = args.index("--examples")
         EXAMPLES = Path(args[i + 1]).resolve()
         args = args[:i] + args[i + 2:]
+    EXAMPLES = stations_of(EXAMPLES)
     names = args or sorted(p.parent.name for p in EXAMPLES.glob("*/expected.json"))
     if not names:
         sys.exit(f"no stations with an expected.json in {EXAMPLES} (pass --examples DIR)")

@@ -1434,10 +1434,22 @@ bool StationManager::restart_station(const std::string& target, const StationRun
 }
 
 fs::path StationManager::find_examples_dir(const fs::path& hint) {
+  // paperboat-examples groups its examples by app (ex#43): Simplicial's stations are in its
+  // simplicial/ folder, so a checkout of the whole repository means that folder.
+  const auto stations_of = [](const fs::path& p) {
+    std::error_code ec;
+    const fs::path sub = p / "simplicial";
+    if (fs::is_directory(sub, ec)) {
+      for (const auto& e : fs::directory_iterator(sub, ec)) {
+        if (fs::is_regular_file(e.path() / "station.toml", ec)) return sub;
+      }
+    }
+    return p;
+  };
   if (const char* env = std::getenv("PAPERBOAT_EXAMPLES_DIR"); env && *env && fs::is_directory(env)) {
-    return env;
+    return stations_of(env);
   }
-  if (!hint.empty() && fs::is_directory(hint)) return hint;
+  if (!hint.empty() && fs::is_directory(hint)) return stations_of(hint);
 
   const fs::path root = toolkit::find_repo_root();
   auto is_examples_dir = [](const fs::path& p) {
@@ -1450,16 +1462,14 @@ fs::path StationManager::find_examples_dir(const fs::path& hint) {
   };
 
   if (!root.empty()) {
-    if (is_examples_dir(root.parent_path() / "paperboat-examples")) {
-      return root.parent_path() / "paperboat-examples";
-    }
+    if (const fs::path p = stations_of(root.parent_path() / "paperboat-examples"); is_examples_dir(p)) return p;
   }
 
   if (!root.empty() && is_examples_dir(root / "examples" / "stations")) {
     return root / "examples" / "stations";
   }
 
-  if (is_examples_dir(fetched_examples_dir())) return fetched_examples_dir();
+  if (const fs::path p = stations_of(fetched_examples_dir()); is_examples_dir(p)) return p;
   return {};
 }
 
