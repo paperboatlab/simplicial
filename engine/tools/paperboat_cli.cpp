@@ -28,6 +28,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "paperboat/core/hubs.hpp"
 #include "paperboat/core/station_manager.hpp"
 #include "paperboat/core/process.hpp"
 #include "paperboat/core/remote.hpp"
@@ -558,6 +559,37 @@ int cmd_run(const std::vector<std::string_view>& args) {
   return core::StationManager::run_station(path, opts);
 }
 
+// A format-1 flow's station, as the page finds it (hubs::find): the header's path from the .psf's folder, the hub
+// the .psf is in (the nearest folder above it with a .malachite/), the installed stations, the running ones; then
+// by name, as format 0 does. Empty when none is.
+fs::path find_station(const fs::path& psf, const json& head) {
+  const fs::path file = fs::absolute(psf).lexically_normal();
+  const std::string name = head.value("name", ""), version = head.value("version", ""), rel = head.value("path", "");
+  std::error_code ec;
+  if (!rel.empty()) {  // no hub needed for the header's own path
+    const fs::path at = (file.parent_path() / rel).lexically_normal();
+    for (const auto& s : core::hubs::stations({at})) {
+      if (s.name == name) return at;
+    }
+  }
+  fs::path root;
+  for (fs::path d = file.parent_path(); !d.empty(); d = d.parent_path()) {
+    if (fs::is_directory(d / ".malachite", ec)) {
+      root = d;
+      break;
+    }
+    if (d == d.parent_path()) break;
+  }
+  const std::string in_hub = root.empty() ? "" : file.lexically_relative(root).generic_string();
+  const json r = core::hubs::find(root, in_hub, name, version, core::hubs::elsewhere());
+  if (r.contains("found")) {
+    const fs::path at = r["found"].value("path", "");
+    const std::string where = r["found"].value("where", "");
+    return where == "path" || where == "workspace" ? root / at : at;
+  }
+  return core::StationManager::resolve_station_dir(name);
+}
+
 int cmd_open(const std::vector<std::string_view>& args) {
   std::string file_path;
   core::StationRunOptions opts;
@@ -609,11 +641,13 @@ int cmd_open(const std::vector<std::string_view>& args) {
     std::cerr << "error: invalid project file: missing \"paperboat\" format version\n";
     return 1;
   }
-  if (proj["paperboat"] != 0) {
-    std::cerr << "error: unsupported project version " << proj["paperboat"] << " (this tool supports version 0)\n";
+  const int format = proj["paperboat"].get<int>();
+  if (format != 0 && format != 1) {
+    std::cerr << "error: unsupported project version " << format << " (this tool supports versions 0 and 1)\n";
     return 1;
   }
-  if (!proj.contains("station") || !proj["station"].is_string()) {
+  const auto head = core::hubs::header(p);
+  if (!head || (format == 0 && !proj["station"].is_string()) || (format == 1 && !proj["station"].is_object())) {
     std::cerr << "error: invalid project file: missing \"station\" specification\n";
     return 1;
   }
@@ -622,9 +656,9 @@ int cmd_open(const std::vector<std::string_view>& args) {
     return 1;
   }
 
-  const std::string station_name = proj["station"].get<std::string>();
-  const fs::path station_dir = core::StationManager::resolve_station_dir(station_name);
-  if (station_dir.empty() || !fs::is_directory(station_dir)) {
+  const std::string station_name = head->value("name", "");
+  const fs::path station_dir = format == 0 ? core::StationManager::resolve_station_dir(station_name) : find_station(p, *head);
+  if (station_dir.empty() || !fs::exists(station_dir)) {
     std::cerr << "error: station \"" << station_name << "\" not found\n";
     return 1;
   }

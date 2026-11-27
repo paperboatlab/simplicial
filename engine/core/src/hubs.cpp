@@ -20,6 +20,20 @@ namespace paperboat::core::hubs {
 namespace fs = std::filesystem;
 using nlohmann::json;
 
+std::optional<json> header(const fs::path& psf) {
+  std::ifstream in(psf, std::ios::binary);
+  const json doc = json::parse(in, nullptr, /*allow_exceptions=*/false);
+  if (!doc.is_object() || !doc.contains("station")) return std::nullopt;
+  const json& st = doc["station"];
+  if (st.is_string()) return json{{"name", st}};
+  if (!st.is_object() || !st.value("name", json()).is_string()) return std::nullopt;
+  json out = {{"name", st["name"]}};
+  for (const char* k : {"version", "sha256", "path"}) {
+    if (st.contains(k) && st[k].is_string()) out[k] = st[k];
+  }
+  return out;
+}
+
 namespace {
 
 bool hidden(const std::string& name) { return name.empty() || name[0] == '.' || name == "node_modules"; }
@@ -44,22 +58,6 @@ void walk(const fs::path& dir, const std::string& rel, json& out) {
 
 bool ends_with(const std::string& s, const std::string& tail) {
   return s.size() >= tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0;
-}
-
-// A .psf's header: its station's name, version, sha256 and path (format 1), or only its name (format 0: "station":
-// "cart-pole"); nothing when it isn't a flow file.
-std::optional<json> header(const fs::path& psf) {
-  std::ifstream in(psf, std::ios::binary);
-  const json doc = json::parse(in, nullptr, /*allow_exceptions=*/false);
-  if (!doc.is_object() || !doc.contains("station")) return std::nullopt;
-  const json& st = doc["station"];
-  if (st.is_string()) return json{{"name", st}};
-  if (!st.is_object() || !st.value("name", json()).is_string()) return std::nullopt;
-  json out = {{"name", st["name"]}};
-  for (const char* k : {"version", "sha256", "path"}) {
-    if (st.contains(k) && st[k].is_string()) out[k] = st[k];
-  }
-  return out;
 }
 
 // The one named `name` among `list`: the exact `version` first, then the newest; null when none is.

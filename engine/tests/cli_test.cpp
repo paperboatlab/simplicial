@@ -662,6 +662,49 @@ TEST_CASE("paperboat open validates project file and station") {
   fs::remove_all(station_dir);
 }
 
+// The app saves format 1 (#66): the station is a header, found at its path from the .psf, else in the hub.
+TEST_CASE("paperboat open --run finds a format-1 flow's station at its relative path, then in the hub") {
+  const fs::path cli = find_cli();
+  REQUIRE(fs::is_regular_file(cli));
+  const fs::path hub = fs::temp_directory_path() / "pb_test_hub_66";
+  fs::remove_all(hub);
+  const fs::path station = hub / "stations" / "rig";
+  fs::create_directories(station);
+  fs::create_directories(hub / "flows");
+  std::ofstream(station / "station.toml") << "[station]\nformat = 0\nname = \"test_rel_probe\"\nversion = \"0.1.0\"\n"
+                                             "language = \"cpp\"\nrun = \"server.sh\"\ndescriptor = \"descriptor.toml\"\n";
+  std::ofstream(station / "descriptor.toml") << "domain = \"test_rel_probe\"\nimport = [\"math\"]\n";
+  std::ofstream(station / "server.sh") << "#!/bin/sh\nprintf ran > ran.txt\n";
+  fs::permissions(station / "server.sh", fs::perms::owner_all);
+
+  const auto flow = [&](const std::string& path) {
+    const fs::path psf = hub / "flows" / "x.psf";
+    std::ofstream(psf) << nlohmann::json{{"paperboat", 1},
+                                         {"station", {{"name", "test_rel_probe"}, {"version", "0.1.0"}, {"path", path}}},
+                                         {"flow", {{"nodes", nlohmann::json::array()}, {"edges", nlohmann::json::array()}}}}
+                              .dump();
+    fs::remove(station / "ran.txt");
+    return core::ProcessRunner::run_sync({cli.string(), "open", psf.string(), "--run", "--no-build"});
+  };
+
+  const auto at_path = flow("../stations/rig");
+  INFO(at_path.stdout_text << at_path.stderr_text);
+  CHECK(at_path.exit_code == 0);
+  CHECK(fs::is_regular_file(station / "ran.txt"));
+
+  // a stale path: the hub (the folder with a .malachite/) still has it
+  fs::create_directories(hub / ".malachite");
+  const auto in_hub = flow("../stations/moved");
+  INFO(in_hub.stdout_text << in_hub.stderr_text);
+  CHECK(in_hub.exit_code == 0);
+  CHECK(fs::is_regular_file(station / "ran.txt"));
+
+  // format 2 is not one this tool reads
+  std::ofstream(hub / "flows" / "x.psf") << R"({"paperboat": 2, "station": {"name": "test_rel_probe"}, "flow": {}})";
+  CHECK(core::ProcessRunner::run_sync({cli.string(), "open", (hub / "flows" / "x.psf").string(), "--run"}).exit_code != 0);
+  fs::remove_all(hub);
+}
+
 TEST_CASE("every command in the table is in the help menu and the prompt's help") {
   const fs::path cli = find_cli();
   REQUIRE(fs::is_regular_file(cli));
