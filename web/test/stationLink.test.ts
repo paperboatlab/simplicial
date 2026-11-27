@@ -42,6 +42,9 @@ test("?open= survives the switch, with what started the station", () => {
   const s = toSearch({ station: "ws://localhost:51303", open: { hub: "h1", path: "flows/a:b.psf" }, start: { hub: "h1", path: "s.pst" } }, "station=ws://old&theme=dark");
   assert.deepEqual(fromSearch(s), { station: "ws://localhost:51303", open: { hub: "h1", path: "flows/a:b.psf" }, start: { hub: "h1", path: "s.pst" } });
   assert.match(s, /theme=dark/);
+  // an example's window keeps its banner across a station switch (paperboat#75)
+  const ex = "example=simplicial%2F09-modular-synth-cpp&name=09+Modular+Synth&to=%2Fhome%2Fme%2Fwork&cache=1";
+  assert.equal(new URLSearchParams(toSearch({ station: "ws://localhost:51303" }, ex)).toString(), `${ex}&station=ws%3A%2F%2Flocalhost%3A51303`);
   assert.deepEqual(fromSearch(toSearch({ open: { path: "a.psf" }, nostation: true, use: true })), { open: { path: "a.psf" }, use: true, nostation: true });
   assert.deepEqual(fromSearch("start=nope"), {});
   assert.deepEqual(fromSearch("open=flows%2Fa.psf"), { open: { path: "flows/a.psf" } });  // another app's bare path

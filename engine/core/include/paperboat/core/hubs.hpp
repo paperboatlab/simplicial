@@ -22,9 +22,14 @@ nlohmann::json known(const std::string& cli);
 // (the app works without Paperboat).
 nlohmann::json examples(const std::string& cli);
 
-// `<cli> example open <id> --json`: the example copied for the user and opened in a new window ({…, path,
-// session}), or {error} (the CLI's, else what it said on stderr).
-nlohmann::json open_example(const std::string& cli, const std::string& id);
+// `<cli> example open <id> [--to <to>] --json`: the example opened where it is, in a new window ({…, path, cache,
+// session, url}); `to`, an absolute folder, is where its banner's Copy goes (paperboat#75). Or {error} (the CLI's,
+// else what it said on stderr).
+nlohmann::json open_example(const std::string& cli, const std::string& id, const std::string& to = {});
+
+// `<cli> example copy <id> --to <to> --open --json`: the example copied into `to` (an absolute folder) and the copy
+// opened in a new window ({…, path (the copy), session}), or {error} as open_example's ("… is there already").
+nlohmann::json copy_example(const std::string& cli, const std::string& id, const std::string& to);
 
 // The known hubs as the page's picker shows them: {id, name, place, path (as the user reads it), missing?,
 // conflicts? (how many), psf, pst (how many of Simplicial's files it holds)}.
@@ -52,7 +57,7 @@ struct StationInfo {
 // (scripts/package_station.py info); one that can't be read is left out.
 std::vector<StationInfo> stations(const std::vector<std::filesystem::path>& at);
 
-// Where a flow's station may be outside its hub: the installed ones (the user's stations, the examples) and the
+// Where a flow's station may be outside its hub: the installed ones (the user's stations) and the
 // running ones (their `hello` name and port).
 struct Elsewhere {
   std::vector<StationInfo> installed;

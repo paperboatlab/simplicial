@@ -45,9 +45,9 @@ body { background: var(--surface-ground); color: var(--text); font: var(--size-s
 .page-body { height: 100%; }
 
 /* the pages: one column that slides to the page picked (Navigator); a wrapper per page holds its card */
-.pages { position: relative; flex: 1; overflow: hidden; }
+.pages { position: relative; flex: 1; overflow: hidden; display: flex; flex-direction: column; }
 .bay > .dock { bottom: calc(var(--gutter) + 16px); }  /* floats over the page card, clear of the bay's gutter */
-.pcol { display: grid; grid-auto-rows: 100%; row-gap: var(--gutter); height: 100%; transform: translateY(calc(var(--i, 0) * (-100% - var(--gutter)))); transition: transform var(--slide); }
+.pcol { display: grid; grid-auto-rows: 100%; row-gap: var(--gutter); flex: 1; min-height: 0; transform: translateY(calc(var(--i, 0) * (-100% - var(--gutter)))); transition: transform var(--slide); }
 .pg { display: flex; min-width: 0; min-height: 0; position: relative; }
 .pg > .panel { flex: 1; min-width: 0; }
 .pg[inert] { pointer-events: none; }
@@ -264,7 +264,9 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 
 /* the one file workflow: the Start page in the bay's card while no file is open; the Flow's head names the file (no
    document field in the bar's centre); the picker's preview of a flow or a station */
-.bay > .start-card { height: 100%; display: flex; }
+.bay > .start-card { flex: 1; min-height: 0; display: flex; }
+/* an example's window (paperboat#75): the kit's banner across the bay's top, over the page sliding up behind it */
+.bay > .example-banner { margin: calc(-1 * var(--gutter)) calc(-1 * var(--gutter)) var(--gutter); position: relative; z-index: 1; }
 .bay > .pcol[hidden] { display: none; }
 .panel-head .sum .fname { font-weight: 500; color: var(--text); }
 .panel-head .sum .dirty { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }

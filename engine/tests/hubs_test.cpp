@@ -84,6 +84,11 @@ TEST_CASE("the examples come from paperboat example list; none without it; open 
              " \"description\": \"A synth\", \"path\": \"/x/09\"}, {\"name\": \"no id\"}]\nEOF\n"
              "elif [ \"$*\" = \"example open simplicial/09-modular-synth-cpp --json\" ]; then\n"
              "  echo '{\"id\": \"simplicial/09-modular-synth-cpp\", \"path\": \"/home/me/09\", \"session\": \"s1\"}'\n"
+             "elif [ \"$*\" = \"example open simplicial/09-modular-synth-cpp --to /home/me/work --json\" ]; then\n"
+             "  echo '{\"id\": \"simplicial/09-modular-synth-cpp\", \"path\": \"/x/09\", \"session\": \"s2\"}'\n"
+             "elif [ \"$*\" = \"example copy simplicial/09-modular-synth-cpp --to /home/me/my work --open --json\" ]; then\n"
+             "  echo '{\"id\": \"simplicial/09-modular-synth-cpp\", \"path\": \"/home/me/my work/09\", \"session\": \"s3\"}'\n"
+             "elif [ \"$2\" = copy ]; then echo '{\"error\": \"/home/me/09 is there already; copy it to another folder\"}'; exit 2\n"
              "elif [ \"$2\" = open ]; then echo '{\"error\": \"no example simplicial/nope\"}'; exit 2\n"
              "else exit 1; fi\n");
   fs::permissions(cli, fs::perms::owner_all);
@@ -94,6 +99,18 @@ TEST_CASE("the examples come from paperboat example list; none without it; open 
         nlohmann::json{{"id", "simplicial/09-modular-synth-cpp"}, {"path", "/home/me/09"}, {"session", "s1"}});
   CHECK(hubs::open_example(cli.string(), "simplicial/nope") == nlohmann::json{{"error", "no example simplicial/nope"}});
   CHECK(hubs::open_example(cli.string(), "--help").contains("error"));  // never a flag for the CLI
+  CHECK(hubs::open_example(cli.string(), "simplicial/09-modular-synth-cpp", "/home/me/work")["session"] == "s2");
+  CHECK(hubs::copy_example(cli.string(), "simplicial/09-modular-synth-cpp", "/home/me/my work") ==
+        nlohmann::json{{"id", "simplicial/09-modular-synth-cpp"}, {"path", "/home/me/my work/09"}, {"session", "s3"}});
+  CHECK(hubs::copy_example(cli.string(), "simplicial/09-modular-synth-cpp", "/home/me") ==
+        nlohmann::json{{"error", "/home/me/09 is there already; copy it to another folder"}});
+  // a bad folder never reaches the CLI: the guard's words, not the fake's
+  for (const std::string bad : {"", "-rf", "--to=/x", "relative/dir"}) {
+    const auto r = hubs::copy_example(cli.string(), "simplicial/09-modular-synth-cpp", bad);
+    CHECK((r["error"] == "no folder" || r["error"] == bad + " is not an absolute folder"));
+  }
+  CHECK(hubs::open_example(cli.string(), "simplicial/09-modular-synth-cpp", "-x") == nlohmann::json{{"error", "-x is not an absolute folder"}});
+  CHECK(hubs::copy_example(cli.string(), "--help", "/home/me").contains("error"));
   CHECK(hubs::examples((dir / "no-such-paperboat").string()).empty());  // no Paperboat, no examples
   CHECK(hubs::open_example((dir / "no-such-paperboat").string(), "simplicial/09-modular-synth-cpp").contains("error"));
   write(cli, "#!/bin/sh\necho 'not json'\n");

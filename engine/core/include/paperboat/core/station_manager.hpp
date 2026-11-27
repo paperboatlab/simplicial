@@ -202,7 +202,7 @@ class StationManager {
   static bool restart_station(const std::string& target, const StationRunOptions& opts = {});
 
   // The examples an optional toolkit ships (ocv-01-…, opt-01-…: not Paperboat's examples, which `paperboat example`
-  // lists and copies): engine/toolkit/<name>/examples/*, and a sibling simplicial-toolkit-<name>/examples/*. Sorted.
+  // lists, opens and copies): engine/toolkit/<name>/examples/*, and a sibling simplicial-toolkit-<name>/examples/*. Sorted.
   static std::vector<std::filesystem::path> toolkit_examples(const std::filesystem::path& repo_root = {});
 
   // Web application management

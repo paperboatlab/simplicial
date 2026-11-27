@@ -103,8 +103,12 @@ export async function listExamples(): Promise<Example[]> {
     return [];
   }
 }
-/** Open example: the CLI copies it for the user and opens the copy in a new window. */
-export const openExample = async (id: string) => void (await ask(`/__paperboat/example/open?${new URLSearchParams({ id })}`, page()));
+/** Open example: the CLI opens it where it is, in a new window; its banner copies it to `to` (this page's folder). */
+export const openExample = async (id: string, to?: string) =>
+  void (await ask(`/__paperboat/example/open?${new URLSearchParams({ id, ...(to ? { to } : {}) })}`, page()));
+/** The example banner's Copy (paperboat#75): `paperboat example copy <id> --to <to> --open`; the copy's path. */
+export const copyExample = async (id: string, to: string): Promise<string> =>
+  ((await (await ask(`/__paperboat/example/copy?${new URLSearchParams({ id, to })}`, page())).json()) as { path: string }).path;
 
 // ---- The workspace, switched at runtime, and the shared store ----
 

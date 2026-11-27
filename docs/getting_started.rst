@@ -17,9 +17,11 @@ Examples
 --------
 
 Press Ctrl K and type ``example``: **Open example: <name>** lists Paperboat's examples for Simplicial
-(``paperboat example list --app simplicial``). Picking one copies it into ``$PAPERBOAT_HOME/examples``
-the first time and opens that copy in a new window, so your changes never touch the original. Without
-Paperboat installed the list is empty.
+(``paperboat example list --app simplicial``). Picking one opens it where it is, in a new window, with a
+line at the top: run it as it is, or **copy it to <folder>** to change it. The folder is the one this
+window works in (with none, Simplicial asks for one); the copy opens in a new window of its own. An
+example downloaded from GitHub is replaced after a day, so the line says changes there aren't kept.
+Without Paperboat installed the list is empty.
 
 Ports
 -----
@@ -63,7 +65,7 @@ The theme (Light, Dark or System, in Settings › General or View › Theme), th
 every app starts in.
 
 A window works on one station. Opening a flow finds its station: at the flow's path first, then by
-name in the hub, among the installed stations (yours and the examples), and the running ones (the
+name in the hub, among the installed stations (yours), and the running ones (the
 exact version first, then the newest). On this window's station the flow opens at once; on another,
 Simplicial asks first: **Switch** starts that station if it isn't running and reopens the window on
 it with the flow, **New window** does the same in a new one. Picking a ``.pst`` opens its station on

@@ -2,6 +2,7 @@
 // a web station (the station's own page, GUIDELINES §6.4) and its bridge script. The only
 // file that knows sockets.
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -91,7 +92,10 @@ std::string query(const std::string& uri, const std::string& name) {
   if (q == std::string::npos) return "";
   std::stringstream in(uri.substr(q + 1));
   for (std::string pair; std::getline(in, pair, '&');) {
-    if (pair.starts_with(name + "=")) return decode(pair.substr(name.size() + 1));
+    if (!pair.starts_with(name + "=")) continue;
+    std::string v = pair.substr(name.size() + 1);
+    std::replace(v.begin(), v.end(), '+', ' ');  // the page's URLSearchParams: a space is '+', a '+' is %2B
+    return decode(v);
   }
   return "";
 }
@@ -228,12 +232,14 @@ ix::HttpResponsePtr workspace_route(const std::string& path, const ix::HttpReque
 // to write: /__paperboat/hub/file?hub=<id>&path=<in the hub>). Only for this computer, and a write only from the
 // page itself (its own header, which a cross-site form can't send). Nothing when `path` isn't a hub or station route.
 // Ctrl+K's Open example: <name> (paperboat#72): GET /__paperboat/examples (`paperboat example list --app simplicial`,
-// [] without the CLI) and POST /__paperboat/example/open?id=<id> (`paperboat example open <id>`: a copy, a new window).
+// [] without the CLI) and POST /__paperboat/example/open?id=<id>[&to=<folder>] (`paperboat example open <id> --to`:
+// in place, a new window; `to`, the page's folder, is where the example's banner copies it), and the banner's
+// POST /__paperboat/example/copy?id=<id>&to=<folder> (`paperboat example copy <id> --to <folder> --open`, paperboat#75).
 ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr& request, const std::string& remote) {
   const bool station = path.starts_with("/__paperboat/station/");
   const bool store = path == "/__paperboat/workspace" || path == "/__paperboat/recent" || path == "/__paperboat/settings";
   const bool launcher = path == "/__paperboat/launcher";
-  const bool example = path == "/__paperboat/examples" || path == "/__paperboat/example/open";
+  const bool example = path == "/__paperboat/examples" || path == "/__paperboat/example/open" || path == "/__paperboat/example/copy";
   if (!path.starts_with("/__paperboat/hub") && !station && !store && !launcher && !example) return nullptr;
   if (!from_here(remote)) return respond(403, "text/plain", "hubs are only for this computer\n");
   const std::string cli = paperboat_cli();
@@ -243,9 +249,10 @@ ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr&
     return r.ok() ? respond(200, "application/json", "{}") : respond(502, "text/plain", r.stderr_text.empty() ? "can't run " + cli + "\n" : r.stderr_text);
   }
   if (path == "/__paperboat/examples") return respond(200, "application/json", hubs::examples(cli).dump());
-  if (path == "/__paperboat/example/open") {
+  if (path == "/__paperboat/example/open" || path == "/__paperboat/example/copy") {
     if (request->method != "POST" || !from_page(request)) return respond(405, "text/plain", "POST from the page\n");
-    const json r = hubs::open_example(cli, query(request->uri, "id"));
+    const std::string id = query(request->uri, "id"), to = query(request->uri, "to");
+    const json r = path.ends_with("/open") ? hubs::open_example(cli, id, to) : hubs::copy_example(cli, id, to);
     return r.contains("error") ? respond(502, "text/plain", r["error"].get<std::string>() + "\n") : respond(200, "application/json", r.dump());
   }
   if (station) return station_route(path, request, cli);

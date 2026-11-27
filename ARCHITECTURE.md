@@ -46,8 +46,9 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
   `station.toml`, read in the zip by `scripts/package_station.py info`; a `.psf`'s header and the `.pst` it resolves
   to), a path kept inside its hub, and finding a flow's station (`find`: its path, the hub, installed, running);
   Paperboat's examples (paperboat#72: `paperboat example list --app simplicial --json`, `[]` without the CLI, and
-  `example open <id> --json`, which copies one to `$PAPERBOAT_HOME/examples/<id>` and opens a new window there;
-  `/__paperboat/examples`, `/__paperboat/example/open`). The engine finds no examples of its own: `run` takes a path,
+  `example open <id> [--to <folder>] --json`, which opens one where it is, in a new window, and `example copy <id>
+  --to <folder> --open --json` for its banner's Copy (paperboat#75); `/__paperboat/examples`, `/__paperboat/example/open`,
+  `/__paperboat/example/copy`). Nothing copies an example on open, so installed stations are only the user's. The engine finds no examples of its own: `run` takes a path,
   an installed station, `scratchpad` or an installed toolkit's example (`StationManager::toolkit_examples`, `ocv-01`);
   the hub and station routes (`/__paperboat/hub/…`, `/__paperboat/station/find|start|log`) take the workspace as
   `hub=<id>` or `folder=<absolute path>`, answer this computer only, write only `.psf` and start a station only with
@@ -103,7 +104,10 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
     (`/__paperboat/workspace`: a folder, a hub, a file's folder or hub, nothing), the hubs (`/__paperboat/hubs`, which
     runs `paperboat hub list --json`: no Malachite, no hub), a workspace's tree and its `.psf` files
     (`/__paperboat/hub/files`, `/hub/file`, by `Root`: `hub=` or `folder=`), the shared Recent and theme, and the examples
-    (`listExamples`, once at load: Ctrl K's **Open example: <name>**, the kit's `exampleCommands`, in no menu). App.tsx
+    (`listExamples`, once at load: Ctrl K's **Open example: <name>**, the kit's `exampleCommands`, in no menu; `--to`
+    the window's folder). An example's window (`exampleFromUrl`, read at load beside `OPENING`; `toSearch` keeps its
+    params) has the kit's `ExampleBanner` across the top of the bay: Copy is `copyExample` (`--to` the folder it was
+    opened from, else one picked as Open folder… picks it), the copy opening in a new window. App.tsx
     draws the one file workflow with the kit's `@paperboatlab/ui/workspace` and `/hub`: the Start page in the bay
     while no flow is open, the File menu (`fileMenu`, through `fileItems` in menus.ts), the `WorkspaceWell` after the
     menu bar (no document field in the bar: the Flow's head names the file), `AskOpen`, `ConnectHub`, `TypedPath`,

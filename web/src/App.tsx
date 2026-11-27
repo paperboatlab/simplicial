@@ -14,15 +14,15 @@
 // Start page fills the bay. In a hub, Open and Save as are our picker over it; outside one, the system's dialogs in a
 // Paperboat window (`shell()`), else a typed path and a download. Recent and the theme are the store every app shares.
 import {
-  About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs,
-  Toasts, WindowKeys, exampleCommands, isEnabled, isScale, readStored, typeLine, typing, ownKeys, useScale, useShortcuts, useTheme, useToasts, valueText, writeStored,
+  About, AppMark, ConsoleWindow, Dialog, Dock, ExampleBanner, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs,
+  Toasts, WindowKeys, exampleCommands, exampleFromUrl, isEnabled, isScale, readStored, typeLine, typing, ownKeys, useScale, useShortcuts, useTheme, useToasts, valueText, writeStored,
   type Credit, type Example, type PaneRect, type Scale, type SearchItem, type Theme, type Toast,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
 import type { FileEntry } from "@paperboatlab/ui/files";
 import { ConnectHub, OpenFile, SaveFile, type Hub } from "@paperboatlab/ui/hub";
 import {
-  AskOpen, Start, TypedPath, Unsaved, WorkspaceWell, baseName, fileMenu, parseSettings, recentFor, recentMenu, shell, useOpening, type Opening, type RecentEntry, type Workspace,
+  AskOpen, Start, TypedPath, Unsaved, WorkspaceWell, baseName, fileMenu, parseSettings, recentFor, recentMenu, shell, tilde, useOpening, type Opening, type RecentEntry, type Workspace,
 } from "@paperboatlab/ui/workspace";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -53,7 +53,7 @@ import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
 import { Toolkits } from "./Toolkits.tsx";
 import { changed } from "./runSettings.ts";
 import {
-  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listExamples, listHub, listHubs, manageRuntimes, openExample, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
+  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listExamples, listHub, listHubs, copyExample, manageRuntimes, openExample, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
 } from "./hubs.ts";
 import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote, type Note } from "./stationLink.ts";
@@ -61,6 +61,8 @@ import type { BoardLayout, RunSettings, StationFlow, StationFlow0, StationRef } 
 
 /** What the address asks for (stationLink.ts): the station, a flow to open on it (`?open=`), or the flow without one. */
 const OPENING = fromSearch(location.search);
+/** The example this window opened where it is (`paperboat example open`, paperboat#75): its banner offers Copy. */
+const EXAMPLE = exampleFromUrl(location.search);
 const WITHOUT = !!OPENING.nostation;
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
 const URL_ = WITHOUT ? "" : OPENING.station ?? (location.host ? `ws://${location.host}` : "ws://localhost:51301");
@@ -210,7 +212,7 @@ export function App() {
   const [untitled, setUntitled] = useState(!!OPENING.station && !OPENING.open && !WITHOUT);
   const [pending, setPending] = useState(!!OPENING.open);  // ?open= is on its way: no Start page meanwhile
   const [filePick, setFilePick] = useState<"open" | "save" | "find" | null>(null);
-  const [ask, setAsk] = useState<null | "open" | "connect" | "connect-open" | "folder" | "file">(null);
+  const [ask, setAsk] = useState<null | "open" | "connect" | "connect-open" | "folder" | "file" | "copy-to">(null);
   const [unsaved, setUnsaved] = useState<{ closing?: string; then: () => void } | null>(null);
   const finding = useRef<{ doc: StationFlow | StationFlow0; at: OpenedFile } | null>(null);  // what Find the station… is for
   const loadRecent = () => void getRecent().then((r) => setRecent(r.recent ?? []), () => {});
@@ -408,6 +410,17 @@ export function App() {
     if (!sh) return setAsk("folder");
     const p = await sh.pickFolder("Open folder");
     if (p) workInFolder(p);
+  };
+  /** The example banner's Copy: into the folder it was opened from, else one picked as Open folder… picks it. */
+  const copyTo = (to: string) => void copyExample(EXAMPLE!.id, to).then(
+    (path) => notes.show({ title: `Copied to ${tilde(path, userHome)}`, detail: "it opens in a new window", state: "done" }),
+    (e) => failed(`Can't copy ${EXAMPLE!.name}`, e));
+  const copyExampleTo = async () => {
+    if (EXAMPLE!.to) return copyTo(EXAMPLE!.to);
+    const sh = shell();
+    if (!sh) return setAsk("copy-to");
+    const p = await sh.pickFolder("Copy the example to");
+    if (p) copyTo(p);
   };
   const newHub = () => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" });
   const askConnect = async (thenOpen = false) => { setHubs(await listHubs()); setAsk(thenOpen ? "connect-open" : "connect"); };
@@ -635,7 +648,7 @@ export function App() {
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
-  ), ...exampleCommands(examples, (id) => void openExample(id).catch((e) => failed("Can't open the example", e)))];
+  ), ...exampleCommands(examples, (id) => void openExample(id, EXAMPLE ? EXAMPLE.to : ws?.root).catch((e) => failed("Can't open the example", e)))];
   useShortcuts(booted ? commands : []);
 
   /** Quick add at a point: the cursor over the Flow, else a third down its middle; only where the Flow is in view. */
@@ -770,6 +783,7 @@ export function App() {
         ]} />
         <div className="main">
           <div className="pages bay">
+            {EXAMPLE && <ExampleBanner name={EXAMPLE.name} folder={EXAMPLE.to && tilde(EXAMPLE.to, userHome)} cache={EXAMPLE.cache} onCopy={() => void copyExampleTo()} />}
             {showStart && (
               <div className="panel start-card">
                 <Start app="Simplicial" noun="flow" nouns="flows and stations" hubs={hubs.length > 0} recent={recent} home={userHome} opening={opener.opening}
@@ -883,6 +897,7 @@ export function App() {
         onConnect={(id) => { setAsk(null); connect(id, ask === "connect-open"); }} />}
       {ask === "folder" && <TypedPath title="Open folder" initial={ws?.kind === "folder" ? ws.root : ""} onClose={() => setAsk(null)}
         onOpen={(p) => { setAsk(null); workInFolder(p); }} />}
+      {ask === "copy-to" && <TypedPath title="Copy the example to" onClose={() => setAsk(null)} onOpen={(p) => { setAsk(null); copyTo(p); }} />}
       {ask === "file" && <TypedPath title="Open a local file" what="file" initial={ws?.kind === "folder" ? `${ws.root}/` : ""} onClose={() => setAsk(null)}
         onOpen={(p) => { setAsk(null); openPath(p); }} />}
       {unsaved && <Unsaved name={file ? fileName : "untitled.psf"} closing={unsaved.closing} onClose={() => setUnsaved(null)}

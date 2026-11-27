@@ -72,18 +72,21 @@ async function connect(debug: number) {
   return { cmd, run, until, click, key, errors, close: () => ws.close() };
 }
 
-test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example", { skip: missing, timeout: 180_000 }, async () => {
+test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example, its Copy", { skip: missing, timeout: 180_000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(process.env.SIMPLICIAL_E2E_TMP ?? os.tmpdir(), "simplicial-e2e-"));
   const folder = path.join(tmp, "flows"), profile = path.join(tmp, "profile");
   fs.mkdirSync(folder);
   const file = path.join(folder, "loop.psf");
   fs.writeFileSync(file, `${JSON.stringify({ paperboat: 1, station: { name: "scratchpad" }, flow: { nodes: [], edges: [] } }, null, 2)}\n`);
-  // a stand-in CLI: it notes what Manage runtimes… and Open example ask of it, lists one example, and knows no hub (no Malachite)
+  // a stand-in CLI: it notes what Manage runtimes…, Open example and the example's Copy ask of it, lists one example,
+  // and knows no hub (no Malachite)
   const cli = path.join(tmp, "paperboat"), launched = path.join(tmp, "launcher-args"), opened = path.join(tmp, "example-args");
+  const copied = path.join(tmp, "copy-args"), mine = path.join(tmp, "my work");
   const example = { id: "simplicial/09-modular-synth-cpp", app: "simplicial", kind: "simplicial", name: "09 Modular Synth", description: "A synth", path: "/x/09" };
   fs.writeFileSync(cli, `#!/bin/sh\ncase "$1 $2" in\n  "launcher --page") echo "$*" > ${launched}; exit 0 ;;\n`
     + `  "example list") echo '${JSON.stringify([example])}'; exit 0 ;;\n`
-    + `  "example open") echo "$*" > ${opened}; echo '${JSON.stringify({ ...example, session: "s1" })}'; exit 0 ;;\nesac\nexit 1\n`, { mode: 0o755 });
+    + `  "example open") echo "$*" > ${opened}; echo '${JSON.stringify({ ...example, session: "s1" })}'; exit 0 ;;\n`
+    + `  "example copy") echo "$*" > ${copied}; echo '${JSON.stringify({ ...example, path: `${mine}/09-modular-synth-cpp`, session: "s2" })}'; exit 0 ;;\nesac\nexit 1\n`, { mode: 0o755 });
   const env = { ...process.env, PAPERBOAT_HOME: path.join(tmp, "home"), PAPERBOAT_ROOT: ROOT, PAPERBOAT_BIN: cli };
   const [station, web, debug] = [port(), port(), port()];
   const kids: ChildProcess[] = [
@@ -154,7 +157,17 @@ test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example
     await until("the example in Ctrl K", `[...document.querySelectorAll(".search-row")].some((r) => r.textContent.includes("Open example: 09 Modular Synth"))`);
     await key("Enter", "Enter", 13);
     for (let i = 0; i < 40 && !fs.existsSync(opened); i++) await sleep(150);
-    assert.equal(fs.readFileSync(opened, "utf8").trim(), "example open simplicial/09-modular-synth-cpp --json");
+    // in place, its Copy going to the page's folder (paperboat#75)
+    assert.equal(fs.readFileSync(opened, "utf8").trim(), `example open simplicial/09-modular-synth-cpp --to ${fs.realpathSync(folder)} --json`);
+
+    // the example's window (the URL `example open` gives it): the banner, and its Copy asks the CLI for a copy, opened
+    await cmd("Page.navigate", { url: "about:blank" });
+    await cmd("Page.navigate", { url: `http://127.0.0.1:${web}/?station=ws://localhost:${station}&example=simplicial/09-modular-synth-cpp&name=09%20Modular%20Synth&to=${encodeURIComponent(mine)}` });
+    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("09 Modular Synth: an example.")`, 40000);
+    await click(".example-banner button", "copy it to ");  // the folder, as ~/… when it is in the home folder
+    for (let i = 0; i < 40 && !fs.existsSync(copied); i++) await sleep(150);
+    assert.equal(fs.readFileSync(copied, "utf8").trim(), `example copy simplicial/09-modular-synth-cpp --to ${mine} --open --json`);
+    await until("the done toast", `/Copied to \\S*my work\\/09-modular-synth-cpp/.test(document.body.innerText)`);
     assert.deepEqual(page.errors, []);
   } finally {
     await Promise.race([page?.cmd("Browser.close"), sleep(2000)]);
