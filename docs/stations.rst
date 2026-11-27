@@ -32,8 +32,11 @@ The files
 
 ``station.toml``
    ``language = "python"`` or ``"julia"``, and ``run``: the domain file (``station.py``,
-   ``station.jl``), relative to the station's folder. ``[run]`` sets the run's ``duration`` and
-   ``dt`` (what a C++ station sets in code) and the ``solver``.
+   ``station.jl``), relative to the station's folder. ``[run]`` sets what a C++ station sets in
+   code: the run's ``duration`` and ``dt``, ``mode`` (``"clock"``, or ``"once"``: the Flow
+   evaluated once), ``emit_every`` (signals and the scene every N steps), ``speed`` (times real
+   time) and the ``solver``; ``[view]`` is the scene's camera hint (``mode = "2d"``, ``center``,
+   ``height``; or ``mode = "3d"`` and a ``camera``).
 
 ``descriptor.toml``
    As for any station: the packages it imports, its starter graph and station. Its ``domain`` is

@@ -827,6 +827,14 @@ int host_remote_station(const fs::path& dir, int argc, char** argv, std::vector<
     const toml::table doc = toml::parse_file((dir / "station.toml").string());
     station.run.duration = doc["run"]["duration"].value_or(station.run.duration);
     station.run.dt = doc["run"]["dt"].value_or(station.run.dt);
+    station.run.emit_every = std::max<int>(1, doc["run"]["emit_every"].value_or(station.run.emit_every));
+    station.run.speed = doc["run"]["speed"].value_or(station.run.speed);
+    if (doc["run"]["mode"].value_or(std::string("clock")) == "once") station.run.mode = RunSettings::Mode::Once;
+    if (const auto* view = doc["view"].as_table()) {  // the scene's camera hint, as a C++ station's Station::view
+      std::stringstream text;
+      text << toml::json_formatter{*view};
+      station.view = json::parse(text.str());
+    }
     const int code = main(station, argc, argv, manifest.port);
 #ifndef _WIN32
     running = nullptr;
