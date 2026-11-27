@@ -1,6 +1,6 @@
 // Settings (REBRAND "Settings"): the kit's window, File › Settings… or Ctrl , (Help › Keyboard shortcuts, Ctrl /, opens it
-// on Shortcuts). General: the theme every Paperboat app shares; Simplicial: the station this window is on, its run
-// defaults and the Flow's minimap; Hub, while the workspace is one: its name and folder, the File menu's Switch and
+// on Shortcuts). General: the theme every Paperboat app shares; Simplicial: Station (the one this window is on), Runs
+// (its run defaults, Run settings…) and Canvas (the Flow's minimap); Hub, while the workspace is one: its name and folder, the File menu's Switch and
 // Close (its own settings are Malachite's); Shortcuts: the registry's keys by menu, then the Flow canvas's. No Editor:
 // Simplicial has no editor pane.
 import { Icon, Key, Settings, SettingRow, SettingsSection, ShortcutList, Switch, ThemeSetting, isEnabled, type Command, type SettingsPage, type Theme } from "@paperboatlab/ui";
@@ -9,17 +9,11 @@ import { tilde, type Workspace } from "@paperboatlab/ui/workspace";
 import { GESTURES } from "./flow/FlowEditor.tsx";
 import { MENUS } from "./menus.ts";
 import type { RunSettings } from "./protocol.ts";
+import { runLine } from "./runSettings.ts";
 
-/** A station's run defaults in words: "10 s · step 0.01 s · 1×". */
-export const runLine = (r: RunSettings) => r.mode === "once" ? "evaluated once" : [
-  r.duration === undefined ? "" : r.duration > 0 ? `${r.duration} s` : "until cancelled",
-  r.dt === undefined ? "" : `step ${r.dt} s`,
-  r.speed === undefined ? "" : r.speed > 0 ? `${r.speed}×` : "as fast as it can",
-].filter(Boolean).join(" · ") || "the engine's";
-
-/** A key that runs a command of the registry, greyed with why when it can't. */
-const Run = ({ c, label }: { c?: Command; label?: string }) => c ? (
-  <span title={isEnabled(c) ? undefined : c.why}><Key size="sm" disabled={!isEnabled(c)} onClick={() => c.run()}>{label ?? c.label}</Key></span>
+/** A key that runs a command of the registry, greyed with why when it can't; `close`: Settings closes first (its window opens instead). */
+const Run = ({ c, label, close }: { c?: Command; label?: string; close?: () => void }) => c ? (
+  <span title={isEnabled(c) ? undefined : c.why}><Key size="sm" disabled={!isEnabled(c)} onClick={() => { close?.(); c.run(); }}>{label ?? c.label}</Key></span>
 ) : null;
 
 export function SettingsWindow({ page, onClose, theme, onTheme, station, address, runDefaults, minimap, onMinimap, workspace, home, onMalachite, commands }: {
@@ -48,11 +42,16 @@ export function SettingsWindow({ page, onClose, theme, onTheme, station, address
         <SettingRow label="Station" hint={address}>
           <span className="well">{station ?? "none"}</span><Run c={cmd("run.station")} />
         </SettingRow>
-        <SettingRow label="Run defaults" hint="The station's; a flow's own length and speed, set in the run dock, are kept in its file">
-          <span className="well">{runLine(runDefaults)}</span>
+        <SettingRow label="Toolkits" hint="Optional blocks, installed into the engine that serves the station">
+          <Run c={cmd("run.toolkits")} close={onClose} />
         </SettingRow>
       </SettingsSection>
-      <SettingsSection title="Flow">
+      <SettingsSection title="Runs">
+        <SettingRow label="Run defaults" hint="The station's; what a flow changes (Run settings…, the run dock) is kept in its file">
+          <span className="well">{runLine(runDefaults)}</span><Run c={cmd("run.settings")} close={onClose} />
+        </SettingRow>
+      </SettingsSection>
+      <SettingsSection title="Canvas">
         <SettingRow label="Minimap" hint="In Navigator, at the Flow canvas's corner">
           <Switch label="Minimap" checked={minimap} onChange={onMinimap} />
         </SettingRow>
