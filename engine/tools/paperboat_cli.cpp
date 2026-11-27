@@ -183,9 +183,9 @@ Updating:
                              a release version if not already present).
 
 Dependencies:
-  deps install [path]        Create the station's isolated environment and install its
-                             requirements (Python: .venv + requirements.txt; Julia: .julia depot +
-                             Project.toml). C++ dependencies stay with CMake/toolkits.
+  deps install [path]        Where a station's packages go: a Python or Julia station's live in its
+                             runtime's package volume (paperboat package add <runtime> <package>
+                             --project <path>). C++ dependencies stay with CMake/toolkits.
 
 Squero apps (from apps.toml):
   squero list [--json]            The Squero apps and libraries, installed, a sibling checkout, or not (KIND)
@@ -1862,7 +1862,7 @@ const std::vector<CommandSpec>& command_table() {
        {"--run", "--port", "--no-build", "--record"}, "psf"},
       {"new", paperboat::cli::cmd_new, "Scaffold a new station that passes check (C++, Python or Julia)", {}, {},
        {"--cpp", "--python", "--dir"}},
-      {"deps", cmd_deps, "Create a station's isolated environment and install its dependencies", {},
+      {"deps", cmd_deps, "Where a Python or Julia station's packages go (paperboat package add)", {},
        {"install"}, {"--force"}, "station"},
 #if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
       {"optimize", cmd_optimize, "Solve a fmincon-shaped problem JSON (LP, QP or NLP)", {}, {},

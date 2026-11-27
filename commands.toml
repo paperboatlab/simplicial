@@ -32,7 +32,7 @@ group = "Stations"
 id = "station.deps"
 name = "deps install"
 args = "<station>"
-desc = "Install a Python or Julia station's dependencies"
+desc = "Where a Python or Julia station's packages go (paperboat package add)"
 group = "Stations"
 
 [[command]]
