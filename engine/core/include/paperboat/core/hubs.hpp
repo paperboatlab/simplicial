@@ -44,6 +44,10 @@ nlohmann::json files(const std::filesystem::path& root);
 // link out) or goes through a dot entry (`.malachite/`).
 std::optional<std::filesystem::path> inside(const std::filesystem::path& root, const std::string& rel);
 
+// A .psf's header: its station {name, version?, sha256?, path?} (format 1), or {name} (format 0's "station":
+// "cart-pole"); nothing when it isn't a flow file.
+std::optional<nlohmann::json> header(const std::filesystem::path& psf);
+
 // A station on disk: a .pst or a station folder, its station.toml's name and version (read in the zip for a .pst),
 // and a .pst's sha256 (a folder, a station under development, has none). `port`: a running one's.
 struct StationInfo {
