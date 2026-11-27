@@ -51,6 +51,15 @@ Run
 
 Live monitoring: progress, plots and logs.
 
+**Run settings.** Run › Run settings… says how the next run goes: its **length** (0 runs until
+cancelled), its **speed** (times real time, or as fast as it can; during a run, a new speed changes
+the run at once) and its **clock step** (how often blocks run and monitors sample), then the
+**solver** every block and station object whose own solver is auto integrates with, and that
+solver's options (the tolerances and steps of RK45, CVODE and IDA; the sub-steps of RK4, RK2 and
+Euler). Each row says what the station's default is; a change applies as made, and the flow keeps
+only what differs from its station in its file. **Reset to the station's** drops them all. The run
+dock's length and speed are the same settings.
+
 .. note:: Not written yet: run styles (Signal, Step, Once), the run dock, endless runs and Cancel,
    Board tiles, run records.
 
@@ -62,9 +71,9 @@ no Save.
 
 - **General**: the theme, Light, Dark or System (it follows your computer's). It applies to every
   Paperboat app and is the one they all start in next time.
-- **Simplicial**: the station this window is on, with Choose a station…, and its run defaults (a
-  flow's own length and speed are set in the run dock and kept in its file); the Flow's minimap in
-  Navigator, on or off.
+- **Simplicial**: **Station**, the one this window is on, with Choose a station…; **Runs**, the
+  station's run defaults, with Run settings… (what a flow changes is kept in its file); **Canvas**,
+  the Flow's minimap in Navigator, on or off.
 - **Hub**, while Simplicial works in a hub: its name and folder, Switch hub… and Close hub. The hub's
   own settings (its name, author and history) are set in Malachite.
 - **Shortcuts**: every key, by menu, and the Flow canvas's.
