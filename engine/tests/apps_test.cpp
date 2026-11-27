@@ -331,33 +331,14 @@ TEST_CASE("pkg pairing: a dep resolves in its range, and an installed one outsid
   fs::remove_all(tmp, ec);
 }
 
-TEST_CASE("find_examples_dir means a paperboat-examples checkout's simplicial/ folder") {
-  const fs::path tmp = fs::temp_directory_path() / "paperboat_examples_layout_test";
-  std::error_code ec;
-  fs::remove_all(tmp, ec);
-  const fs::path repo = tmp / "paperboat-examples";
-  fs::create_directories(repo / "simplicial" / "01-demo-cpp");
-  fs::create_directories(repo / "julix");
-  std::ofstream(repo / "simplicial" / "01-demo-cpp" / "station.toml") << "[station]\nname = \"01-demo-cpp\"\n";
-
-  setenv("PAPERBOAT_EXAMPLES_DIR", repo.c_str(), 1);
-  CHECK(core::StationManager::find_examples_dir() == repo / "simplicial");
-  unsetenv("PAPERBOAT_EXAMPLES_DIR");
-  CHECK(core::StationManager::find_examples_dir(repo) == repo / "simplicial");
-  CHECK(core::StationManager::find_examples_dir(repo / "simplicial") == repo / "simplicial");
-  fs::remove_all(tmp, ec);
-}
-
-TEST_CASE("get_examples finds the examples an installed toolkit ships") {
+TEST_CASE("toolkit_examples finds the examples an installed toolkit ships") {
   unsetenv("PAPERBOAT_ROOT");
-  unsetenv("PAPERBOAT_EXAMPLES_DIR");
   const fs::path tmp = fs::temp_directory_path() / "paperboat_toolkit_examples_test";
   std::error_code ec;
   fs::remove_all(tmp, ec);
   const fs::path root = tmp / "repo";
-  const fs::path examples = root / "paperboat-examples";
   fs::create_directories(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo");
-  fs::create_directories(examples);
+  fs::create_directories(root / "engine" / "toolkit" / "foo" / "examples" / "not-a-station");
   std::ofstream(root / "toolkits.toml") << "[[toolkits]]\nname = \"foo\"\nrepo = \"https://example.com/foo.git\"\n";
   std::ofstream(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo" / "station.toml")
       << "[station]\nformat = 0\nname = \"foo-01-demo\"\nversion = \"0.1.0\"\nengine = \">=0.1\"\n"
@@ -365,11 +346,7 @@ TEST_CASE("get_examples finds the examples an installed toolkit ships") {
   std::ofstream(root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo" / "descriptor.toml")
       << "domain = \"foo\"\n[graph]\nnodes = []\nedges = []\n";
 
-  const auto list = core::StationManager::get_examples(examples);
-  const core::ExampleStation* found = nullptr;
-  for (const auto& e : list)
-    if (e.name == "foo-01-demo") found = &e;
-  REQUIRE(found != nullptr);
-  CHECK(found->port == 8791);
+  CHECK(core::StationManager::toolkit_examples(root) ==
+        std::vector<fs::path>{root / "engine" / "toolkit" / "foo" / "examples" / "foo-01-demo"});
   fs::remove_all(tmp, ec);
 }

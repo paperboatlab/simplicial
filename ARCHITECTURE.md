@@ -45,6 +45,10 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
   `paperboat hub list --json` (no shell, a timeout), a hub's tree (no dot entries) with its stations (a `.pst`'s
   `station.toml`, read in the zip by `scripts/package_station.py info`; a `.psf`'s header and the `.pst` it resolves
   to), a path kept inside its hub, and finding a flow's station (`find`: its path, the hub, installed, running);
+  Paperboat's examples (paperboat#72: `paperboat example list --app simplicial --json`, `[]` without the CLI, and
+  `example open <id> --json`, which copies one to `$PAPERBOAT_HOME/examples/<id>` and opens a new window there;
+  `/__paperboat/examples`, `/__paperboat/example/open`). The engine finds no examples of its own: `run` takes a path,
+  an installed station, `scratchpad` or an installed toolkit's example (`StationManager::toolkit_examples`, `ocv-01`);
   the hub and station routes (`/__paperboat/hub/…`, `/__paperboat/station/find|start|log`) take the workspace as
   `hub=<id>` or `folder=<absolute path>`, answer this computer only, write only `.psf` and start a station only with
   the page's own header. `workspace.cpp`: the one file workflow's server side (plans/2026-11-26_11-05_one_file_workflow.md,
@@ -98,7 +102,8 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
   - `src/hubs.ts`: the workspace and its files, as the page's server gives them: the workspace, switched at runtime
     (`/__paperboat/workspace`: a folder, a hub, a file's folder or hub, nothing), the hubs (`/__paperboat/hubs`, which
     runs `paperboat hub list --json`: no Malachite, no hub), a workspace's tree and its `.psf` files
-    (`/__paperboat/hub/files`, `/hub/file`, by `Root`: `hub=` or `folder=`), and the shared Recent and theme. App.tsx
+    (`/__paperboat/hub/files`, `/hub/file`, by `Root`: `hub=` or `folder=`), the shared Recent and theme, and the examples
+    (`listExamples`, once at load: Ctrl K's **Open example: <name>**, the kit's `exampleCommands`, in no menu). App.tsx
     draws the one file workflow with the kit's `@paperboatlab/ui/workspace` and `/hub`: the Start page in the bay
     while no flow is open, the File menu (`fileMenu`, through `fileItems` in menus.ts), the `WorkspaceWell` after the
     menu bar (no document field in the bar: the Flow's head names the file), `AskOpen`, `ConnectHub`, `TypedPath`,

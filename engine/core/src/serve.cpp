@@ -227,17 +227,26 @@ ix::HttpResponsePtr workspace_route(const std::string& path, const ix::HttpReque
 // (GET /__paperboat/hub/files?hub=<id>, with their stations: hubs::entries), and one .psf in it (GET to read, POST
 // to write: /__paperboat/hub/file?hub=<id>&path=<in the hub>). Only for this computer, and a write only from the
 // page itself (its own header, which a cross-site form can't send). Nothing when `path` isn't a hub or station route.
+// Ctrl+K's Open example: <name> (paperboat#72): GET /__paperboat/examples (`paperboat example list --app simplicial`,
+// [] without the CLI) and POST /__paperboat/example/open?id=<id> (`paperboat example open <id>`: a copy, a new window).
 ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr& request, const std::string& remote) {
   const bool station = path.starts_with("/__paperboat/station/");
   const bool store = path == "/__paperboat/workspace" || path == "/__paperboat/recent" || path == "/__paperboat/settings";
   const bool launcher = path == "/__paperboat/launcher";
-  if (!path.starts_with("/__paperboat/hub") && !station && !store && !launcher) return nullptr;
+  const bool example = path == "/__paperboat/examples" || path == "/__paperboat/example/open";
+  if (!path.starts_with("/__paperboat/hub") && !station && !store && !launcher && !example) return nullptr;
   if (!from_here(remote)) return respond(403, "text/plain", "hubs are only for this computer\n");
   const std::string cli = paperboat_cli();
   if (launcher) {  // Run › Manage runtimes…: the Launcher on its Runtimes page (paperboat#69)
     if (request->method != "POST" || !from_page(request)) return respond(405, "text/plain", "POST from the page\n");
     const auto r = ProcessRunner::run_sync({cli, "launcher", "--page", "runtimes"}, {}, {}, std::chrono::seconds(10));
     return r.ok() ? respond(200, "application/json", "{}") : respond(502, "text/plain", r.stderr_text.empty() ? "can't run " + cli + "\n" : r.stderr_text);
+  }
+  if (path == "/__paperboat/examples") return respond(200, "application/json", hubs::examples(cli).dump());
+  if (path == "/__paperboat/example/open") {
+    if (request->method != "POST" || !from_page(request)) return respond(405, "text/plain", "POST from the page\n");
+    const json r = hubs::open_example(cli, query(request->uri, "id"));
+    return r.contains("error") ? respond(502, "text/plain", r["error"].get<std::string>() + "\n") : respond(200, "application/json", r.dump());
   }
   if (station) return station_route(path, request, cli);
   if (store) return workspace_route(path, request, cli);

@@ -1,7 +1,7 @@
 // File › Open and Save as through the hubs: what the page's server says, as the kit's picker takes it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { holds, parseFlow, stem, toEntries, toHub } from "../src/hubs.ts";
+import { holds, listExamples, openExample, parseFlow, stem, toEntries, toHub } from "../src/hubs.ts";
 
 test("a hub says how many flows and stations it holds; a gone one says so instead", () => {
   assert.equal(holds(3, 1), "3 flows · 1 station");
@@ -37,4 +37,25 @@ test("a flow file opens; anything else says why", () => {
   assert.throws(() => parseFlow(JSON.stringify({ paperboat: 2, station: { name: "x" }, flow: {} })), /newer Simplicial/);
   assert.throws(() => parseFlow(JSON.stringify({ paperboat: 0, station: "x" })), /flow must be an object/);
   assert.equal(stem("projects/pendulum/pendulum.psf"), "pendulum");
+});
+
+test("Open example: the server's list (none when it fails), and open posts the id from the page", async () => {
+  const real = globalThis.fetch;
+  const asked: [string, RequestInit | undefined][] = [];
+  const ex = { id: "simplicial/09-modular-synth-cpp", app: "simplicial", kind: "simplicial", name: "09 Modular Synth", description: "", path: "/x" };
+  try {
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      asked.push([url, init]);
+      return url.includes("open") ? new Response("simplicial is not installed\n", { status: 502 }) : Response.json([ex]);
+    }) as typeof fetch;
+    assert.deepEqual(await listExamples(), [ex]);
+    await assert.rejects(openExample(ex.id), /simplicial is not installed/);
+    assert.equal(asked[1][0], "/__paperboat/example/open?id=simplicial%2F09-modular-synth-cpp");
+    assert.equal(asked[1][1]?.method, "POST");
+    assert.equal((asked[1][1]?.headers as Record<string, string>)["X-Paperboat-Page"], "1");
+    globalThis.fetch = (async () => { throw new Error("no server"); }) as typeof fetch;
+    assert.deepEqual(await listExamples(), []);
+  } finally {
+    globalThis.fetch = real;
+  }
 });

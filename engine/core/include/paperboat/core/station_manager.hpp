@@ -60,16 +60,6 @@ enum class StationKind {
   Unknown
 };
 
-struct ExampleStation {
-  int port = 0;
-  std::string name;
-  std::string type;  // "cpp" or "python"
-  std::filesystem::path dir;
-  bool running = false;
-  int pid = 0;
-  std::string ws_url;
-};
-
 struct StationManifest {
   int format = 0;
   std::string name;
@@ -211,17 +201,9 @@ class StationManager {
   static bool stop_station(const std::string& target, bool all = false);
   static bool restart_station(const std::string& target, const StationRunOptions& opts = {});
 
-  // Multi-station orchestration (examples)
-  static std::filesystem::path find_examples_dir(const std::filesystem::path& hint = {});
-  // The examples repository, cloned on first use when no local checkout exists.
-  static constexpr std::string_view kExamplesRepo = "https://github.com/paperboatlab/paperboat-examples.git";
-  static std::filesystem::path fetched_examples_dir();
-  // Clone it into fetched_examples_dir(), or pull when already there. False on a git failure.
-  static bool fetch_examples();
-  static std::vector<ExampleStation> get_examples(const std::filesystem::path& examples_dir = {});
-  static bool start_examples(const std::filesystem::path& examples_dir = {});
-  static bool stop_examples();
-  static std::vector<ExampleStation> status_examples(const std::filesystem::path& examples_dir = {});
+  // The examples an optional toolkit ships (ocv-01-…, opt-01-…: not Paperboat's examples, which `paperboat example`
+  // lists and copies): engine/toolkit/<name>/examples/*, and a sibling simplicial-toolkit-<name>/examples/*. Sorted.
+  static std::vector<std::filesystem::path> toolkit_examples(const std::filesystem::path& repo_root = {});
 
   // Web application management
   static bool start_app(int port = 30471, const std::string& host = "0.0.0.0", bool daemon = false,

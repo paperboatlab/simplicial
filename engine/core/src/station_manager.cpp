@@ -1034,9 +1034,9 @@ fs::path StationManager::resolve_station_dir(const fs::path& path_or_domain) {
     if (is_valid_station_dir(p_check) || fs::is_regular_file(p_check)) return fs::absolute(p_check);
   }
 
-  // Look in paperboat-examples, examples/stations, user stations, or sibling directory
+  // The user's installed stations, a sibling folder, an installed toolkit's examples. Paperboat's examples are
+  // paths: `paperboat example open` copies one to $PAPERBOAT_HOME/examples (paperboat#72).
   const fs::path root = toolkit::find_repo_root();
-  const fs::path edir = find_examples_dir();
   const std::string name = p_check.string();
   const fs::path ub_dir = user_stations_dir();
 
@@ -1050,12 +1050,6 @@ fs::path StationManager::resolve_station_dir(const fs::path& path_or_domain) {
   }
 
   std::vector<fs::path> candidates = {
-      edir / name,
-      edir / (name + "-cpp"),
-      edir / (name + "-python"),
-      root / "examples" / "stations" / name,
-      root / "examples" / "stations" / (name + "-cpp"),
-      root / "examples" / "stations" / (name + "-python"),
       ub_dir / name,
       fs::current_path().parent_path() / name,
   };
@@ -1074,94 +1068,42 @@ fs::path StationManager::resolve_station_dir(const fs::path& path_or_domain) {
     }
   }
 
-  // Check matching directory in examples_dir with prefix or numeric shorthand (e.g. 01, 1, 02, 2)
-  if (!edir.empty() && fs::is_directory(edir, ec)) {
-    std::string prefix = name;
-    if (prefix.size() == 1 && std::isdigit(static_cast<unsigned char>(prefix[0]))) {
-      prefix = "0" + prefix;
-    }
-    for (const auto& entry : fs::directory_iterator(edir, ec)) {
-      if (entry.is_directory(ec)) {
-        const std::string fn = entry.path().filename().string();
-        if (fn.starts_with(prefix + "-") || (fn.find(name) != std::string::npos && fn.find('-') != std::string::npos)) {
-          if (is_valid_station_dir(entry.path())) return entry.path();
-        }
-      }
+  // An installed toolkit's examples (toolkit_examples): `ocv-01`, `ocv-1` and the full name find the same folder.
+  std::string prefix = name;
+  if (const auto dash = prefix.rfind('-'); dash != std::string::npos && dash + 2 == prefix.size() &&
+                                           std::isdigit(static_cast<unsigned char>(prefix.back()))) {
+    prefix.insert(dash + 1, "0");
+  }
+  for (const auto& dir : toolkit_examples(root)) {
+    const std::string fn = dir.filename().string();
+    if ((fn == prefix || fn.starts_with(prefix + "-") || (fn.find(prefix) != std::string::npos && fn.find('-') != std::string::npos)) &&
+        is_valid_station_dir(dir)) {
+      return dir;
     }
   }
 
-  // An installed toolkit's examples: engine/toolkit/<toolkit>/examples/<ocv|opt>-NN-name,
-  // or a sibling toolkit repository: simplicial-toolkit-<name>/examples/<ocv|opt>-NN-name.
-  // `ocv-01`, `ocv-1` and the full name all find the same folder.
-  if (!root.empty()) {
-    std::string prefix = name;
-    const auto dash = prefix.rfind('-');
-    if (dash != std::string::npos && dash + 2 == prefix.size() &&
-        std::isdigit(static_cast<unsigned char>(prefix.back()))) {
-      prefix.insert(dash + 1, "0");
-    }
-
-    auto search_examples = [&](const fs::path& examples) -> fs::path {
-      if (!fs::is_directory(examples, ec)) return {};
-      for (const auto& entry : fs::directory_iterator(examples, ec)) {
-        if (!entry.is_directory(ec)) continue;
-        const std::string fn = entry.path().filename().string();
-        if ((fn == prefix || fn.starts_with(prefix + "-") || (fn.find(prefix) != std::string::npos && fn.find('-') != std::string::npos)) &&
-            is_valid_station_dir(entry.path())) {
-          return entry.path();
-        }
-      }
-      return {};
-    };
-
-    const fs::path toolkits = toolkit::toolkits_dir(root);
-    if (fs::is_directory(toolkits, ec)) {
-      for (const auto& toolkit : fs::directory_iterator(toolkits, ec)) {
-        if (auto p = search_examples(toolkit.path() / "examples"); !p.empty()) return p;
-      }
-    }
-
-    const fs::path parent = root.parent_path();
-    if (fs::is_directory(parent, ec)) {
-      for (const auto& repo : fs::directory_iterator(parent, ec)) {
-        if (!repo.is_directory(ec)) continue;
-        const std::string rname = repo.path().filename().string();
-        if (!rname.starts_with("simplicial-toolkit-") && !rname.starts_with("paperboat-toolkit-")) continue;  // the old name: checkouts made before the rename
-        if (auto p = search_examples(repo.path() / "examples"); !p.empty()) return p;
-      }
-    }
-  }
-
-  // A bare name with no examples checkout anywhere: fetch the examples repository, then look again.
-  if (edir.empty() && !p_check.has_parent_path() && !fs::exists(p_check) && fetch_examples() &&
-      !find_examples_dir().empty()) {
-    return resolve_station_dir(path_or_domain);
-  }
   return p_check;
 }
 
-fs::path StationManager::fetched_examples_dir() {
-  return user_stations_dir().parent_path() / "examples";
-}
-
-bool StationManager::fetch_examples() {
-  const fs::path dir = fetched_examples_dir();
-  const toolkit::ToolkitLog log = [](std::string_view, std::string_view line) { std::cerr << "  " << line << '\n'; };
-  if (fs::is_directory(dir / ".git")) {
-    std::cerr << "Updating examples in " << dir.string() << '\n';
-    return toolkit::run_command({"git", "-C", dir.string(), "pull", "--ff-only"}, {}, log) == 0;
-  }
-  // PAPERBOAT_EXAMPLES_REPO points the clone somewhere else (a fork, a private mirror)
-  const char* env_repo = std::getenv("PAPERBOAT_EXAMPLES_REPO");
-  const std::string repo = env_repo && *env_repo ? env_repo : std::string(kExamplesRepo);
-  std::cerr << "Fetching examples from " << repo << " into " << dir.string() << '\n';
+std::vector<fs::path> StationManager::toolkit_examples(const fs::path& repo_root) {
+  const fs::path root = repo_root.empty() ? toolkit::find_repo_root() : repo_root;
+  std::vector<fs::path> out;
+  if (root.empty()) return out;
   std::error_code ec;
-  fs::create_directories(dir.parent_path(), ec);
-  if (toolkit::run_command({"git", "clone", "--depth", "1", repo, dir.string()}, {}, log) == 0) return true;
-  std::cerr << "error: could not clone " << repo << " (it may be private, or not reachable from here).\n"
-            << "  Clone the examples yourself next to this checkout (../paperboat-examples), or set\n"
-            << "  PAPERBOAT_EXAMPLES_DIR to a checkout, or PAPERBOAT_EXAMPLES_REPO to another git URL.\n";
-  return false;
+  const auto add = [&](const fs::path& examples) {
+    if (!fs::is_directory(examples, ec)) return;
+    for (const auto& e : fs::directory_iterator(examples, ec)) {
+      if (e.is_directory(ec) && (fs::is_regular_file(e.path() / "station.toml", ec) || fs::is_regular_file(e.path() / "descriptor.toml", ec)))
+        out.push_back(e.path());
+    }
+  };
+  for (const auto& t : fs::directory_iterator(toolkit::toolkits_dir(root), ec)) add(t.path() / "examples");
+  for (const auto& repo : fs::directory_iterator(root.parent_path(), ec)) {
+    const std::string n = repo.path().filename().string();
+    if (n.starts_with("simplicial-toolkit-") || n.starts_with("paperboat-toolkit-")) add(repo.path() / "examples");  // the old name: checkouts made before the rename
+  }
+  std::ranges::sort(out);
+  return out;
 }
 
 int StationManager::run_station(const fs::path& path_or_domain, const StationRunOptions& opts) {
@@ -1431,245 +1373,6 @@ bool StationManager::restart_station(const std::string& target, const StationRun
   StationRunOptions run_opts = opts;
   if (port > 0 && run_opts.port <= 0) run_opts.port = port;
   return run_station(station_dir, run_opts) == 0;
-}
-
-fs::path StationManager::find_examples_dir(const fs::path& hint) {
-  // paperboat-examples groups its examples by app (ex#43): Simplicial's stations are in its
-  // simplicial/ folder, so a checkout of the whole repository means that folder.
-  const auto stations_of = [](const fs::path& p) {
-    std::error_code ec;
-    const fs::path sub = p / "simplicial";
-    if (fs::is_directory(sub, ec)) {
-      for (const auto& e : fs::directory_iterator(sub, ec)) {
-        if (fs::is_regular_file(e.path() / "station.toml", ec)) return sub;
-      }
-    }
-    return p;
-  };
-  if (const char* env = std::getenv("PAPERBOAT_EXAMPLES_DIR"); env && *env && fs::is_directory(env)) {
-    return stations_of(env);
-  }
-  if (!hint.empty() && fs::is_directory(hint)) return stations_of(hint);
-
-  const fs::path root = toolkit::find_repo_root();
-  auto is_examples_dir = [](const fs::path& p) {
-    return fs::is_directory(p) && (
-        fs::is_regular_file(p / "01-smart-thermostat-python" / "station.toml") ||
-        fs::is_regular_file(p / "02-cart-pole-cpp" / "station.toml") ||
-        fs::is_regular_file(p / "cart-pole-cpp" / "CMakeLists.txt") ||
-        fs::is_regular_file(p / "mass-spring-python" / "server.py")
-    );
-  };
-
-  if (!root.empty()) {
-    if (const fs::path p = stations_of(root.parent_path() / "paperboat-examples"); is_examples_dir(p)) return p;
-  }
-
-  if (!root.empty() && is_examples_dir(root / "examples" / "stations")) {
-    return root / "examples" / "stations";
-  }
-
-  if (const fs::path p = stations_of(fetched_examples_dir()); is_examples_dir(p)) return p;
-  return {};
-}
-
-std::vector<ExampleStation> StationManager::get_examples(const fs::path& examples_dir) {
-  const fs::path edir = find_examples_dir(examples_dir);
-  std::vector<ExampleStation> list;
-
-  // The tutorial curriculum (paperboat-examples) plus the examples an installed optional
-  // toolkit ships under engine/toolkit/<name>/examples (ocv-01-…, opt-01-…).
-  std::vector<fs::path> dirs;
-  const auto add_dir = [&dirs](const fs::path& dir) {
-    if (std::ranges::find(dirs, dir) == dirs.end()) dirs.push_back(dir);
-  };
-  std::error_code ec;
-  if (!edir.empty() && fs::is_directory(edir)) {
-    for (const auto& entry : fs::directory_iterator(edir, ec)) {
-      if (entry.is_directory(ec) && (fs::is_regular_file(entry.path() / "station.toml", ec) ||
-                                     fs::is_regular_file(entry.path() / "descriptor.toml", ec))) {
-        add_dir(entry.path());
-      }
-    }
-  }
-  fs::path root = toolkit::find_repo_root(edir);
-  if (root.empty()) {
-    root = toolkit::find_repo_root(examples_dir);
-  }
-  if (root.empty()) {
-    root = toolkit::find_repo_root();
-  }
-  if (!root.empty()) {
-    const fs::path toolkits = toolkit::toolkits_dir(root);
-    if (fs::is_directory(toolkits, ec)) {
-      for (const auto& toolkit : fs::directory_iterator(toolkits, ec)) {
-        if (!toolkit.is_directory(ec)) continue;
-        const fs::path examples = toolkit.path() / "examples";
-        if (!fs::is_directory(examples, ec)) continue;
-        for (const auto& entry : fs::directory_iterator(examples, ec)) {
-          if (entry.is_directory(ec) && (fs::is_regular_file(entry.path() / "station.toml", ec) ||
-                                         fs::is_regular_file(entry.path() / "descriptor.toml", ec))) {
-            add_dir(entry.path());
-          }
-        }
-      }
-    }
-
-    const fs::path parent = root.parent_path();
-    if (fs::is_directory(parent, ec)) {
-      for (const auto& repo : fs::directory_iterator(parent, ec)) {
-        if (!repo.is_directory(ec)) continue;
-        const std::string rname = repo.path().filename().string();
-        if (!rname.starts_with("simplicial-toolkit-") && !rname.starts_with("paperboat-toolkit-")) continue;  // the old name: checkouts made before the rename
-        const fs::path examples = repo.path() / "examples";
-        if (!fs::is_directory(examples, ec)) continue;
-        for (const auto& entry : fs::directory_iterator(examples, ec)) {
-          if (entry.is_directory(ec) && (fs::is_regular_file(entry.path() / "station.toml", ec) ||
-                                         fs::is_regular_file(entry.path() / "descriptor.toml", ec))) {
-            add_dir(entry.path());
-          }
-        }
-      }
-    }
-  }
-  std::sort(dirs.begin(), dirs.end());
-
-  for (const auto& sdir : dirs) {
-    StationManifest m = load_manifest(sdir);
-    int port = m.port > 0 ? m.port : 51301;
-    std::string name = sdir.filename().string();
-    std::string type = m.language.empty() ? (fs::is_regular_file(sdir / "CMakeLists.txt") ? "cpp" : "python") : m.language;
-    ExampleStation item{port, name, type, sdir, false, 0, ws_url(port)};
-    if (is_port_listening(item.port)) {
-      item.running = true;
-      item.pid = find_pid_by_port(item.port);
-    }
-    list.push_back(std::move(item));
-  }
-
-  if (list.empty()) {
-    struct Known {
-      int port;
-      const char* name;
-      const char* type;
-    };
-    static constexpr Known known[] = {
-        {51301, "01-smart-thermostat-python", "python"}, {51302, "02-cart-pole-cpp", "cpp"},
-        {51303, "03-low-poly-island-python", "python"},  {51304, "04-cocktail-barista-python", "python"},
-        {51305, "05-rover-lander-python", "python"},     {51306, "06-robot-pick-place-python", "python"},
-        {51307, "07-airfoil-cfd-python", "python"},      {51308, "08-air-hockey-tracker-cpp", "cpp"},
-        {51309, "09-modular-synth-cpp", "cpp"},          {51310, "10-train-pantograph-cpp", "cpp"},
-    };
-
-    for (const auto& k : known) {
-      ExampleStation item{k.port, k.name, k.type, edir / k.name, false, 0, ws_url(k.port)};
-      if (is_port_listening(item.port)) {
-        item.running = true;
-        item.pid = find_pid_by_port(item.port);
-      }
-      list.push_back(std::move(item));
-    }
-  }
-  return list;
-}
-
-bool StationManager::start_examples(const fs::path& examples_dir) {
-  const fs::path edir = find_examples_dir(examples_dir);
-  auto examples = get_examples(edir);
-  if (examples.empty()) {
-    std::cerr << "error: no example stations found (paperboat-examples, or an installed toolkit's examples/).\n";
-    return false;
-  }
-
-  if (!edir.empty()) std::cout << "Using examples directory: " << edir.string() << '\n';
-  stop_examples();
-
-  const fs::path root = toolkit::find_repo_root();
-  const fs::path cwd = root.empty() ? fs::current_path() : root;
-  auto py_env = prepare_python_env(root);
-
-  // Record a launched example so `paperboat list` and `stop` find it.
-  const auto launched = [](const ExampleStation& ex, int pid, const std::string& engine, const std::string& domain,
-                           const fs::path& workdir, const std::string& executable) {
-    if (pid <= 0) return;
-    std::cout << "Started " << ex.name << " on port " << ex.port << " (PID " << pid << ")\n";
-    RunningStation rb;
-    rb.port = ex.port;
-    rb.pid = pid;
-    rb.engine = engine;
-    rb.domain = domain;
-    rb.cwd = workdir;
-    rb.station_dir = ex.dir;
-    rb.executable = executable;
-    rb.ws_url = ws_url(ex.port);
-    rb.started_at = current_timestamp();
-    register_running_station(rb);
-  };
-
-  const auto domain_of = [](const std::string& name) {
-    std::string domain = name;
-    for (std::string_view suffix : {"-cpp", "-python"}) {
-      if (domain.ends_with(suffix)) {
-        domain.resize(domain.size() - suffix.size());
-        break;
-      }
-    }
-    return domain;
-  };
-
-  for (const auto& ex : examples) {
-    if (!fs::is_directory(ex.dir)) {
-      std::cout << "[skip] " << ex.name << " (directory not found: " << ex.dir << ")\n";
-      continue;
-    }
-
-    const fs::path log_path = platform::shared_tmp_dir() / ("station-" + std::to_string(ex.port) + ".log");
-    if (ex.type == "cpp") {
-      std::cout << "==> Building " << ex.name << "…\n";
-      std::string err;
-      if (!ensure_built(ex.dir, false, false, &err)) {
-        std::cerr << "warning: " << ex.name << " build failed: " << err << '\n';
-        continue;
-      }
-
-      const fs::path bin = built_binary(ex.dir / "build");
-      if (bin.empty()) {
-        std::cerr << "warning: binary for " << ex.name << " not found\n";
-        continue;
-      }
-
-      int pid = ProcessRunner::run_detached({bin.string(), "--port", std::to_string(ex.port)}, cwd, {}, log_path);
-      launched(ex, pid, "paperboat/" + ex.name, domain_of(ex.name), cwd, bin.string());
-    } else {
-      // Python
-      int pid = ProcessRunner::run_detached({py_env.python_bin.string(), "server.py", "--port", std::to_string(ex.port)},
-                                            ex.dir, py_env.env, log_path);
-      launched(ex, pid, "python", domain_of(ex.name), ex.dir, py_env.python_bin.string() + " server.py");
-    }
-  }
-
-  std::cout << "==> All example stations launched.\n";
-  return true;
-}
-
-bool StationManager::stop_examples() {
-  std::vector<int> ports;
-  for (int p = 51301; p <= 51310; ++p) ports.push_back(p);
-  for (const auto& ex : get_examples()) {
-    if (std::ranges::find(ports, ex.port) == ports.end()) ports.push_back(ex.port);
-  }
-  std::cout << "==> Stopping all example stations…\n";
-  for (const int p : ports) {
-    stop_user_service("paperboat-station-" + std::to_string(p) + ".service");
-    free_port(p, 1000);
-    unregister_running_station(p);
-  }
-  std::cout << "==> All example stations stopped.\n";
-  return true;
-}
-
-std::vector<ExampleStation> StationManager::status_examples(const fs::path& examples_dir) {
-  return get_examples(examples_dir);
 }
 
 bool StationManager::start_app(int port, const std::string& host, bool daemon, const fs::path& folder) {
