@@ -109,13 +109,14 @@ test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example
     for (let i = 0; i < 80; i++) { try { await fetch(`http://127.0.0.1:${web}/`); break; } catch { await sleep(250); } }
     await cmd("Page.navigate", { url: open });
     await until("the flow to open", `(${flowHead}).startsWith("loop.psf") && (${flowHead}).includes("0 blocks")`, 40000);
-    await sleep(1500);  // the opened flow settles (projectSession.ts): what it is saved as
 
-    // edit: a block from the library, and the run's length in Run settings…
+    // edit, right away (#55: an edit while the opened flow settled wasn't marked): a block from the library, and the
+    // run's length in Run settings…
     await click(".pg-flow .key", "Add block");
     await until("the block library", `document.querySelector(".lib-card")`);
     await click(".lib-card");
     await until("the block on the Flow", `(${flowHead}).includes("1 block")`);
+    await until("the block to be unsaved", `document.querySelector(".pg-flow .dirty")`);
     await click(".menubar .menu-title", "Run");
     await click(".menu .menu-item", "Run settings");
     await until("Run settings", length);

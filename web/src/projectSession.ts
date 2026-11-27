@@ -9,6 +9,10 @@ import { clearAutosave, loadAutosave, saveAutosave, type Stored } from "./projec
 /** A question before something is replaced, and its answers; the last is the safe one (Esc). `looked`: where it looked (E1). */
 export type Notice = { title: string; text: string[]; looked?: [string, string][]; actions: { label: string; primary?: boolean; run?: () => void }[] };
 
+/** How long an opened project's parts stay unchanged before it counts as settled: its own renders take a few ms, an
+ *  edit by hand comes later. */
+const SETTLED_MS = 60;
+
 export function useProject(
   /** The station's name (hello.engine): unsaved work is kept per station. */
   engine: string,
@@ -35,13 +39,22 @@ export function useProject(
     const t = window.setTimeout(() => setKey(JSON.stringify(take.current())), 250);
     return () => window.clearTimeout(t);
   }, [engine, ...parts]); // eslint-disable-line react-hooks/exhaustive-deps -- the parts are the snapshot's
-  useEffect(() => setBaseline(null), [engine]);
+  // A file opened (or the starter put back): what it settles to is taken as soon as the canvas is still, not after the
+  // debounced `key` (#55: an edit in that wait was taken as what was opened, and never marked unsaved).
+  const [opening, setOpening] = useState(false);
+  useEffect(() => { setBaseline(null); setOpening(false); }, [engine]);
   useEffect(() => {
-    if (baseline !== null || key === "") return;
-    // the canvas settles (linked blocks, places); taken afresh, as `key` may still be the project before an open
+    if (baseline !== null || key === "" || opening) return;
+    // the station's starter settles (graph.load, linked blocks, places); taken afresh
     const t = window.setTimeout(() => setBaseline(JSON.stringify(take.current())), 500);
     return () => window.clearTimeout(t);
-  }, [key, baseline]);
+  }, [key, baseline, opening]);
+  useEffect(() => {
+    if (baseline !== null || !opening) return;
+    // the open settles in a few renders (the canvas from the file, linked blocks, loose wires): quiet for a moment
+    const t = window.setTimeout(() => { setBaseline(JSON.stringify(take.current())); setOpening(false); }, SETTLED_MS);
+    return () => window.clearTimeout(t);
+  }, [baseline, opening, ...parts]); // eslint-disable-line react-hooks/exhaustive-deps -- the parts are the snapshot's
 
   // After a reload: the work this station had unsaved, offered back once the starter has settled.
   useEffect(() => {
@@ -75,6 +88,7 @@ export function useProject(
      *  found elsewhere, E2). */
     opened: (changed = false) => {
       setBaseline(changed ? "changed" : null);
+      setOpening(!changed);
       checked.current = engine;  // a file opened on purpose: no offer to restore what was there before
     },
     /** It was saved: saved from here on. */
