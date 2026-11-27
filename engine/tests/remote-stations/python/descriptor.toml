@@ -1,0 +1,19 @@
+domain = "remote_python"
+import = ["base", "board"]
+
+[station]
+objects = [{ id = "mass", type = "mass", props = { k = 4 } }]
+
+[graph]
+nodes = [
+  { id = "three", type = "constant", params = { value = 3 } },
+  { id = "doubled", type = "scale", params = { gain = 2 } },
+  { id = "result", type = "display" },
+  { id = "mass", type = "mass" },
+  { id = "plot", type = "graph" },
+]
+edges = [
+  { from = ["three", "y"], to = ["doubled", "u"] },
+  { from = ["doubled", "y"], to = ["result", "in"] },
+  { from = ["mass", "x"], to = ["plot", "in"] },
+]

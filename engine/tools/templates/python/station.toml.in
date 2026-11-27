@@ -1,14 +1,17 @@
-# The station's manifest: what `paperboat run`, `check` and `pack` read.
+# @name@: a Paperboat station whose domain code is Python. Made by `paperboat new @name@ --python`.
 [station]
 format = 0
 name = "@name@"
 version = "0.1.0"
 engine = ">=0.1"
 language = "python"
-run = "server.py"
+run = "station.py"       # the domain file, loaded into the python runtime
 # `paperboat run` serves ws://localhost:@port@ (`paperboat run --port N` for another).
 port = @port@
 descriptor = "descriptor.toml"
+
+[run]
+duration = 5.0  # seconds of the run clock (dt 0.01 s); the page may change it per run
 
 [test]
 # `paperboat check` runs the starter graph headless and compares what it ends with to this.

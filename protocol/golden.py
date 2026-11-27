@@ -8,10 +8,11 @@ example's result fails here. Every message is also checked against the protocol 
     python3 protocol/golden.py parts-cpp       # some of them
     python3 protocol/golden.py --examples DIR  # default: $PAPERBOAT_EXAMPLES_DIR, else ../paperboat-examples
 
-expected.json: {"run": "build/paperboat-parts" | "server.py", "status": "done",
+expected.json: {"run": "build/paperboat-parts" | "station.py" | "station.jl", "status": "done",
                 "signals": {"node": value | [value, tolerance]},   # the node's last number
                 "logs": ["text a log line contains", …]}
-C++ examples must be built first (npm run station:<name> builds them; or cmake).
+C++ examples must be built first (npm run station:<name> builds them; or cmake). Julia and Python
+ones run through the engine ($PAPERBOAT_ENGINE, else engine/build/tools/simplicial-engine) and paperboatd.
 """
 
 import json
@@ -44,23 +45,12 @@ def run(example: Path, expected: dict) -> list[str]:
             pass
     if not target:
         return ["no run target specified in expected.json or station.toml"]
-    if target.endswith(".py"):
-        cmd = [sys.executable, target, "--run"]
-        if "duration" in expected:
-            cmd += ["--duration", str(expected["duration"])]
-        # A checkout's python/ before what PYTHONPATH has: `paperboat check` from a package sets it
-        # to the package's lib/paperboat/python, and there is no python/ next to protocol/ (pb#223).
-        env = dict(os.environ)
-        if (ROOT / "python" / "paperboat").is_dir():
-            env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT / "python"), os.environ.get("PYTHONPATH")]))
-    elif target.endswith(".jl"):
-        # A Julia station is served by Paperboat.jl; run it in its own depot and project.
-        julia = os.environ.get("PAPERBOAT_JULIA", "julia")
-        env = dict(os.environ)
-        env.setdefault("JULIA_DEPOT_PATH", str(example / ".julia"))
-        env.setdefault("JULIA_LOAD_PATH", "@:@stdlib")
-        env.setdefault("JULIA_NUM_THREADS", "1")
-        cmd = [julia, "--startup-file=no", "--project=" + str(example), str(example / target), "--run"]
+    if target.endswith((".py", ".jl")):
+        # A Julia or Python station: the engine serves it, its code in a runtime from paperboatd.
+        engine = os.environ.get("PAPERBOAT_ENGINE") or next(
+            (str(p) for p in (ROOT / "engine" / "build" / "tools" / "simplicial-engine", ROOT / "bin" / "simplicial-engine") if p.exists()),
+            "simplicial-engine")
+        cmd, env = [engine, "host", str(example), "--run"], os.environ
         if "duration" in expected:
             cmd += ["--duration", str(expected["duration"])]
     else:

@@ -106,10 +106,9 @@ std::vector<std::pair<std::string, std::string>> run_env(const StationManifest& 
   return env;
 }
 
-// The Julia a station runs with: $PAPERBOAT_JULIA, else `julia` on PATH.
-std::string julia_binary() {
-  if (const char* named = std::getenv("PAPERBOAT_JULIA"); named && *named) return named;
-  return "julia";
+// A Julia or Python station's process: this engine's `host <dir>` (remote.cpp), before its options.
+std::vector<std::string> remote_command(const fs::path& dir) {
+  return {platform::exe_path().string(), "host", fs::absolute(dir).string()};
 }
 
 // Julia is isolated per station: its own depot, project and load path (#322).
@@ -1326,54 +1325,28 @@ int StationManager::run_station(const fs::path& path_or_domain, const StationRun
       if (code != core::kRestartExit) return code;
       std::cout << "restarting " << bin.filename().string() << "…" << std::endl;
     }
-  } else if (kind == StationKind::Julia) {
-    fs::path server = dir / "server.jl";
-    if (manifest.has_manifest && !manifest.run.empty() && fs::is_regular_file(dir / manifest.run)) {
-      server = dir / manifest.run;
-    } else if (!fs::is_regular_file(server)) {
-      return failed("server.jl not found in " + dir.string());
-    }
-    std::vector<std::string> args = {julia_binary(), "--startup-file=no", "--project=" + dir.string(),
-                                     server.filename().string(), "--port", std::to_string(port)};
-    if (opts.run) args.emplace_back("--run");
-    if (!opts.psf_file.empty()) {
-      args.emplace_back("--psf");
-      args.emplace_back(opts.psf_file);
-    }
-    append_vars(args, opts);
-
-    std::vector<std::pair<std::string, std::string>> env = julia_env(dir);
-    for (auto& entry : run_env(manifest, opts)) env.push_back(std::move(entry));
-    std::cout << "paperboat running server.jl on " << ws_url(port) << std::endl;
-    now_at("starting", "waiting");
-    return ProcessRunner::run_stream(args, dir, env, log_cb);
   } else {
-    // Python station
-    const fs::path repo_root = toolkit::find_repo_root(dir);
-    auto py_env = prepare_python_env(repo_root, dir);
-
-    fs::path server_script = dir / "server.py";
-    std::string script_run_arg = "server.py";
-    if (manifest.has_manifest && !manifest.run.empty() && fs::is_regular_file(dir / manifest.run)) {
-      server_script = dir / manifest.run;
-      script_run_arg = manifest.run;
-    } else if (!fs::is_regular_file(server_script)) {
-      return failed("server.py not found in " + dir.string());
-    }
-
-    std::vector<std::string> args = {py_env.python_bin.string(), script_run_arg, "--port", std::to_string(port)};
+    // A Julia or Python station: the engine serves it, the domain code runs in a runtime from
+    // paperboatd (remote.cpp). `run` names the domain file, loaded there.
+    if (manifest.run.empty() || !fs::is_regular_file(dir / manifest.run))
+      return failed("the domain file (station.toml `run`) is missing in " + dir.string());
+    std::vector<std::string> args = remote_command(dir);
+    args.insert(args.end(), {"--port", std::to_string(port)});
     if (opts.run) args.emplace_back("--run");
     if (!opts.psf_file.empty()) {
       args.emplace_back("--psf");
       args.emplace_back(opts.psf_file);
     }
     append_vars(args, opts);
-
-    std::cout << "paperboat running python " << server_script.filename().string() << " on " << ws_url(port) << std::endl;
-    auto env = py_env.env;
-    for (auto& e : run_env(manifest, opts)) env.push_back(std::move(e));
+    std::vector<std::pair<std::string, std::string>> env = run_env(manifest, opts);
+    env.emplace_back(core::kSupervisedEnv, "1");
+    std::cout << "paperboat running " << manifest.run << " (" << manifest.language << ") on " << ws_url(port) << std::endl;
     now_at("starting", "waiting");
-    return ProcessRunner::run_stream(args, dir, env, log_cb);
+    for (;;) {
+      const int code = ProcessRunner::run_stream(args, dir, env, log_cb);
+      if (code != core::kRestartExit) return code;
+      std::cout << "restarting " << manifest.run << "…" << std::endl;
+    }
   }
 }
 
@@ -1999,26 +1972,8 @@ CheckResult StationManager::check_station(const fs::path& path, bool fast, const
     return fail(step_manifest, "descriptor file missing: " + manifest.descriptor);
   }
 
-  // Dependencies: a declared manifest must have its isolated environment.
-  const StationKind dep_kind = detect_station_kind(dir);
-  if (dep_kind == StationKind::Python && fs::is_regular_file(dir / "requirements.txt") && venv_python(dir).empty()) {
-    // Comments and blank lines are not dependencies: a scaffolded station passes as it is.
-    std::ifstream requirements(dir / "requirements.txt");
-    bool has_package = false;
-    for (std::string line; std::getline(requirements, line);) {
-      const auto first = line.find_first_not_of(" \t\r");
-      if (first != std::string::npos && line[first] != '#') {
-        has_package = true;
-        break;
-      }
-    }
-    if (has_package) return fail(step_manifest, "Python dependencies are not installed: run `paperboat deps install`");
-  }
-  if (dep_kind == StationKind::Julia && fs::is_regular_file(dir / "Project.toml") &&
-      !fs::is_regular_file(dir / "Manifest.toml")) {
-    return fail(step_manifest, "Julia dependencies are not installed: run `paperboat deps install`");
-  }
-
+  // Dependencies: a Julia or Python station's packages live in its runtime's package volume
+  // (`paperboat package add <runtime> <package> --project <dir>`), not beside it.
   // Check build / entry point files
   if (manifest.language == "cpp") {
     if (!fs::is_regular_file(dir / "CMakeLists.txt")) {
@@ -2158,8 +2113,11 @@ CheckResult StationManager::check_station(const fs::path& path, bool fast, const
         // The domain's blocks and station objects are registered in C++ (or Python), which a
         // static load cannot see: ask the built station what it offers.
         bool counted = false;
-        if (!fast && manifest.language == "cpp" && ensure_built(dir, false, false, nullptr) && fs::is_regular_file(dir / manifest.run)) {
-          const auto probe = ProcessRunner::run_sync({(dir / manifest.run).string(), "--catalog"}, dir);
+        const bool remote = manifest.language == "julia" || manifest.language == "python";
+        if (!fast && (remote || (manifest.language == "cpp" && ensure_built(dir, false, false, nullptr) && fs::is_regular_file(dir / manifest.run)))) {
+          std::vector<std::string> command = remote ? remote_command(dir) : std::vector<std::string>{(dir / manifest.run).string()};
+          command.emplace_back("--catalog");
+          const auto probe = ProcessRunner::run_sync(command, dir);
           try {
             const auto got = nlohmann::json::parse(probe.stdout_text);
             res.block_count = static_cast<int>(got.at("blocks").size());
@@ -2296,21 +2254,15 @@ CheckResult StationManager::check_station(const fs::path& path, bool fast, const
       return fail(step_smoke, "executable not found: " + bin.string());
     }
     launch_cmd = {bin.string(), "--port", std::to_string(smoke_port)};
-  } else if (manifest.language == "julia") {
-    fs::path script = dir / manifest.run;
-    if (!fs::is_regular_file(script)) return fail(step_smoke, "server.jl not found: " + script.string());
-    launch_cmd = {julia_binary(), "--startup-file=no", "--project=" + dir.string(), script.string(),
-                  "--port", std::to_string(smoke_port)};
   } else {
-    fs::path script = dir / manifest.run;
-    launch_cmd = {py_env.python_bin.string(), script.string(), "--port", std::to_string(smoke_port)};
+    launch_cmd = remote_command(dir);
+    launch_cmd.insert(launch_cmd.end(), {"--port", std::to_string(smoke_port)});
   }
 
   fs::path log_path = runtime_dir() / ("smoke-" + std::to_string(smoke_port) + ".log");
   fs::create_directories(runtime_dir());
 
-  auto smoke_env = manifest.language == "julia" ? julia_env(dir) : py_env.env;
-  for (auto& e : run_env(manifest, {})) smoke_env.push_back(std::move(e));
+  auto smoke_env = run_env(manifest, {});
   int station_pid = ProcessRunner::run_detached(launch_cmd, dir, smoke_env, log_path);
   if (station_pid <= 0) {
     return fail(step_smoke, "failed to start station process");
@@ -2342,7 +2294,8 @@ CheckResult StationManager::check_station(const fs::path& path, bool fast, const
   register_running_station(rb);
 
   bool listening = false;
-  for (int i = 0; i < 50; ++i) {
+  const int tries = manifest.language == "cpp" ? 50 : 1200;  // a runtime's first start may pull its image
+  for (int i = 0; i < tries; ++i) {
     if (is_port_listening(smoke_port)) {
       listening = true;
       break;

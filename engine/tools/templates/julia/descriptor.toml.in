@@ -1,4 +1,4 @@
-# @name@: what the UI shows. The domain's own blocks (domain/blocks.jl: Scale) are its
+# @name@: what the UI shows. The domain's own blocks (station.jl: Scale) are its
 # package "@name@", without listing them here.
 domain = "@name@"
 import = ["base", "signal", "board"]  # Constant…; Sine, Clock…; Graph, Display

@@ -15,7 +15,14 @@ and every run leaves a record.
 
 The engine and the protocol come from paperboat-legacy (`dev` at 2a6b48c) minus its in-process
 language hosts (`engine/host`, libjulia, and the nanobind Python module). Julia and Python stations
-come back out of process over `paperboat-runtime/0` (#7).
+run out of process (#7, RFC pb#438 §5.6): the engine is still the station, and only the domain file
+runs in a runtime `paperboatd` leases (a container), answering over `paperboat-runtime/0`.
+
+```
+page ── paperboat/0 ── simplicial-engine host <station> ── paperboat-control/0 ── paperboatd
+                       (descriptor, graph, run, solvers)                          │ starts
+                              └── paperboat-runtime/0 (station mode, <ipc>/runtime.sock) ── julia | python runtime
+```
 
 ## 2. Codemap
 
@@ -27,7 +34,14 @@ come back out of process over `paperboat-runtime/0` (#7).
   Optional toolkits install into `engine/toolkit/<name>/` and are picked up at configure time.
 - `engine/core/`: `paperboat::core`, the graph compiler (`graph.cpp`: sort, loops), the run loop and
   executors, the cache, the record, the `paperboat/0` session and server (`session.cpp`, `serve.cpp`),
-  `ProcessRunner` and the `StationManager`. `hubs.cpp`: the hubs for the page server (`serve_files`):
+  `ProcessRunner` and the `StationManager`. `remote.cpp`: Julia and Python stations (#7): `RemoteRuntime` holds the
+  lease (paperboatd, started on demand) and the runtime's socket, loads the station file (`station.toml` `run`) and
+  turns each type it registered into a normal template whose instance is a `RemoteBlock`, `RemoteStep`,
+  `RemoteObject` or `RemoteModel` forwarding its calls (`call`, `new`, `drop`; a runtime's `log` to the Console);
+  `host_remote_station` builds the registry and catalog and hands them to `core::main`, ending the runtime
+  on exit or a signal (`release` with `stop`, not kept warm: edited code loads fresh). `run_station` and `check`'s smoke start `<engine> host <dir>` for these stations.
+  ponytail: the control and runtime clients are Articula's, copied: paperboat's `paperboat::runtime` can't be linked
+  while this engine's CMake project is also named `paperboat`. `hubs.cpp`: the hubs for the page server (`serve_files`):
   `paperboat hub list --json` (no shell, a timeout), a hub's tree (no dot entries) with its stations (a `.pst`'s
   `station.toml`, read in the zip by `scripts/package_station.py info`; a `.psf`'s header and the `.pst` it resolves
   to), a path kept inside its hub, and finding a flow's station (`find`: its path, the hub, installed, running);
@@ -38,7 +52,8 @@ come back out of process over `paperboat-runtime/0` (#7).
   (`recent.json`, `settings.json`, written whole to a temp file, then renamed) and the workspace a folder is (the hub
   whose folder holds it, else itself); `serve.cpp` keeps the page server's workspace, switched at runtime
   (`/__paperboat/workspace`), and records each workspace and each flow read or written in Recent.
-- `engine/tools/`: the `paperboat` CLI, `paperboat-catalog`, `paperboat-toolkit` and `paperboat new`.
+- `engine/tools/`: the `paperboat` CLI, `paperboat-catalog`, `paperboat-toolkit` and `paperboat new` (C++, Python,
+  Julia templates in `templates/`). The CLI's `host <dir>` is a Julia or Python station's process.
 - `bin/simplicial`: what `paperboat app open` runs (`simplicial [<folder>] --port N`: the engine's `web start --host
   127.0.0.1 --folder <folder>`, the page server starting in that workspace) and the `cli` of `commands.toml` (the
   other words go to the engine as typed). It calls the engine by path, never the platform's `paperboat` on PATH:
@@ -48,7 +63,7 @@ come back out of process over `paperboat-runtime/0` (#7).
   the desktop entry) and an empty engine/toolkit/ (the root's markers).
 - `engine/scratchpad/`: the scratchpad station (the built-in toolkits, no domain).
 - `engine/tests/`: the Catch2 suite (`paperboat_tests`, run by `ctest`), its fixtures and the SDK test
-  station.
+  station; `remote-stations/{python,julia}` the out-of-process ones (`remote_test.cpp`, skipped without paperboatd).
 - `protocol/`: `schema/paperboat-0.schema.json` (the source of truth for every message) and
   `record-0.schema.json`; `gen_ts.py` writes `web/src/protocol.ts` from it (`--check` fails when stale);
   `smoke_test.py` and `golden.py`, the conformance checks for any station.
@@ -140,7 +155,7 @@ come back out of process over `paperboat-runtime/0` (#7).
    never rejects.
 4. **One engine.** Every framework capability (protocol, descriptors, variables, expressions, sorting,
    vector lifting, pacing) is implemented once in C++. An out-of-process adapter implements only
-   `Block`, `Step`, `StationObject`, `Model` and `DomainState`.
+   `Block`, `Step`, `StationObject`, `Model` and `DomainState` (`remote.cpp`: all but `DomainState` so far).
 5. **Dependencies point one way.** `engine/toolkit` never depends on `engine/core` or networking; only
    `engine/core/src/serve.cpp` touches WebSockets; `Run` and `Executor` emit through the `Emit`
    callback; core and toolkit never name an example station or an external simulation tool.
@@ -156,7 +171,8 @@ come back out of process over `paperboat-runtime/0` (#7).
    `web/`; removing the folder leaves everything else building.
 9. **Every run leaves a record**, and a block reports only through its `Context`, never its own file.
 10. **Station environments are isolated.** A station never inherits the host's `PYTHONPATH`,
-    `JULIA_*` and the like; its environment is built from station-owned paths only.
+    `JULIA_*` and the like; its environment is built from station-owned paths only. A Julia or Python station's
+    code runs in its runtime (paperboatd's isolation, the project's package volume), never in the engine.
 11. **The schema is the source of truth.** `protocol/schema/paperboat-0.schema.json` defines every
     message; `web/src/protocol.ts` is generated from it, never edited.
 12. **A `.pst` is the station; a `.psf` is its child.** Simplicial never writes a `.pst` (a new version is packed);

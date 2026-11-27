@@ -30,6 +30,7 @@
 
 #include "paperboat/core/station_manager.hpp"
 #include "paperboat/core/process.hpp"
+#include "paperboat/core/remote.hpp"
 #include "paperboat/toolkit/apps.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
 #include "paperboat/toolkit/platform.hpp"
@@ -117,12 +118,15 @@ Start and stop (Paperboat and stations):
                              starting (launched, not answering yet), failed (and why: kept a
                              minute), running. --json is what a wait screen polls
   run [path | file.pst]      Start a station (the same options as start)
+  host <path> [--port <N>] [--run] [--psf <file>] [--var <key=val>]
+                             Serve a Julia or Python station, its code in a runtime from paperboatd
+                             (what run starts for one)
 
 Stations:
   new <name> [--cpp | --python | --julia] [--dir <path>]
                              Scaffold a new station in ./<name> (or --dir) that passes `check` as it is:
                              a block, a starter graph and its expected.json. C++ by default;
-                             a Julia one needs `paperboat deps install` first.
+                             Julia and Python ones run in a runtime from paperboatd.
   stations [--json]          List the stations you can run (examples, installed)
   build [path] [--clean]     Compile a C++ station (Python and Julia ones have nothing to compile)
   rebuild [path]             Clean and compile a C++ station (build --clean)
@@ -179,9 +183,9 @@ Updating:
                              a release version if not already present).
 
 Dependencies:
-  deps install [path]        Create the station's isolated environment and install its
-                             requirements (Python: .venv + requirements.txt; Julia: .julia depot +
-                             Project.toml). C++ dependencies stay with CMake/toolkits.
+  deps install [path]        Where a station's packages go: a Python or Julia station's live in its
+                             runtime's package volume (paperboat package add <runtime> <package>
+                             --project <path>). C++ dependencies stay with CMake/toolkits.
 
 Squero apps (from apps.toml):
   squero list [--json]            The Squero apps and libraries, installed, a sibling checkout, or not (KIND)
@@ -211,46 +215,6 @@ General:
 
 int cmd_start(const std::vector<std::string_view>& args);
 
-namespace {
-
-std::string quote_word(std::string_view text) {
-  std::string out = "'";
-  for (const char c : text) {
-    if (c == '\'') out += "'\\''";
-    else out += c;
-  }
-  out += "'";
-  return out;
-}
-
-int run_deps(const std::vector<std::string>& args, const fs::path& cwd,
-             const std::vector<std::pair<std::string, std::string>>& env = {}) {
-  std::cout << "  $";
-  for (const auto& arg : args) std::cout << " " << quote_word(arg);
-  std::cout << "\n";
-  // Capture rather than stream: Julia's atexit writer can race a closed pipe.
-  const core::ProcessResult result = core::ProcessRunner::run_sync(args, cwd, env);
-  if (!result.stdout_text.empty()) std::cout << result.stdout_text;
-  if (!result.stderr_text.empty()) std::cerr << result.stderr_text;
-  if (result.timed_out) std::cerr << "  [error] command timed out\n";
-  return result.exit_code;
-}
-
-fs::path find_program_file(std::string_view name) {
-  const char* path_env = std::getenv("PATH");
-  if (!path_env) return {};
-  std::stringstream ss(path_env);
-  std::string dir;
-  std::error_code ec;
-  while (std::getline(ss, dir, ':')) {
-    const fs::path candidate = fs::path(dir) / std::string(name);
-    if (fs::is_regular_file(candidate, ec)) return candidate;
-  }
-  return {};
-}
-
-}  // namespace
-
 int cmd_deps(const std::vector<std::string_view>& args) {
   std::string_view verb = args.empty() ? "" : args[0];
   if (verb != "install") {
@@ -258,9 +222,8 @@ int cmd_deps(const std::vector<std::string_view>& args) {
     return 2;
   }
   std::string path;
-  bool force = false;
   for (std::size_t i = 1; i < args.size(); ++i) {
-    if (args[i] == "--force") force = true;
+    if (args[i] == "--force") continue;  // nothing to rebuild any more; still accepted
     else if (path.empty()) path = std::string(args[i]);
     else {
       std::cerr << "error: one path only\n";
@@ -274,58 +237,12 @@ int cmd_deps(const std::vector<std::string_view>& args) {
   }
   const core::StationKind kind = core::StationManager::detect_station_kind(dir);
   std::cout << "deps: " << dir.filename().string() << "\n";
-  if (kind == core::StationKind::Python) {
-    const fs::path requirements = dir / "requirements.txt";
-    const fs::path pyproject = dir / "pyproject.toml";
-    if (!fs::is_regular_file(requirements) && !fs::is_regular_file(pyproject)) {
-      std::cout << "  no requirements.txt or pyproject.toml: nothing to install\n";
-      return 0;
-    }
-    const fs::path venv = dir / ".venv";
-#ifdef _WIN32
-    const fs::path python = venv / "Scripts" / "python.exe";
-    const std::string base = "python";
-#else
-    const fs::path python = venv / "bin" / "python3";
-    const std::string base = "python3";
-#endif
-    if (!fs::is_regular_file(python) || force) {
-      std::error_code ec;
-      fs::remove_all(venv, ec);
-      std::cout << "  creating .venv (isolated from the host site-packages)\n";
-      if (run_deps({base, "-m", "venv", venv.string()}, dir) != 0) return 1;
-    }
-    std::vector<std::string> pip = {python.string(), "-m", "pip", "install", "--disable-pip-version-check"};
-    if (fs::is_directory(dir / "wheels")) {  // a `pack --bundle-deps` package installs offline
-      std::cout << "  installing from wheels/ (offline)\n";
-      pip.insert(pip.end(), {"--no-index", "--find-links", (dir / "wheels").string()});
-    }
-    if (fs::is_regular_file(requirements)) { pip.push_back("-r"); pip.push_back(requirements.string()); }
-    else { pip.push_back("."); }
-    // The host's PYTHONPATH must not satisfy a requirement the venv lacks (#322).
-    if (run_deps(pip, dir, {{"PYTHONPATH", ""}, {"PYTHONHOME", ""}}) != 0) return 1;
-    std::cout << "  [ok] Python environment ready: " << venv.string() << "\n";
+  if (kind == core::StationKind::Python || kind == core::StationKind::Julia) {
+    // The packages live in the runtime's package volume for this project, not beside the station.
+    const std::string runtime = kind == core::StationKind::Python ? "python" : "julia";
+    std::cout << "  a " << runtime << " station's packages live with its runtime: add each with\n"
+              << "    paperboat package add " << runtime << " <package> --project " << dir.string() << "\n";
     return 0;
-  }
-  if (kind == core::StationKind::Julia) {
-    const fs::path project = dir / "Project.toml";
-    if (!fs::is_regular_file(project)) {
-      std::cerr << "error: Julia station needs Project.toml\n";
-      return 1;
-    }
-    fs::path julia = fs::path(std::getenv("PAPERBOAT_JULIA") ? std::getenv("PAPERBOAT_JULIA") : "");
-    if (julia.empty()) julia = find_program_file("julia");
-    if (julia.empty()) {
-      std::cerr << "error: no julia found (set PAPERBOAT_JULIA or put julia on PATH)\n";
-      return 1;
-    }
-    const fs::path depot = dir / ".julia";
-    std::error_code ec;
-    fs::create_directories(depot, ec);
-    std::cout << "  julia " << julia.string() << " · project " << project.string() << " · depot " << depot.string() << "\n";
-    return run_deps({julia.string(), "--project=" + project.string(), "-e", "using Pkg; Pkg.instantiate()"}, dir,
-                    {{"JULIA_PROJECT", project.string()}, {"JULIA_DEPOT_PATH", depot.string()},
-                     {"JULIA_LOAD_PATH", "@:@stdlib"}, {"JULIA_NUM_THREADS", "1"}});
   }
   if (kind == core::StationKind::Cpp) {
     std::cout << "  C++ dependencies are CMake packages or toolkits; see toolkit_requirements.toml\n";
@@ -586,6 +503,22 @@ int cmd_optimize(const std::vector<std::string_view>& args) {
   return error.empty() ? 0 : 1;
 }
 #endif
+
+// `host <dir> [options]`: a Julia or Python station's process (remote.cpp), as run_station starts it.
+int cmd_host(const std::vector<std::string_view>& args) {
+  if (args.empty() || args[0].starts_with("-")) {
+    std::cerr << "error: usage: paperboat host <station folder> [--port N] [--run] [--catalog] [--psf P] [--var k=v]\n";
+    return 2;
+  }
+  std::vector<std::string> owned = {platform::exe_path().string()};
+  for (std::size_t i = 1; i < args.size(); ++i) owned.emplace_back(args[i]);
+  std::vector<char*> argv;
+  for (auto& a : owned) argv.push_back(a.data());
+  argv.push_back(nullptr);
+  std::vector<std::string> process = {owned.front(), "host"};
+  for (auto a : args) process.emplace_back(a);
+  return core::host_remote_station(fs::absolute(fs::path(args[0])), static_cast<int>(owned.size()), argv.data(), std::move(process));
+}
 
 int cmd_run(const std::vector<std::string_view>& args) {
   core::StationRunOptions opts;
@@ -1922,11 +1855,13 @@ const std::vector<CommandSpec>& command_table() {
       {"restart", cmd_restart, "Restart Paperboat or a station", {}, {}, {"--port"}, "station"},
       {"run", cmd_run, "Build and run a station (or .pst) in the foreground", {}, {},
        {"--port", "--run", "--no-build", "--clean", "--time", "--verbose", "--var", "--record"}, "station"},
+      {"host", cmd_host, "Serve a Julia or Python station from its runtime (what run starts)", {}, {},
+       {"--port", "--run", "--catalog", "--psf", "--var"}, "station"},
       {"open", cmd_open, "Open a saved Station's flow (.psf)", {}, {},
        {"--run", "--port", "--no-build", "--record"}, "psf"},
       {"new", paperboat::cli::cmd_new, "Scaffold a new station that passes check (C++, Python or Julia)", {}, {},
        {"--cpp", "--python", "--dir"}},
-      {"deps", cmd_deps, "Create a station's isolated environment and install its dependencies", {},
+      {"deps", cmd_deps, "Where a Python or Julia station's packages go (paperboat package add)", {},
        {"install"}, {"--force"}, "station"},
 #if defined(PAPERBOAT_HAS_OPTIMIZATION) || defined(PAPERBOAT_HAS_OPTIMIZE_CMD)
       {"optimize", cmd_optimize, "Solve a fmincon-shaped problem JSON (LP, QP or NLP)", {}, {},
