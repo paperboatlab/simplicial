@@ -91,6 +91,8 @@ export const writeFlow = async (r: Root, path: string, flow: StationFlow) =>
   void (await ask(`/__paperboat/hub/file${q(r, path)}`, { ...page(), body: JSON.stringify(flow, null, 2) }));
 /** Open in Malachite: the CLI opens the hub there. */
 export const openInMalachite = async (hub: string) => void (await ask(`/__paperboat/hub/malachite${q({ hub })}`, page()));
+/** Manage runtimes…: the CLI opens the Paperboat Launcher on its Runtimes page. */
+export const manageRuntimes = async () => void (await ask("/__paperboat/launcher", page()));
 
 // ---- The workspace, switched at runtime, and the shared store ----
 

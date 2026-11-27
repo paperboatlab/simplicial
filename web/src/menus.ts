@@ -55,6 +55,8 @@ export type Do = {
   runSettings?: () => void;
   /** Toolkits…; absent without a station. */
   toolkits?: () => void;
+  /** Manage runtimes…: the Launcher's Runtimes page. */
+  runtimes: () => void;
   report: () => void;
   about: () => void;
   /** Settings on its Shortcuts page. */
@@ -125,6 +127,7 @@ export function registry(v: View, a: Do): Command[] {
     { id: "run.settings", label: "Run settings…", menu: "run", group: "flow", enabled: !!a.runSettings, why: "No station: open the flow on its station", run: () => a.runSettings?.() },
     { id: "run.station", label: "Choose a station…", menu: "run", group: "station", run: a.station },
     { id: "run.toolkits", label: "Toolkits…", menu: "run", group: "station", enabled: !!a.toolkits, why: "No station: toolkits install into the engine that serves one", run: () => a.toolkits?.() },
+    { id: "run.runtimes", label: "Manage runtimes…", menu: "run", group: "station", icon: "a-runtimes", run: a.runtimes },
     later("run.export", "Export station…", "run", "station"),
 
     later("help.docs", "Docs", "help", "docs", "F1"),
