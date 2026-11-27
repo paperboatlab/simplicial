@@ -6,7 +6,7 @@
 import type { RecentStore, SharedSettings, Workspace } from "@paperboatlab/ui/workspace";
 import type { FileEntry } from "@paperboatlab/ui/files";
 import { PLACE_NAMES, type Hub, type HubPlace } from "@paperboatlab/ui/hub";
-import type { Theme } from "@paperboatlab/ui";
+import type { Scale, Theme } from "@paperboatlab/ui";
 import type { StationFlow, StationFlow0 } from "./protocol.ts";
 import { parseFlow } from "./project.ts";
 
@@ -104,6 +104,7 @@ export const getRecent = async (): Promise<RecentStore> => (await ask("/__paperb
 export const clearRecent = async (): Promise<RecentStore> => (await ask("/__paperboat/recent", page({ clear: true }))).json();
 export const getSettings = async (): Promise<SharedSettings> => (await ask("/__paperboat/settings")).json();
 export const saveTheme = async (theme: Theme) => void (await ask("/__paperboat/settings", page({ theme })));
+export const saveScale = async (scale: Scale) => void (await ask("/__paperboat/settings", page({ scale })));
 
 // ---- A flow's station (station/find, station/start): plans/2026-11-26_12-55_psf_pst_rework.md ----
 

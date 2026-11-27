@@ -3,7 +3,7 @@
 // defaults and the Flow's minimap; Hub, while the workspace is one: its name and folder, the File menu's Switch and
 // Close (its own settings are Malachite's); Shortcuts: the registry's keys by menu, then the Flow canvas's. No Editor:
 // Simplicial has no editor pane.
-import { Icon, Key, Settings, SettingRow, SettingsSection, ShortcutList, Switch, ThemeSetting, isEnabled, type Command, type SettingsPage, type Theme } from "@paperboatlab/ui";
+import { Icon, Key, ScaleSetting, Settings, SettingRow, SettingsSection, ShortcutList, Switch, ThemeSetting, isEnabled, type Command, type Scale, type SettingsPage, type Theme } from "@paperboatlab/ui";
 import { Keys } from "@paperboatlab/ui/canvas";
 import { tilde, type Workspace } from "@paperboatlab/ui/workspace";
 import { GESTURES } from "./flow/FlowEditor.tsx";
@@ -22,11 +22,13 @@ const Run = ({ c, label }: { c?: Command; label?: string }) => c ? (
   <span title={isEnabled(c) ? undefined : c.why}><Key size="sm" disabled={!isEnabled(c)} onClick={() => c.run()}>{label ?? c.label}</Key></span>
 ) : null;
 
-export function SettingsWindow({ page, onClose, theme, onTheme, station, address, runDefaults, minimap, onMinimap, workspace, home, onMalachite, commands }: {
+export function SettingsWindow({ page, onClose, theme, onTheme, scale, onScale, station, address, runDefaults, minimap, onMinimap, workspace, home, onMalachite, commands }: {
   page: string;
   onClose: () => void;
   theme: Theme;
   onTheme: (t: Theme) => void;
+  scale: Scale;
+  onScale: (s: Scale) => void;
   /** The station this window is on (hello's engine), and where. */
   station?: string;
   address: string;
@@ -42,7 +44,7 @@ export function SettingsWindow({ page, onClose, theme, onTheme, station, address
   const cmd = (id: string) => commands.find((c) => c.id === id);
   const hub = workspace?.kind === "hub" ? workspace : null;
   const pages: SettingsPage[] = [
-    { id: "general", label: "General", icon: "settings-gear", body: <ThemeSetting theme={theme} onTheme={onTheme} /> },
+    { id: "general", label: "General", icon: "settings-gear", body: <><ThemeSetting theme={theme} onTheme={onTheme} /><ScaleSetting scale={scale} onScale={onScale} /></> },
     { id: "simplicial", label: "Simplicial", icon: "mark-simplicial", body: <>
       <SettingsSection title="Station">
         <SettingRow label="Station" hint={address}>
