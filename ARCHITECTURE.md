@@ -125,6 +125,9 @@ come back out of process over `paperboat-runtime/0` (#7).
     block to a kit face (reads the block's params and the run, hands the face plain values). The build
     gathers every built-in one into the bundle (`toolkit-web` in `scripts/build.ts`), `tsc` checks them with the page,
     and their `*.test.ts` run with `npm test`; the page names no instrument kind.
+  - `e2e/`: end to end (`npm run e2e`): the scratchpad station and the page server from `engine/build`, the built page in a
+    headless Chromium over CDP: open a flow from a folder, edit it, save it, reopen it. Skipped without an engine build, a
+    page build or a browser.
 
 ## 3. Invariants
 
