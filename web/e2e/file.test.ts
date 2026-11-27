@@ -245,7 +245,7 @@ test("an example opened where it is is read-only: no save, no edit, a run writes
     await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("00 Loop: an example.")`);
     await sleep(1500);  // the opened flow settles (projectSession.ts)
     assert.equal(await run<boolean>(`[...document.querySelectorAll(".pg-flow .key")].find((k) => k.textContent.includes("Add block"))?.disabled`), true);
-    assert.equal(await run<boolean>(`[...document.querySelectorAll(".vpanel .key, .panel .key")].find((k) => k.textContent.trim() === "Variable")?.disabled ?? true`), true);
+    assert.equal(await run<boolean>(`[...document.querySelectorAll("button")].find((k) => k.textContent.trim() === "Variable")?.disabled`), true);
     await click(".menubar .menu-title", "File");
     const item = (label: string) => `[...document.querySelectorAll(".menu .menu-item")].find((m) => m.textContent.trim().startsWith(${JSON.stringify(label)}))`;
     await until("the File menu", item("Save as"));

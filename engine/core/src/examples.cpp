@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 
 namespace {
 
-fs::path canonical(const fs::path& p) {
+fs::path resolved(const fs::path& p) {
   std::error_code ec;
   const fs::path a = fs::absolute(p, ec);
   if (ec) return p.lexically_normal();
@@ -58,14 +58,14 @@ std::string hash(const std::string& s) {
 std::vector<fs::path> roots() {
   std::vector<fs::path> out;
   std::error_code ec;
-  if (const char* v = std::getenv("PAPERBOAT_EXAMPLES_DIR"); v && *v && fs::is_directory(v, ec)) out.push_back(canonical(v));
-  if (const fs::path cache = workspace::home() / "cache" / "examples"; fs::is_directory(cache, ec)) out.push_back(canonical(cache));
+  if (const char* v = std::getenv("PAPERBOAT_EXAMPLES_DIR"); v && *v && fs::is_directory(v, ec)) out.push_back(resolved(v));
+  if (const fs::path cache = workspace::home() / "cache" / "examples"; fs::is_directory(cache, ec)) out.push_back(resolved(cache));
   return out;
 }
 
 bool inside(const fs::path& path) {
   if (path.empty()) return false;
-  const fs::path p = canonical(path);
+  const fs::path p = resolved(path);
   for (const auto& r : roots()) {
     if (p == r || under(p, r)) return true;
   }
@@ -76,7 +76,7 @@ bool inside(const fs::path& path) {
 }
 
 fs::path scratch(const fs::path& station_dir) {
-  const fs::path p = canonical(station_dir);
+  const fs::path p = resolved(station_dir);
   return workspace::home() / "cache" / "simplicial" / "examples" / (p.filename().string() + "-" + hash(p.generic_string()));
 }
 
