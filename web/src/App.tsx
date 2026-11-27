@@ -204,7 +204,8 @@ export function App() {
   const [recent, setRecent] = useState<RecentEntry[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [file, setFile] = useState<OpenedFile | null>(null);
-  const [untitled, setUntitled] = useState(false);  // New flow: the canvas, with no file yet
+  // New flow: the canvas, with no file yet; a window opened on a station alone (Articula's Start in Simplicial) starts on its starter
+  const [untitled, setUntitled] = useState(!!OPENING.station && !OPENING.open && !WITHOUT);
   const [pending, setPending] = useState(!!OPENING.open);  // ?open= is on its way: no Start page meanwhile
   const [filePick, setFilePick] = useState<"open" | "save" | "find" | null>(null);
   const [ask, setAsk] = useState<null | "open" | "connect" | "connect-open" | "folder" | "file">(null);

@@ -58,7 +58,8 @@ come back out of process over `paperboat-runtime/0` (#7).
   - `src/engine.ts`: the one WebSocket and the reducer over every `ServerMsg` (`useEngine`), from legacy;
     `traces.ts` (each monitor's history, outside React state) and `replay.ts` (a run's scene over time).
   - `src/menus.ts`: the one command registry; the menu bar, Ctrl K and the shortcuts all read it.
-  - `src/App.tsx`: the frame. The splash until a station says hello; the bar; the page rail (Navigator
+  - `src/App.tsx`: the frame. The splash until a station says hello (a window opened on a station alone, `?station=`
+    without `open`, as Articula's Start in Simplicial opens one, starts on the station's starter, not on Start); the bar; the page rail (Navigator
     only); the Station, Flow and Board pages laid out by the view mode (Navigator, Commander, Lookout;
     hidden panes kept per mode); the Variables card; the run dock; the Console window; the floating
     search and quick add; Settings (`SettingsWindow.tsx`, the kit's `Settings`: General with the theme, Simplicial
