@@ -22,7 +22,7 @@ import { useUndo } from "@paperboatlab/ui/canvas";
 import type { FileEntry } from "@paperboatlab/ui/files";
 import { ConnectHub, OpenFile, SaveFile, type Hub } from "@paperboatlab/ui/hub";
 import {
-  AskOpen, Start, TypedPath, Unsaved, WorkspaceWell, baseName, fileMenu, parseSettings, recentFor, recentMenu, shell, type RecentEntry, type Workspace,
+  AskOpen, Start, TypedPath, Unsaved, WorkspaceWell, baseName, fileMenu, parseSettings, recentFor, recentMenu, shell, useOpening, type Opening, type RecentEntry, type Workspace,
 } from "@paperboatlab/ui/workspace";
 import { useEdgesState, useNodesState, useReactFlow, type FitViewOptions } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -203,6 +203,7 @@ export function App() {
   const [userHome, setUserHome] = useState<string>();
   const [recent, setRecent] = useState<RecentEntry[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
+  const opener = useOpening();   // a folder or hub on its way: Start, the well and Connect to a hub say so
   const [file, setFile] = useState<OpenedFile | null>(null);
   // New flow: the canvas, with no file yet; a window opened on a station alone (Articula's Start in Simplicial) starts on its starter
   const [untitled, setUntitled] = useState(!!OPENING.station && !OPENING.open && !WITHOUT);
@@ -382,17 +383,22 @@ export function App() {
   /** File › New flow: the station's starter, unsaved until Save asks where. Close file: back to Start. */
   const newProject = () => guard(() => { fresh(); setUntitled(true); });
   const closeFile = () => guard(() => { fresh(); setUntitled(false); });
-  /** Work somewhere else (a folder, a hub, nothing): the open flow closes first (unsaved work asks), then Start. */
-  const switchWs = (to: Parameters<typeof setWorkspace>[0], said?: (w: Workspace | null) => string, then?: () => void) => guard(() => void setWorkspace(to).then((r) => {
-    setWs(r.workspace);
-    loadRecent();
-    fresh();
-    setUntitled(false);
-    if (said) notes.show({ title: said(r.workspace), state: "done" });
-    then?.();
-  }, (e) => failed("Can't change the workspace", e)), closingWs);
-  const workInFolder = (path: string) => switchWs({ folder: path }, (w) => `${w?.name ?? baseName(path)} is Simplicial's workspace`);
-  const connect = (id: string, thenOpen = false) => switchWs({ hub: id }, (w) => `${w?.name ?? id} is Simplicial's workspace`, thenOpen ? () => setFilePick("open") : undefined);
+  /** Work somewhere else (a folder, a hub, nothing): the open flow closes first (unsaved work asks), then Start.
+   *  `what`: the folder or hub on its way: Start, the well and Connect to a hub say so until it is open. */
+  const switchWs = (to: Parameters<typeof setWorkspace>[0], said?: (w: Workspace | null) => string, then?: () => void, what?: Omit<Opening, "error" | "detail">) => guard(() => {
+    const work = () => setWorkspace(to).then((r) => {
+      setWs(r.workspace);
+      loadRecent();
+      fresh();
+      setUntitled(false);
+      if (said) notes.show({ title: said(r.workspace), state: "done" });
+      then?.();
+    });
+    void (what ? opener.open(what, work) : work()).catch((e) => failed("Can't change the workspace", e));
+  }, closingWs);
+  const workInFolder = (path: string) => switchWs({ folder: path }, (w) => `${w?.name ?? baseName(path)} is Simplicial's workspace`, undefined, { name: baseName(path), path });
+  const connect = (id: string, thenOpen = false) => switchWs({ hub: id }, (w) => `${w?.name ?? id} is Simplicial's workspace`, thenOpen ? () => setFilePick("open") : undefined,
+    { name: hubs.find((h) => h.id === id)?.name ?? id, hub: id });
   const closeWorkspace = () => switchWs({});
   /** Open folder…: the system's dialog in a Paperboat window, else the path typed. */
   const openFolder = async () => {
@@ -719,7 +725,7 @@ export function App() {
         <span className="lk"><AppMark app="simplicial" size={26} idle paused={!booted} label="Simplicial" /><span className="wm">Simplicial</span></span>
         {booted && <>
           <MenuBar commands={commands} menus={MENUS} groupTitles={{ theme: "Theme" }} />
-          {ws && <WorkspaceWell workspace={ws} home={userHome} recent={recentItems} hubs={hubs} onOpenFolder={() => void openFolder()}
+          {ws && <WorkspaceWell workspace={ws} home={userHome} recent={recentItems} hubs={hubs} opening={opener.opening} onOpenFolder={() => void openFolder()}
             onConnect={hubs.length ? () => void askConnect() : undefined} onClose={closeWorkspace} onSwitchHub={(id) => connect(id)} onNewHub={newHub}
             onOpenInMalachite={ws.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined}
             onUseFolder={() => void openFolder()} />}
@@ -764,7 +770,7 @@ export function App() {
           <div className="pages bay">
             {showStart && (
               <div className="panel start-card">
-                <Start app="Simplicial" noun="flow" nouns="flows and stations" hubs={hubs.length > 0} recent={recent} home={userHome}
+                <Start app="Simplicial" noun="flow" nouns="flows and stations" hubs={hubs.length > 0} recent={recent} home={userHome} opening={opener.opening}
                   onOpenFolder={() => void openFolder()} onOpenFile={() => void openFile()} onNew={newProject} onConnect={() => void askConnect()} onRecent={openRecent} />
               </div>
             )}
@@ -871,7 +877,7 @@ export function App() {
         onSave={(p) => void saveIn({ hub: wsHub.id }, p)} onClose={() => setFilePick(null)} />}
       {ask === "open" && <AskOpen what="a flow or a station" types={TYPES} hubs={hubs.length} onLocal={() => { setAsk(null); void openLocal(); }}
         onConnect={() => setAsk("connect-open")} onClose={() => setAsk(null)} />}
-      {(ask === "connect" || ask === "connect-open") && <ConnectHub app="Simplicial" hubs={hubs} onNew={newHub} onClose={() => setAsk(null)}
+      {(ask === "connect" || ask === "connect-open") && <ConnectHub app="Simplicial" hubs={hubs} opening={opener.opening} onNew={newHub} onClose={() => setAsk(null)}
         onConnect={(id) => { setAsk(null); connect(id, ask === "connect-open"); }} />}
       {ask === "folder" && <TypedPath title="Open folder" initial={ws?.kind === "folder" ? ws.root : ""} onClose={() => setAsk(null)}
         onOpen={(p) => { setAsk(null); workInFolder(p); }} />}
