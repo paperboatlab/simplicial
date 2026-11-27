@@ -1,5 +1,5 @@
 // The Paperboat unified CLI: build and start stations, list running stations,
-// manage the web application, orchestrate examples, and install/browse toolkits.
+// manage the web application, and install/browse toolkits.
 
 #ifdef _WIN32
 #include <fcntl.h>
@@ -127,7 +127,7 @@ Stations:
                              Scaffold a new station in ./<name> (or --dir) that passes `check` as it is:
                              a block, a starter graph and its expected.json. C++ by default;
                              Julia and Python ones run in a runtime from paperboatd.
-  stations [--json]          List the stations you can run (examples, installed)
+  stations [--json]          List the stations you can run (built-in, toolkit examples, installed)
   build [path] [--clean]     Compile a C++ station (Python and Julia ones have nothing to compile)
   rebuild [path]             Clean and compile a C++ station (build --clean)
   open <file.psf> [--run] [--port <N>] [--no-build] [--record <dir>]
@@ -139,11 +139,6 @@ Paperboat Web UI:
                              (web start --folder <path>: the page starts in that folder)
   web build                  Run the production frontend build
   (start --daemon and web start --daemon keep it in the background; stop ends it)
-
-Examples Orchestration:
-  examples start [--dir <P>] Launch all example stations (ports 51301-51310)
-  examples stop              Stop all example stations
-  examples status            Show status of example stations
 
 Toolkits:
   toolkit list [name] [--json]
@@ -718,7 +713,8 @@ int cmd_stations(const std::vector<std::string_view>& args) {
     if (a == "--json") json_out = true;
   }
 
-  // Examples first (in their port order), then the user's installed stations; by name.
+  // The scratchpad, an installed toolkit's examples, then the user's installed stations; by name. Paperboat's examples
+  // are `paperboat example list` (paperboat#72).
   std::map<std::string, json> found;
   std::vector<std::string> order;
   const auto add = [&](const fs::path& dir, std::string source, int fallback_port) {
@@ -754,7 +750,7 @@ int cmd_stations(const std::vector<std::string_view>& args) {
         {"source", "builtin"},
     };
   }
-  for (const auto& ex : core::StationManager::get_examples()) add(ex.dir, "example", ex.port);
+  for (const auto& dir : core::StationManager::toolkit_examples(root)) add(dir, "toolkit", 51301);
   std::error_code ec;
   for (const auto& entry : fs::directory_iterator(core::StationManager::user_stations_dir(), ec)) {
     if (entry.is_directory()) add(entry.path(), "installed", 51301);
@@ -767,7 +763,7 @@ int cmd_stations(const std::vector<std::string_view>& args) {
     return 0;
   }
   if (order.empty()) {
-    std::cout << "No stations found. Set PAPERBOAT_EXAMPLES_DIR or unpack a .pst.\n";
+    std::cout << "No stations found. Open an example (paperboat example list) or unpack a .pst.\n";
     return 0;
   }
   std::cout << std::left << std::setw(20) << "NAME" << std::setw(9) << "TYPE" << std::setw(7) << "PORT"
@@ -1122,48 +1118,6 @@ int cmd_web(const std::vector<std::string_view>& args) {
     return core::StationManager::build_app() ? 0 : 1;
   } else {
     std::cerr << "error: unknown app subcommand: " << sub << '\n';
-    return 2;
-  }
-}
-
-int cmd_examples(const std::vector<std::string_view>& args) {
-  if (args.empty()) {
-    std::cerr << "usage: paperboat examples <start|stop|status|fetch> [--dir <path>]\n";
-    return 2;
-  }
-  auto sub = args[0];
-  std::string dir;
-  for (std::size_t i = 1; i < args.size(); ++i) {
-    if (args[i] == "--dir" && i + 1 < args.size()) {
-      dir = std::string(args[++i]);
-    }
-  }
-
-  if (sub == "fetch") {
-    return core::StationManager::fetch_examples() ? 0 : 1;
-  } else if (sub == "start") {
-    return core::StationManager::start_examples(dir) ? 0 : 1;
-  } else if (sub == "stop") {
-    return core::StationManager::stop_examples() ? 0 : 1;
-  } else if (sub == "status") {
-    auto list = core::StationManager::status_examples(dir);
-    std::cout << std::left << std::setw(8) << "PORT"
-              << std::setw(26) << "NAME"
-              << std::setw(10) << "TYPE"
-              << std::setw(12) << "STATUS"
-              << std::setw(8) << "PID"
-              << "WS URL\n";
-    for (const auto& item : list) {
-      std::cout << std::left << std::setw(8) << item.port
-                << std::setw(26) << item.name
-                << std::setw(10) << item.type
-                << std::setw(12) << (item.running ? "running" : "idle")
-                << std::setw(8) << (item.running ? std::to_string(item.pid) : "-")
-                << item.ws_url << '\n';
-    }
-    return 0;
-  } else {
-    std::cerr << "error: unknown examples subcommand: " << sub << '\n';
     return 2;
   }
 }
@@ -1874,7 +1828,6 @@ const std::vector<CommandSpec>& command_table() {
       {"status", cmd_status, "What each station is doing: building (stage), starting, failed, running", {}, {}, {"--json"}, "station|port"},
       {"web", cmd_web, "Paperboat web UI: start, stop, restart, build", {},
        {"start", "stop", "restart", "build"}, {"--port", "--host", "--daemon"}},
-      {"examples", cmd_examples, "Run all example stations, or fetch them", {}, {"start", "stop", "status", "fetch"}, {"--dir"}},
       {"toolkit", cmd_toolkit, "Manage optional toolkits", {}, {"list", "install", "update", "uninstall", "versions"},
        {"--json", "--all", "--no-build", "--version"}, "toolkit"},
       {"check", cmd_check, "Verify a station (manifest, catalog, smoke, golden)", {}, {},

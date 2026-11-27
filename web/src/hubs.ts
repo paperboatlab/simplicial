@@ -6,7 +6,7 @@
 import type { RecentStore, SharedSettings, Workspace } from "@paperboatlab/ui/workspace";
 import type { FileEntry } from "@paperboatlab/ui/files";
 import { PLACE_NAMES, type Hub, type HubPlace } from "@paperboatlab/ui/hub";
-import type { Scale, Theme } from "@paperboatlab/ui";
+import type { Example, Scale, Theme } from "@paperboatlab/ui";
 import type { StationFlow, StationFlow0 } from "./protocol.ts";
 import { parseFlow } from "./project.ts";
 
@@ -93,6 +93,18 @@ export const writeFlow = async (r: Root, path: string, flow: StationFlow) =>
 export const openInMalachite = async (hub: string) => void (await ask(`/__paperboat/hub/malachite${q({ hub })}`, page()));
 /** Manage runtimes…: the CLI opens the Paperboat Launcher on its Runtimes page. */
 export const manageRuntimes = async () => void (await ask("/__paperboat/launcher", page()));
+/** Paperboat's examples for Simplicial (`paperboat example list`, paperboat#72): Ctrl+K's Open example: <name>. None
+ *  without Paperboat, or when the page has no server of its own. */
+export async function listExamples(): Promise<Example[]> {
+  try {
+    const list = (await (await ask("/__paperboat/examples")).json()) as Example[];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+/** Open example: the CLI copies it for the user and opens the copy in a new window. */
+export const openExample = async (id: string) => void (await ask(`/__paperboat/example/open?${new URLSearchParams({ id })}`, page()));
 
 // ---- The workspace, switched at runtime, and the shared store ----
 

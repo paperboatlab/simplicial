@@ -27,7 +27,6 @@ case $1 in
   station)
     case $2 in
       list) shift 2; exec "$engine" stations "$@" ;;
-      examples) shift 2; exec "$engine" examples fetch "$@" ;;
     esac ;;
   toolkit) [ "$2" = blocks ] && { shift 2; exec "$engine" toolkit list "$@"; } ;;
 esac

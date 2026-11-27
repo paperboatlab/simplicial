@@ -10,7 +10,7 @@ cli = "bin/simplicial"
 id = "station.list"
 name = "station list"
 alias = ["stations"]
-args = "[--source all|example|installed|built-in]"
+args = "[--source all|toolkit|installed|built-in]"
 desc = "Station projects you can run"
 group = "Stations"
 
@@ -61,12 +61,6 @@ id = "station.open"
 name = "open"
 args = "<file.pst|file.psf|folder>"
 desc = "Open a station package, a project or a folder"
-group = "Stations"
-
-[[command]]
-id = "station.examples"
-name = "station examples"
-desc = "Fetch the official example stations"
 group = "Stations"
 
 [[command]]

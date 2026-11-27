@@ -17,6 +17,15 @@ namespace paperboat::core::hubs {
 // no shell and a timeout; [] when the command is missing, fails or says something else.
 nlohmann::json known(const std::string& cli);
 
+// Paperboat's examples for Simplicial (paperboat#72): `<cli> example list --app simplicial --json` as it answers
+// ({id, app, kind, name, description, path}), the ones with an id and a name; [] when the CLI is missing or fails
+// (the app works without Paperboat).
+nlohmann::json examples(const std::string& cli);
+
+// `<cli> example open <id> --json`: the example copied for the user and opened in a new window ({…, path,
+// session}), or {error} (the CLI's, else what it said on stderr).
+nlohmann::json open_example(const std::string& cli, const std::string& id);
+
 // The known hubs as the page's picker shows them: {id, name, place, path (as the user reads it), missing?,
 // conflicts? (how many), psf, pst (how many of Simplicial's files it holds)}.
 nlohmann::json list(const std::string& cli);

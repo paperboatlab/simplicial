@@ -13,6 +13,14 @@ Install
 
 .. note:: Not written yet: opening a station and a first run.
 
+Examples
+--------
+
+Press Ctrl K and type ``example``: **Open example: <name>** lists Paperboat's examples for Simplicial
+(``paperboat example list --app simplicial``). Picking one copies it into ``$PAPERBOAT_HOME/examples``
+the first time and opens that copy in a new window, so your changes never touch the original. Without
+Paperboat installed the list is empty.
+
 Ports
 -----
 

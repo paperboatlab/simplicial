@@ -72,15 +72,18 @@ async function connect(debug: number) {
   return { cmd, run, until, click, key, errors, close: () => ws.close() };
 }
 
-test("open a flow, edit it, save it, reopen it; Manage runtimes…", { skip: missing, timeout: 180_000 }, async () => {
+test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example", { skip: missing, timeout: 180_000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(process.env.SIMPLICIAL_E2E_TMP ?? os.tmpdir(), "simplicial-e2e-"));
   const folder = path.join(tmp, "flows"), profile = path.join(tmp, "profile");
   fs.mkdirSync(folder);
   const file = path.join(folder, "loop.psf");
   fs.writeFileSync(file, `${JSON.stringify({ paperboat: 1, station: { name: "scratchpad" }, flow: { nodes: [], edges: [] } }, null, 2)}\n`);
-  // a stand-in CLI: it notes what Manage runtimes… asks of it, and knows no hub (no Malachite)
-  const cli = path.join(tmp, "paperboat"), launched = path.join(tmp, "launcher-args");
-  fs.writeFileSync(cli, `#!/bin/sh\n[ "$1" = launcher ] && echo "$*" > ${launched} && exit 0\nexit 1\n`, { mode: 0o755 });
+  // a stand-in CLI: it notes what Manage runtimes… and Open example ask of it, lists one example, and knows no hub (no Malachite)
+  const cli = path.join(tmp, "paperboat"), launched = path.join(tmp, "launcher-args"), opened = path.join(tmp, "example-args");
+  const example = { id: "simplicial/09-modular-synth-cpp", app: "simplicial", kind: "simplicial", name: "09 Modular Synth", description: "A synth", path: "/x/09" };
+  fs.writeFileSync(cli, `#!/bin/sh\ncase "$1 $2" in\n  "launcher --page") echo "$*" > ${launched}; exit 0 ;;\n`
+    + `  "example list") echo '${JSON.stringify([example])}'; exit 0 ;;\n`
+    + `  "example open") echo "$*" > ${opened}; echo '${JSON.stringify({ ...example, session: "s1" })}'; exit 0 ;;\nesac\nexit 1\n`, { mode: 0o755 });
   const env = { ...process.env, PAPERBOAT_HOME: path.join(tmp, "home"), PAPERBOAT_ROOT: ROOT, PAPERBOAT_BIN: cli };
   const [station, web, debug] = [port(), port(), port()];
   const kids: ChildProcess[] = [
@@ -143,6 +146,15 @@ test("open a flow, edit it, save it, reopen it; Manage runtimes…", { skip: mis
     await click(".menu .menu-item", "Manage runtimes");
     for (let i = 0; i < 40 && !fs.existsSync(launched); i++) await sleep(150);
     assert.equal(fs.readFileSync(launched, "utf8").trim(), "launcher --page runtimes");
+
+    // Ctrl K, "Open example": the CLI's example is there, and Enter asks the CLI to open it (paperboat#72)
+    await key("k", "KeyK", 75, 2);
+    await until("the command search", `document.querySelector(".search-field input")`);
+    await cmd("Input.insertText", { text: "Open example" });
+    await until("the example in Ctrl K", `[...document.querySelectorAll(".search-row")].some((r) => r.textContent.includes("Open example: 09 Modular Synth"))`);
+    await key("Enter", "Enter", 13);
+    for (let i = 0; i < 40 && !fs.existsSync(opened); i++) await sleep(150);
+    assert.equal(fs.readFileSync(opened, "utf8").trim(), "example open simplicial/09-modular-synth-cpp --json");
     assert.deepEqual(page.errors, []);
   } finally {
     await Promise.race([page?.cmd("Browser.close"), sleep(2000)]);

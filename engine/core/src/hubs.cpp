@@ -3,6 +3,7 @@
 #include "paperboat/core/hubs.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <fstream>
 #include <map>
@@ -12,6 +13,7 @@
 
 #include "paperboat/core/process.hpp"
 #include "paperboat/core/station_manager.hpp"
+#include "paperboat/core/workspace.hpp"
 #include "paperboat/toolkit/installer.hpp"
 
 namespace paperboat::core::hubs {
@@ -166,7 +168,8 @@ Elsewhere elsewhere() {
   Elsewhere out;
   std::vector<fs::path> dirs;
   std::error_code ec;
-  for (const fs::path& parent : {StationManager::user_stations_dir(), StationManager::find_examples_dir()}) {
+  // the user's stations, and the examples `paperboat example open` copied ($PAPERBOAT_HOME/examples/simplicial/<name>)
+  for (const fs::path& parent : {StationManager::user_stations_dir(), workspace::home() / "examples" / "simplicial"}) {
     if (parent.empty() || !fs::is_directory(parent, ec)) continue;
     for (const auto& d : fs::directory_iterator(parent, ec)) {
       if (fs::is_regular_file(d.path() / "station.toml", ec)) dirs.push_back(d.path());
@@ -230,6 +233,28 @@ json known(const std::string& cli) {
     if (h.is_object() && h.value("id", "") != "" && h.value("path", "") != "") out.push_back(h);
   }
   return out;
+}
+
+json examples(const std::string& cli) {
+  const auto r = ProcessRunner::run_sync({cli, "example", "list", "--app", "simplicial", "--json"}, {}, {}, std::chrono::seconds(60));
+  const json all = r.ok() ? json::parse(r.stdout_text, nullptr, /*allow_exceptions=*/false) : json();
+  json out = json::array();
+  if (!all.is_array()) return out;
+  for (const auto& e : all) {
+    if (e.is_object() && e.value("id", "") != "" && e.value("name", "") != "") out.push_back(e);
+  }
+  return out;
+}
+
+json open_example(const std::string& cli, const std::string& id) {
+  if (id.empty() || id.starts_with('-')) return {{"error", "no example named"}};
+  const auto r = ProcessRunner::run_sync({cli, "example", "open", id, "--json"}, {}, {}, std::chrono::seconds(120));
+  const json doc = json::parse(r.stdout_text, nullptr, /*allow_exceptions=*/false);
+  if (r.ok() && doc.is_object() && !doc.contains("error")) return doc;
+  if (doc.is_object() && doc.contains("error") && doc["error"].is_string()) return {{"error", doc["error"]}};
+  std::string why = r.stderr_text;
+  while (!why.empty() && std::isspace(static_cast<unsigned char>(why.back()))) why.pop_back();
+  return {{"error", why.empty() ? "can't run " + cli + " example open " + id : why}};
 }
 
 json list(const std::string& cli) {

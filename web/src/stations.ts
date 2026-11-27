@@ -1,6 +1,6 @@
 // Finding a station: the ones this page has used, and any on this machine's station ports (51301 up, as
-// `paperboat examples start` and the examples' station.toml give them). Each is asked for its hello; the
-// ones that answer are listed with the name they give.
+// the examples' station.toml give them). Each is asked for its hello; the ones that answer are listed with
+// the name they give.
 import { readStored, writeStored } from "@paperboatlab/ui";
 
 export type Found = { url: string; name: string; version?: string };

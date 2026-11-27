@@ -95,7 +95,8 @@ Keyboard shortcuts
 Help › Keyboard shortcuts (Ctrl /) opens Settings on Shortcuts, the full list. With something picked
 on the Flow, Ctrl / comments it out instead. The ones you use most:
 
-- Ctrl K: search the commands, blocks, variables and stations; ``/`` or a double-click on the Flow:
+- Ctrl K: search the commands, blocks, variables, stations and examples (**Open example: <name>**,
+  :doc:`getting_started`); ``/`` or a double-click on the Flow:
   add a block there (the Flow's **Add block** opens the whole library).
 - Ctrl N, Ctrl O, Ctrl Shift O, Ctrl S, Ctrl Shift S: new flow, open a file, open a folder, save,
   save as.

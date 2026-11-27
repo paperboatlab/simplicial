@@ -140,16 +140,6 @@ TEST_CASE("StationManager check_station validates missing vs valid descriptors")
   auto non_existent = core::StationManager::check_station("/non/existent/path");
   CHECK_FALSE(non_existent.ok);
   CHECK_FALSE(non_existent.errors.empty());
-
-  // Check example stations if available
-  auto ex_dir = core::StationManager::find_examples_dir();
-  if (!ex_dir.empty() && fs::is_directory(ex_dir / "cart-pole-cpp")) {
-    auto res = core::StationManager::check_station(ex_dir / "cart-pole-cpp", /*fast=*/true);
-    CHECK(res.ok);
-    CHECK(res.domain == "cart-pole");
-    CHECK(res.manifest_ok);
-    CHECK(res.catalog_ok);
-  }
 }
 
 TEST_CASE("StationManifest load_manifest validates schema and required fields") {
@@ -366,23 +356,24 @@ TEST_CASE("StationManager check_station handles toolkit = ['__all__'] importing 
 }
 
 TEST_CASE("StationManager pack_station and unpack_station roundtrip excludes build junk") {
-  auto ex_dir = core::StationManager::find_examples_dir();
-  if (ex_dir.empty() || !fs::is_directory(ex_dir / "cart-pole-cpp")) {
-    return;
-  }
-
-  const fs::path src_dir = ex_dir / "cart-pole-cpp";
-  const fs::path pkg_path = fs::temp_directory_path() / "test_cart_pole_roundtrip.pst";
-  const fs::path unpack_dir = fs::temp_directory_path() / "test_cart_pole_unpacked";
+  const fs::path src_dir = fs::temp_directory_path() / "test_roundtrip_station";
+  const fs::path pkg_path = fs::temp_directory_path() / "test_roundtrip.pst";
+  const fs::path unpack_dir = fs::temp_directory_path() / "test_roundtrip_unpacked";
 
   std::error_code ec;
+  fs::remove_all(src_dir, ec);
   fs::remove(pkg_path, ec);
   fs::remove_all(unpack_dir, ec);
+  fs::create_directories(src_dir / "build");
+  std::ofstream(src_dir / "station.toml") << "[station]\nformat = 0\nname = \"cart-pole\"\nversion = \"0.1.0\"\n"
+                                             "language = \"python\"\nrun = \"server.py\"\ndescriptor = \"descriptor.toml\"\n";
+  std::ofstream(src_dir / "descriptor.toml") << "domain = \"cart-pole\"\nimport = [\"math\"]\n";
+  std::ofstream(src_dir / "server.py") << "\n";
+  std::ofstream(src_dir / "build" / "junk.o") << "junk\n";
 
   // Pack station
   auto pack_res = core::StationManager::pack_station(src_dir, pkg_path, /*fast=*/true);
   REQUIRE(pack_res.ok);
-  CHECK(pack_res.file_count >= 6);
   CHECK(fs::is_regular_file(pkg_path));
 
   // Unpack station and verify checksums
@@ -391,6 +382,7 @@ TEST_CASE("StationManager pack_station and unpack_station roundtrip excludes bui
   CHECK(unpack_res.file_count == pack_res.file_count);
   CHECK(fs::is_regular_file(unpack_dir / "station.toml"));
   CHECK(fs::is_regular_file(unpack_dir / "descriptor.toml"));
+  CHECK_FALSE(fs::exists(unpack_dir / "build"));
 
   // Check the unpacked directory passes verification
   auto check_unpacked = core::StationManager::check_station(unpack_dir, /*fast=*/true);
@@ -398,6 +390,7 @@ TEST_CASE("StationManager pack_station and unpack_station roundtrip excludes bui
   CHECK(check_unpacked.name == "cart-pole");
 
   // Clean up
+  fs::remove_all(src_dir, ec);
   fs::remove(pkg_path, ec);
   fs::remove_all(unpack_dir, ec);
 }
@@ -448,19 +441,16 @@ TEST_CASE("resolve_station_dir finds an installed toolkit example by prefix and 
   std::ofstream(example / "descriptor.toml") << "domain = \"parts\"\n";
 
   setenv("PAPERBOAT_ROOT", root.c_str(), 1);
-  setenv("PAPERBOAT_EXAMPLES_DIR", (root / "no-examples").c_str(), 1);
 
   CHECK(fs::equivalent(core::StationManager::resolve_station_dir("ocv-01"), example));
   CHECK(fs::equivalent(core::StationManager::resolve_station_dir("ocv-1"), example));
   CHECK(fs::equivalent(core::StationManager::resolve_station_dir("ocv-01-parts-counter"), example));
 
-  const auto list = core::StationManager::get_examples();
-  CHECK(std::ranges::any_of(list, [](const core::ExampleStation& e) {
-    return e.name == "ocv-01-parts-counter" && e.port == 8781 && e.type == "cpp";
-  }));
+  const auto listed = core::StationManager::toolkit_examples();
+  REQUIRE(listed.size() == 1);
+  CHECK(fs::equivalent(listed[0], example));
 
   unsetenv("PAPERBOAT_ROOT");
-  unsetenv("PAPERBOAT_EXAMPLES_DIR");
   fs::remove_all(root, ec);
 }
 

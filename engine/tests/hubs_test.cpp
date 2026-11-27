@@ -74,6 +74,33 @@ TEST_CASE("the hubs come from paperboat hub list --json; none without it") {
   fs::remove_all(dir);
 }
 
+TEST_CASE("the examples come from paperboat example list; none without it; open says why it can't") {
+  const fs::path dir = fs::temp_directory_path() / "pb_hubs_examples";
+  fs::remove_all(dir);
+  const fs::path cli = dir / "paperboat";
+  write(cli, "#!/bin/sh\n"
+             "if [ \"$*\" = \"example list --app simplicial --json\" ]; then cat <<'EOF'\n"
+             "[{\"id\": \"simplicial/09-modular-synth-cpp\", \"app\": \"simplicial\", \"kind\": \"simplicial\", \"name\": \"09 Modular Synth\","
+             " \"description\": \"A synth\", \"path\": \"/x/09\"}, {\"name\": \"no id\"}]\nEOF\n"
+             "elif [ \"$*\" = \"example open simplicial/09-modular-synth-cpp --json\" ]; then\n"
+             "  echo '{\"id\": \"simplicial/09-modular-synth-cpp\", \"path\": \"/home/me/09\", \"session\": \"s1\"}'\n"
+             "elif [ \"$2\" = open ]; then echo '{\"error\": \"no example simplicial/nope\"}'; exit 2\n"
+             "else exit 1; fi\n");
+  fs::permissions(cli, fs::perms::owner_all);
+  const auto got = hubs::examples(cli.string());
+  REQUIRE(got.size() == 1);
+  CHECK(got[0]["name"] == "09 Modular Synth");
+  CHECK(hubs::open_example(cli.string(), "simplicial/09-modular-synth-cpp") ==
+        nlohmann::json{{"id", "simplicial/09-modular-synth-cpp"}, {"path", "/home/me/09"}, {"session", "s1"}});
+  CHECK(hubs::open_example(cli.string(), "simplicial/nope") == nlohmann::json{{"error", "no example simplicial/nope"}});
+  CHECK(hubs::open_example(cli.string(), "--help").contains("error"));  // never a flag for the CLI
+  CHECK(hubs::examples((dir / "no-such-paperboat").string()).empty());  // no Paperboat, no examples
+  CHECK(hubs::open_example((dir / "no-such-paperboat").string(), "simplicial/09-modular-synth-cpp").contains("error"));
+  write(cli, "#!/bin/sh\necho 'not json'\n");
+  CHECK(hubs::examples(cli.string()).empty());
+  fs::remove_all(dir);
+}
+
 namespace {
 
 // A .pst as `paperboat pack` makes one: a zip with station.toml at its root.

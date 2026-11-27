@@ -15,8 +15,8 @@
 // Paperboat window (`shell()`), else a typed path and a download. Recent and the theme are the store every app shares.
 import {
   About, AppMark, ConsoleWindow, Dialog, Dock, Icon, Key, MenuBar, Notifications, PageRail, Panel, PanelsKey, Search, Segmented, Spinner, Splash, Tabs,
-  Toasts, WindowKeys, isEnabled, isScale, readStored, typeLine, typing, ownKeys, useScale, useShortcuts, useTheme, useToasts, valueText, writeStored,
-  type Credit, type PaneRect, type Scale, type SearchItem, type Theme, type Toast,
+  Toasts, WindowKeys, exampleCommands, isEnabled, isScale, readStored, typeLine, typing, ownKeys, useScale, useShortcuts, useTheme, useToasts, valueText, writeStored,
+  type Credit, type Example, type PaneRect, type Scale, type SearchItem, type Theme, type Toast,
 } from "@paperboatlab/ui";
 import { useUndo } from "@paperboatlab/ui/canvas";
 import type { FileEntry } from "@paperboatlab/ui/files";
@@ -53,7 +53,7 @@ import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
 import { Toolkits } from "./Toolkits.tsx";
 import { changed } from "./runSettings.ts";
 import {
-  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, manageRuntimes, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
+  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listExamples, listHub, listHubs, manageRuntimes, openExample, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
 } from "./hubs.ts";
 import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote, type Note } from "./stationLink.ts";
@@ -203,6 +203,7 @@ export function App() {
   const [userHome, setUserHome] = useState<string>();
   const [recent, setRecent] = useState<RecentEntry[]>([]);
   const [hubs, setHubs] = useState<Hub[]>([]);
+  const [examples, setExamples] = useState<Example[]>([]);  // Ctrl+K's Open example: <name> (paperboat#72)
   const opener = useOpening();   // a folder or hub on its way: Start, the well and Connect to a hub say so
   const [file, setFile] = useState<OpenedFile | null>(null);
   // New flow: the canvas, with no file yet; a window opened on a station alone (Articula's Start in Simplicial) starts on its starter
@@ -217,6 +218,7 @@ export function App() {
     getWorkspace().then((r) => { setWs(r.workspace); setUserHome(r.home); }, () => {});
     loadRecent();
     void listHubs().then(setHubs);
+    void listExamples().then(setExamples);
   }, []);
   const hubOf = (id: string): Hub => hubs.find((h) => h.id === id) ?? { id, name: ws?.hub === id ? ws.name : id, place: "local", path: ws?.hub === id ? ws.root : "" };
   const wsHub = ws?.kind === "hub" && ws.hub ? hubOf(ws.hub) : undefined;
@@ -633,7 +635,7 @@ export function App() {
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
-  )];
+  ), ...exampleCommands(examples, (id) => void openExample(id).catch((e) => failed("Can't open the example", e)))];
   useShortcuts(booted ? commands : []);
 
   /** Quick add at a point: the cursor over the Flow, else a third down its middle; only where the Flow is in view. */
