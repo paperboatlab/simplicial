@@ -524,7 +524,7 @@ and `station.load` when the page posts `station.ready`. The page may post back o
 `protocol/smoke_test.py --port <port>` checks any station against this spec without
 knowing its domain, every message against the schema included. `protocol/golden.py`
 runs each example's starter headless (`--run`) and compares the results with its
-`expected.json`. Every station in `paperboat-examples/` passes both.
+`expected.json`. Every station in `paperboat-examples/simplicial/` passes both.
 
 ## Why JSON, and what comes next
 
