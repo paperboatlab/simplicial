@@ -53,7 +53,7 @@ import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
 import { Toolkits } from "./Toolkits.tsx";
 import { changed } from "./runSettings.ts";
 import {
-  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
+  clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, manageRuntimes, openInMalachite, readFlow, rootOf, saveScale, saveTheme, setWorkspace,
   startStation, stationLog, stationStatus, stem, TYPES, writeFlow, type Finding, type HubEntry, type OpenedFile, type Place, type Root, type Status, type Which,
 } from "./hubs.ts";
 import { apartNote, fromSearch, lookedList, movedNote, named, startOf, toSearch, versionNote, type Note } from "./stationLink.ts";
@@ -629,7 +629,7 @@ export function App() {
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme: pickTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), runSettings: WITHOUT ? undefined : () => setRunDialog(true), toolkits: WITHOUT ? undefined : () => setToolkits(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
+      run, cancel, station: () => setPicker(true), runSettings: WITHOUT ? undefined : () => setRunDialog(true), toolkits: WITHOUT ? undefined : () => setToolkits(true), runtimes: () => void manageRuntimes().catch((e) => failed("Can't open the Launcher", e)), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },

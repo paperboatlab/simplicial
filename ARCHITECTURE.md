@@ -82,7 +82,8 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
     (`RunSettingsDialog.tsx` on the kit's `Dialog` and Settings' rows; `runSettings.ts`, pure and tested: the solvers the
     engine announced, the options each reads, and `changed`, what a flow keeps: only what differs from the station's);
     Toolkits… (`Toolkits.tsx`: the kit's `PackageWindow` and `PackagePanel` over `toolkits.status`; `toolkit.install`,
-    `toolkit.uninstall`, `toolkit.versions` and `station.restart` are the station's). It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
+    `toolkit.uninstall`, `toolkit.versions` and `station.restart` are the station's); Manage runtimes… (`POST
+    /__paperboat/launcher`: `paperboat launcher --page runtimes`, the Launcher on its Runtimes page, paperboat#69). It holds the Flow's blocks and wires (what `graph.run` sends, `toGraph`), their undo (the
     kit's `useUndo`) and the open level. `app.css` draws only what the kit doesn't.
   - `src/station/`: the Station page. `StationPage.tsx`: the 3D view on the kit's stage (`@paperboatlab/ui/stage`; a click
     picks the object a part belongs to, its properties float over the corner) and the Graph view (objects and joints as the

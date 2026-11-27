@@ -60,6 +60,9 @@ Euler). Each row says what the station's default is; a change applies as made, a
 only what differs from its station in its file. **Reset to the station's** drops them all. The run
 dock's length and speed are the same settings.
 
+**Runtimes.** Run › Manage runtimes… opens the Paperboat Launcher on its Runtimes page, where the
+Julia and Python stations run (``paperboat launcher --page runtimes``).
+
 **Toolkits.** Run › Toolkits… (or **Toolkits…** in Settings › Simplicial, and on a toolkit the
 block library lists as not installed) opens the package manager: **toolkits**, the optional
 toolkits installed into the engine that serves the station, each with its version, Update when a

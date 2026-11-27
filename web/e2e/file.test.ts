@@ -72,13 +72,16 @@ async function connect(debug: number) {
   return { cmd, run, until, click, key, errors, close: () => ws.close() };
 }
 
-test("open a flow, edit it, save it, reopen it", { skip: missing, timeout: 180_000 }, async () => {
+test("open a flow, edit it, save it, reopen it; Manage runtimes…", { skip: missing, timeout: 180_000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(process.env.SIMPLICIAL_E2E_TMP ?? os.tmpdir(), "simplicial-e2e-"));
   const folder = path.join(tmp, "flows"), profile = path.join(tmp, "profile");
   fs.mkdirSync(folder);
   const file = path.join(folder, "loop.psf");
   fs.writeFileSync(file, `${JSON.stringify({ paperboat: 1, station: { name: "scratchpad" }, flow: { nodes: [], edges: [] } }, null, 2)}\n`);
-  const env = { ...process.env, PAPERBOAT_HOME: path.join(tmp, "home"), PAPERBOAT_ROOT: ROOT };
+  // a stand-in CLI: it notes what Manage runtimes… asks of it, and knows no hub (no Malachite)
+  const cli = path.join(tmp, "paperboat"), launched = path.join(tmp, "launcher-args");
+  fs.writeFileSync(cli, `#!/bin/sh\n[ "$1" = launcher ] && echo "$*" > ${launched} && exit 0\nexit 1\n`, { mode: 0o755 });
+  const env = { ...process.env, PAPERBOAT_HOME: path.join(tmp, "home"), PAPERBOAT_ROOT: ROOT, PAPERBOAT_BIN: cli };
   const [station, web, debug] = [port(), port(), port()];
   const kids: ChildProcess[] = [
     spawn(STATION, ["--port", String(station)], { cwd: folder, env, stdio: "ignore" }),
@@ -133,6 +136,13 @@ test("open a flow, edit it, save it, reopen it", { skip: missing, timeout: 180_0
     await click(".menu .menu-item", "Run settings");
     await until("Run settings", length);
     assert.equal(await run(length), "25");
+    await key("Escape", "Escape", 27);
+
+    // Run › Manage runtimes…: the server asks the CLI for the Launcher on its Runtimes page (paperboat#69)
+    await click(".menubar .menu-title", "Run");
+    await click(".menu .menu-item", "Manage runtimes");
+    for (let i = 0; i < 40 && !fs.existsSync(launched); i++) await sleep(150);
+    assert.equal(fs.readFileSync(launched, "utf8").trim(), "launcher --page runtimes");
     assert.deepEqual(page.errors, []);
   } finally {
     await Promise.race([page?.cmd("Browser.close"), sleep(2000)]);

@@ -230,9 +230,15 @@ ix::HttpResponsePtr workspace_route(const std::string& path, const ix::HttpReque
 ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr& request, const std::string& remote) {
   const bool station = path.starts_with("/__paperboat/station/");
   const bool store = path == "/__paperboat/workspace" || path == "/__paperboat/recent" || path == "/__paperboat/settings";
-  if (!path.starts_with("/__paperboat/hub") && !station && !store) return nullptr;
+  const bool launcher = path == "/__paperboat/launcher";
+  if (!path.starts_with("/__paperboat/hub") && !station && !store && !launcher) return nullptr;
   if (!from_here(remote)) return respond(403, "text/plain", "hubs are only for this computer\n");
   const std::string cli = paperboat_cli();
+  if (launcher) {  // Run › Manage runtimes…: the Launcher on its Runtimes page (paperboat#69)
+    if (request->method != "POST" || !from_page(request)) return respond(405, "text/plain", "POST from the page\n");
+    const auto r = ProcessRunner::run_sync({cli, "launcher", "--page", "runtimes"}, {}, {}, std::chrono::seconds(10));
+    return r.ok() ? respond(200, "application/json", "{}") : respond(502, "text/plain", r.stderr_text.empty() ? "can't run " + cli + "\n" : r.stderr_text);
+  }
   if (station) return station_route(path, request, cli);
   if (store) return workspace_route(path, request, cli);
   if (path == "/__paperboat/hubs") return respond(200, "application/json", hubs::list(cli).dump());
