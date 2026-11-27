@@ -222,9 +222,8 @@ int cmd_deps(const std::vector<std::string_view>& args) {
     return 2;
   }
   std::string path;
-  bool force = false;
   for (std::size_t i = 1; i < args.size(); ++i) {
-    if (args[i] == "--force") force = true;
+    if (args[i] == "--force") continue;  // nothing to rebuild any more; still accepted
     else if (path.empty()) path = std::string(args[i]);
     else {
       std::cerr << "error: one path only\n";
