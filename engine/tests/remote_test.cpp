@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <map>
 #include <cstdlib>
 #include <filesystem>
@@ -91,9 +92,22 @@ TEST_CASE("a Julia and a Python station run out of process and leave no runtime 
   if (paperboatd.empty()) SKIP("no paperboatd: install Paperboat or set PAPERBOATD");
   const fs::path home = fs::path("/tmp") / ("pbrt-" + std::to_string(getpid()));
   fs::remove_all(home);
-  fs::create_directories(home);
+  fs::create_directories(home / "run");
   const std::vector<std::pair<std::string, std::string>> env = {
       {"PAPERBOAT_RUNTIME_DIR", (home / "run").string()}, {"PAPERBOAT_HOME", (home / "home").string()}, {"PAPERBOATD", paperboatd.string()}};
+  // Started here, so it ends here: the engine finds its socket and starts none of its own.
+  const fs::path socket = home / "run" / "control.sock";
+  const int daemon_pid = core::ProcessRunner::run_detached({paperboatd.string(), "--socket", socket.string()}, home, env, home / "paperboatd.log");
+  REQUIRE(daemon_pid > 0);
+  struct Stop {  // however the test ends: the daemon stops every runtime it started
+    int pid;
+    fs::path home;
+    ~Stop() {
+      core::ProcessRunner::kill_pid(pid, SIGTERM, 10000);
+      fs::remove_all(home);
+    }
+  } stop{daemon_pid, home};
+  for (int i = 0; i < 200 && !fs::exists(socket); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   for (const char* language : {"python", "julia"}) {
     DYNAMIC_SECTION(language) {
@@ -136,6 +150,4 @@ TEST_CASE("a Julia and a Python station run out of process and leave no runtime 
       }
     }
   }
-  core::ProcessRunner::run_sync({"paperboat", "daemon", "stop"}, {}, env);
-  fs::remove_all(home);
 }
