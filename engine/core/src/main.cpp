@@ -210,7 +210,13 @@ std::string run_starter(const Station& station, std::ostream& out, const std::ve
 }
 
 int main(const Station& station, int argc, char** argv, int default_port) {
-  remember_args(argc, argv);
+  {
+    std::lock_guard lock(g_restart_mutex);
+    if (g_restart_args.empty()) {  // a host (remote.cpp) may have remembered its own command line first
+      for (int i = 0; i < argc; ++i)
+        if (argv[i]) g_restart_args.emplace_back(argv[i]);
+    }
+  }
   Options options;
   try {
     options = parse_options(argc, argv, default_port);

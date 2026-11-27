@@ -29,6 +29,7 @@ add_library(paperboat_core ${PAPERBOAT_LIB_TYPE}
   src/main.cpp
   ${PAPERBOAT_PROCESS_SOURCE}
   src/station_manager.cpp
+  src/remote.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/station_js.cpp
 )
 add_library(paperboat::core ALIAS paperboat_core)

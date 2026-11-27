@@ -636,14 +636,19 @@ TEST_CASE("paperboat open validates project file and station") {
   CHECK(res4.exit_code != 0);
   fs::remove(tmp);
 
-  // Valid project with --run runs headlessly against a station
+  // Valid project with --run runs headlessly against a station: a built one, the program a script
+  // (a Python station's process is the engine itself now, with a runtime from paperboatd).
   const fs::path station_dir = fs::temp_directory_path() / "pb_test_station";
   fs::remove_all(station_dir);
   fs::create_directories(station_dir);
-  std::ofstream(station_dir / "station.toml") << "[station]\nformat = 0\nname = \"test_probe\"\nlanguage = \"python\"\n"
-                                                 "run = \"server.py\"\ndescriptor = \"descriptor.toml\"\n";
+  std::ofstream(station_dir / "station.toml") << "[station]\nformat = 0\nname = \"test_probe\"\nlanguage = \"cpp\"\n"
+                                                 "run = \"server.sh\"\ndescriptor = \"descriptor.toml\"\n";
   std::ofstream(station_dir / "descriptor.toml") << "domain = \"test_probe\"\nimport = [\"math\"]\n";
-  std::ofstream(station_dir / "server.py") << "import sys; sys.exit(0)\n";
+  const auto script = [&](const std::string& body) {
+    std::ofstream(station_dir / "server.sh") << "#!/bin/sh\n" << body << "\n";
+    fs::permissions(station_dir / "server.sh", fs::perms::owner_all);
+  };
+  script("exit 0");
 
   const fs::path valid_proj = fs::temp_directory_path() / "test_run.psf";
   std::ofstream(valid_proj) << "{\"paperboat\": 0, \"station\": \"" + station_dir.string() + "\", \"flow\": {\"nodes\": [], \"edges\": []}}";
@@ -653,7 +658,7 @@ TEST_CASE("paperboat open validates project file and station") {
   // --record is handed to the station as PAPERBOAT_RECORD (#277), for open and run alike.
   const fs::path record_dir = fs::temp_directory_path() / "pb_test_record";
   fs::remove_all(record_dir);
-  std::ofstream(station_dir / "server.py") << "import os, pathlib; pathlib.Path('seen.txt').write_text(os.environ.get('PAPERBOAT_RECORD', ''))\n";
+  script("printf %s \"$PAPERBOAT_RECORD\" > seen.txt");
   auto res6 = core::ProcessRunner::run_sync({cli.string(), "open", valid_proj.string(), "--run", "--no-build", "--record", record_dir.string()});
   CHECK(res6.exit_code == 0);
   std::ifstream seen(station_dir / "seen.txt");

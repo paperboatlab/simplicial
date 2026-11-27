@@ -1,0 +1,27 @@
+"""@name@'s domain code: what only this station has. The engine (Simplicial) does the rest: it loads
+descriptor.toml, runs the graph and serves the page; this file runs in a Python runtime that
+paperboatd starts (a container), and answers the engine's calls. Reference: docs/stations.rst.
+"""
+
+import paperboat_runtime as pb
+
+
+class Scale:
+    """A block: its params arrive as keywords, step runs once per pass of the clock."""
+
+    def __init__(self, gain=2.0):
+        self.gain = gain
+
+    # ctx: {"t", "dt", "id"}; inputs and the result: {port: value} (numbers, lists, tables, text)
+    def step(self, ctx, inputs):
+        return {"y": self.gain * inputs.get("u", 0.0)}
+
+
+# The type the descriptor uses, and what the palette shows.
+pb.register("scale", Scale, definition={
+    "label": "Scale",
+    "description": "Multiplies its input by a gain.",
+    "inputs": ["u"],
+    "outputs": ["y"],
+    "params": {"gain": 2.0},
+})

@@ -1,0 +1,11 @@
+# The remote test station (remote_test.cpp): a block and a model, in julia.
+[station]
+format = 0
+name = "remote-julia"
+language = "julia"
+run = "station.jl"
+port = 51399
+descriptor = "descriptor.toml"
+
+[run]
+duration = 1.0

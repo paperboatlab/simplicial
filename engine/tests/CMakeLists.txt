@@ -52,6 +52,7 @@ add_executable(paperboat_tests
   process_test.cpp
   hubs_test.cpp
   workspace_test.cpp
+  remote_test.cpp
 )
 target_link_libraries(paperboat_tests
   PRIVATE paperboat::toolkit paperboat::core nlohmann_json::nlohmann_json Catch2::Catch2WithMain paperboat_warnings)

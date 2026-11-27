@@ -1,0 +1,11 @@
+# The remote test station (remote_test.cpp): a block and a model, in python.
+[station]
+format = 0
+name = "remote-python"
+language = "python"
+run = "station.py"
+port = 51399
+descriptor = "descriptor.toml"
+
+[run]
+duration = 1.0

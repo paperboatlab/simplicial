@@ -74,7 +74,8 @@ TEST_CASE("paperboat new: both templates are embedded, with a manifest, descript
   }
   CHECK(cpp.contains("CMakeLists.txt"));
   CHECK(cpp.contains("main.cpp"));
-  CHECK(python.contains("server.py"));
+  CHECK(python.contains("station.py"));
+  CHECK(python.contains("station.jl"));
 }
 
 TEST_CASE("paperboat new writes a C++ station whose manifest, descriptor and golden agree") {
@@ -136,15 +137,14 @@ TEST_CASE("paperboat new writes a Python station that check's manifest and catal
   TempDir tmp("python");
   const auto res = cli::new_station({.name = "py-thing", .language = "python", .dir = tmp.path});
   REQUIRE(res.ok);
-  CHECK(written(res) == std::set<std::string>{".gitignore", "station.toml", "descriptor.toml", "domain/__init__.py",
-                                              "domain/blocks.py", "expected.json", "requirements.txt", "server.py"});
+  CHECK(written(res) == std::set<std::string>{".gitignore", "station.toml", "descriptor.toml", "expected.json", "station.py"});
   const auto m = core::StationManager::load_manifest(tmp.path);
   REQUIRE(m.has_manifest);
   CHECK(m.language == "python");
-  CHECK(m.run == "server.py");
+  CHECK(m.run == "station.py");
   CHECK(core::StationManager::detect_station_kind(tmp.path) == core::StationKind::Python);
-  CHECK(nlohmann::json::parse(slurp(tmp.path / "expected.json"))["run"] == "server.py");
-  CHECK_THAT(slurp(tmp.path / "server.py"), ContainsSubstring("engine=\"py-thing\""));
+  CHECK(nlohmann::json::parse(slurp(tmp.path / "expected.json"))["run"] == "station.py");
+  CHECK_THAT(slurp(tmp.path / "station.py"), ContainsSubstring("pb.register(\"scale\", Scale"));
 
   const auto check = core::StationManager::check_station(tmp.path, /*fast=*/true);
   INFO((check.errors.empty() ? std::string{} : check.errors.front()));
@@ -153,25 +153,20 @@ TEST_CASE("paperboat new writes a Python station that check's manifest and catal
   CHECK(check.ok);
 }
 
-TEST_CASE("paperboat new writes a Julia station whose manifest and project agree") {
+TEST_CASE("paperboat new writes a Julia station whose manifest and golden agree") {
   TempDir tmp("julia");
   const auto res = cli::new_station({.name = "jl-thing", .language = "julia", .dir = tmp.path});
   REQUIRE(res.ok);
-  CHECK(written(res) == std::set<std::string>{".gitignore", "Project.toml", "station.toml", "descriptor.toml",
-                                              "domain/blocks.jl", "expected.json", "server.jl"});
+  CHECK(written(res) == std::set<std::string>{".gitignore", "station.toml", "descriptor.toml", "expected.json", "station.jl"});
   const auto m = core::StationManager::load_manifest(tmp.path);
   REQUIRE(m.has_manifest);
   CHECK(m.language == "julia");
-  CHECK(m.run == "server.jl");
+  CHECK(m.run == "station.jl");
   CHECK(core::StationManager::detect_station_kind(tmp.path) == core::StationKind::Julia);
-  CHECK_THAT(slurp(tmp.path / "server.jl"), ContainsSubstring("Paperboat.main"));
-  // Project.toml points at the checkout's Paperboat.jl, which `deps install` resolves.
-  CHECK_THAT(slurp(tmp.path / "Project.toml"), ContainsSubstring("[sources]"));
-  CHECK_THAT(slurp(tmp.path / "Project.toml"), ContainsSubstring("julia/Paperboat"));
-  CHECK_THAT(slurp(tmp.path / "domain/blocks.jl"), ContainsSubstring("ctx::Paperboat.Context"));
+  CHECK_THAT(slurp(tmp.path / "station.jl"), ContainsSubstring("PaperboatRuntime.register(\"scale\", Scale"));
   const auto expected = nlohmann::json::parse(slurp(tmp.path / "expected.json"));
-  CHECK(expected["run"] == "server.jl");
-  CHECK(expected["signals"]["result"] == 6.0);
+  CHECK(expected["run"] == "station.jl");
+  CHECK(expected["signals"]["result"][0] == 6.0);
 }
 
 TEST_CASE("paperboat new never overwrites: a non-empty folder is refused, an empty one is fine") {

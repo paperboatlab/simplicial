@@ -45,16 +45,8 @@ std::string identifier(std::string name) {
   return name;
 }
 
-// The checkout's Paperboat.jl, the package a Julia station's Project.toml points at.
-std::string julia_package_path() {
-  const std::filesystem::path root = paperboat::toolkit::find_repo_root();
-  if (!root.empty()) return (root / "julia" / "Paperboat").generic_string();
-  return "julia/Paperboat";
-}
-
 std::string render(std::string_view content, const NewOptions& o) {
   std::string text(content);
-  replace_all(text, "@paperboat_julia@", julia_package_path());
   replace_all(text, "@name@", o.name);
   replace_all(text, "@ident@", identifier(o.name));
   replace_all(text, "@target@", program_name(o.name));
@@ -195,15 +187,14 @@ int cmd_new(const std::vector<std::string_view>& args) {
   std::cout << "\nNext steps:\n  cd " << shell_quote(where) << '\n';
   if (is_cpp) {
     std::cout << "  paperboat build     compile it (CMake; the first build compiles the engine too)\n";
-  } else if (is_julia) {
-    std::cout << "  paperboat deps install   create .julia and instantiate Project.toml (isolated from ~/.julia)\n";
   } else {
-    std::cout << "  paperboat build     nothing to compile; it needs the paperboat Python module:\n"
-                 "                      in a Paperboat checkout `npm run build:python`, else `pip install ./python`\n";
+    std::cout << "  (nothing to compile: station." << (is_julia ? "jl" : "py") << " runs in a " << opts.language
+              << " runtime from paperboatd;\n   packages: paperboat package add " << opts.language << " <package> --project .)\n";
   }
   std::cout << "  paperboat check     verify it: manifest, catalog, protocol smoke test, golden run\n"
                "  paperboat run       build if needed, serve it on " << url << " and open it in Simplicial\n"
-               "Then make it yours: add blocks in domain/, use them in descriptor.toml's [graph], and update\n"
+               "Then make it yours: add blocks in domain/ (C++) or station.py / station.jl, use them in\n"
+               "descriptor.toml's [graph], and update\n"
                "expected.json to what your starter graph should end with.\n";
   return 0;
 }
