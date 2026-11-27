@@ -41,4 +41,5 @@ test("Run settings… opens, and says why it can't without a station", () => {
   const none = registry(view, new Proxy({} as Do, { get: (_, k) => (k === "runSettings" ? undefined : () => {}) })).find((x) => x.id === "run.settings")!;
   assert.equal(none.enabled, false);
   assert.match(none.why ?? "", /No station/);
+  assert.equal(registry(view, new Proxy({} as Do, { get: () => undefined })).find((x) => x.id === "run.toolkits")!.enabled, false);  // Toolkits… likewise
 });

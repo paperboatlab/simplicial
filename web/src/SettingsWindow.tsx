@@ -11,9 +11,9 @@ import { MENUS } from "./menus.ts";
 import type { RunSettings } from "./protocol.ts";
 import { runLine } from "./runSettings.ts";
 
-/** A key that runs a command of the registry, greyed with why when it can't. */
-const Run = ({ c, label }: { c?: Command; label?: string }) => c ? (
-  <span title={isEnabled(c) ? undefined : c.why}><Key size="sm" disabled={!isEnabled(c)} onClick={() => c.run()}>{label ?? c.label}</Key></span>
+/** A key that runs a command of the registry, greyed with why when it can't; `close`: Settings closes first (its window opens instead). */
+const Run = ({ c, label, close }: { c?: Command; label?: string; close?: () => void }) => c ? (
+  <span title={isEnabled(c) ? undefined : c.why}><Key size="sm" disabled={!isEnabled(c)} onClick={() => { close?.(); c.run(); }}>{label ?? c.label}</Key></span>
 ) : null;
 
 export function SettingsWindow({ page, onClose, theme, onTheme, station, address, runDefaults, minimap, onMinimap, workspace, home, onMalachite, commands }: {
@@ -42,10 +42,13 @@ export function SettingsWindow({ page, onClose, theme, onTheme, station, address
         <SettingRow label="Station" hint={address}>
           <span className="well">{station ?? "none"}</span><Run c={cmd("run.station")} />
         </SettingRow>
+        <SettingRow label="Toolkits" hint="Optional blocks, installed into the engine that serves the station">
+          <Run c={cmd("run.toolkits")} close={onClose} />
+        </SettingRow>
       </SettingsSection>
       <SettingsSection title="Runs">
         <SettingRow label="Run defaults" hint="The station's; what a flow changes (Run settings…, the run dock) is kept in its file">
-          <span className="well">{runLine(runDefaults)}</span><Run c={cmd("run.settings")} />
+          <span className="well">{runLine(runDefaults)}</span><Run c={cmd("run.settings")} close={onClose} />
         </SettingRow>
       </SettingsSection>
       <SettingsSection title="Canvas">

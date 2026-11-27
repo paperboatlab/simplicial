@@ -7,7 +7,9 @@ import type { RunSettings } from "./protocol.ts";
 import { changed, ENGINE, OPTION, READS, SOLVERS, solverOf, solversOf, type Solver, type SolverOption } from "./runSettings.ts";
 
 export const SPEEDS = [0.25, 0.5, 1, 2, 4, 0];
-const station = (v: number | undefined, unit = "") => (v === undefined ? "" : `The station's: ${v}${unit}`);
+/** A row's hint, and the station's value when the flow's differs. */
+const hint = (text: string, mine: number | undefined, its: number | undefined, unit = "") =>
+  mine === undefined || its === undefined || mine === its ? text : `${text} (the station's: ${its}${unit})`;
 
 export function RunSettingsDialog({ defaults, value, onChange, onClose, name }: {
   /** The station's (hello.run). */
@@ -27,7 +29,7 @@ export function RunSettingsDialog({ defaults, value, onChange, onClose, name }: 
   const setOpt = (k: SolverOption, v: number) => set({ solver_options: { ...value.solver_options, [k]: v } });
   const own = Object.keys(value).length > 0;
   return (
-    <Dialog title="Run settings" tags={[name]} className="run-settings" onClose={onClose}
+    <Dialog title="Run settings" tags={[name]} className="run-settings" wide onClose={onClose}
       actions={<>
         <span title={own ? "Back to the station's defaults" : "Nothing differs from the station's"}>
           <Key kind="quiet" disabled={!own} onClick={() => onChange({})}>Reset to the station's</Key>
@@ -38,16 +40,16 @@ export function RunSettingsDialog({ defaults, value, onChange, onClose, name }: 
       <p className="settings-note">For the next run; the flow keeps what differs from its station in its file.</p>
       {clock && (
         <SettingsSection title="Time">
-          <SettingRow label="Length" hint={`0 runs until cancelled. ${station(defaults.duration, " s")}`}>
-            <NumberField className="well" aria-label="Run length, s" value={duration} valid={(v) => v >= 0} onChange={(v) => set({ duration: v })} /><small>s</small>
+          <SettingRow label="Length" hint={hint("0 runs until cancelled", value.duration, defaults.duration, " s")}>
+            <NumberField className="well" aria-label="Run length, s" value={duration} valid={(v) => v >= 0} onChange={(v) => set({ duration: v })} /><small className="unit">s</small>
           </SettingRow>
-          <SettingRow label="Speed" hint={`Times real time; during a run it changes the run at once. ${station(defaults.speed, "×")}`}>
+          <SettingRow label="Speed" hint={hint("Times real time; during a run it changes the run at once", value.speed, defaults.speed ?? 1, "×")}>
             <select className="well" aria-label="Speed" value={speed} onChange={(e) => set({ speed: Number(e.target.value) })}>
               {SPEEDS.map((x) => <option key={x} value={x}>{x === 0 ? "as fast as it can" : `${x}×`}</option>)}
-            </select>
+            </select><small className="unit" />
           </SettingRow>
-          <SettingRow label="Clock step" hint={`How often blocks run and monitors sample. ${station(defaults.dt ?? ENGINE.dt, " s")}`}>
-            <NumberField className="well" aria-label="Clock step, s" value={dt} valid={(v) => v > 0} onChange={(v) => set({ dt: v })} /><small>s</small>
+          <SettingRow label="Clock step" hint={hint("How often blocks run and monitors sample", value.dt, defaults.dt ?? ENGINE.dt, " s")}>
+            <NumberField className="well" aria-label="Clock step, s" value={dt} valid={(v) => v > 0} onChange={(v) => set({ dt: v })} /><small className="unit">s</small>
           </SettingRow>
         </SettingsSection>
       )}
@@ -55,13 +57,13 @@ export function RunSettingsDialog({ defaults, value, onChange, onClose, name }: 
         <SettingRow label="Solver" hint={SOLVERS.find(([s]) => s === solver)?.[2]}>
           <select className="well" aria-label="Solver" value={solver} onChange={(e) => set({ solver: e.target.value as Solver })}>
             {solversOf(defaults).map((s) => <option key={s} value={s}>{SOLVERS.find(([x]) => x === s)![1]}</option>)}
-          </select>
+          </select><small className="unit" />
         </SettingRow>
         {READS[solver].map((k) => {
           const o = OPTION[k];
           return (
-            <SettingRow key={k} label={o.label} hint={`${o.hint}${o.zero ? ` (0: ${o.zero})` : ""}. ${station(defaults.solver_options?.[k] ?? ENGINE[k], o.unit ? ` ${o.unit}` : "")}`}>
-              <NumberField className="well" aria-label={o.label} value={opt(k)} valid={o.valid} onChange={(v) => setOpt(k, v)} />{o.unit && <small>{o.unit}</small>}
+            <SettingRow key={k} label={o.label} hint={hint(`${o.hint}${o.zero ? `; 0: ${o.zero}` : ""}`, value.solver_options?.[k], defaults.solver_options?.[k] ?? ENGINE[k], o.unit ? ` ${o.unit}` : "")}>
+              <NumberField className="well" aria-label={o.label} value={opt(k)} valid={o.valid} onChange={(v) => setOpt(k, v)} /><small className="unit">{o.unit}</small>
             </SettingRow>
           );
         })}

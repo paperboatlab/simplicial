@@ -50,6 +50,7 @@ import { applyOverrides, buildProject, diff, mergeOverrides, relPath, stationOf,
 import { useProject } from "./projectSession.ts";
 import { SettingsWindow } from "./SettingsWindow.tsx";
 import { RunSettingsDialog, SPEEDS } from "./RunSettingsDialog.tsx";
+import { Toolkits } from "./Toolkits.tsx";
 import { changed } from "./runSettings.ts";
 import {
   clearRecent, findStation, getRecent, getSettings, getWorkspace, listedAt, listHub, listHubs, openInMalachite, readFlow, rootOf, saveTheme, setWorkspace,
@@ -158,6 +159,7 @@ export function App() {
   useEffect(() => { if (state.engine) remember(URL_); }, [state.engine]);
   const [about, setAbout] = useState(false);
   const [runDialog, setRunDialog] = useState(false);  // Run › Run settings…
+  const [toolkits, setToolkits] = useState(false);    // Run › Toolkits…
   const [picker, setPicker] = useState(false);   // Choose a station, from File; over the splash while none answers
   const [still, setStill] = useState(true);       // nothing moves at start-up: the saved layout is simply there
   const conKey = useRef<HTMLButtonElement>(null);
@@ -610,7 +612,7 @@ export function App() {
     },
     {
       setMode, go, toggle, console: () => setConsoleOpen((o) => !o), setTheme: pickTheme, search: () => setSearch((s) => (s ? null : {})),
-      run, cancel, station: () => setPicker(true), runSettings: WITHOUT ? undefined : () => setRunDialog(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
+      run, cancel, station: () => setPicker(true), runSettings: WITHOUT ? undefined : () => setRunDialog(true), toolkits: WITHOUT ? undefined : () => setToolkits(true), report: () => window.open(ISSUES, "_blank", "noopener"), about: () => setAbout(true), shortcuts: () => setSettings("shortcuts"),
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
@@ -838,7 +840,9 @@ export function App() {
         onMalachite={ws?.hub ? () => void openInMalachite(ws.hub!).catch((e) => failed("Can't open Malachite", e)) : undefined} commands={commands} />}
       {consoleOpen && <ConsoleWindow logs={state.logs} errors={errors} onClose={() => setConsoleOpen(false)} triggerRef={conKey}
         onBlock={booted ? (id) => { setConsoleOpen(false); go("flow"); pick(id); } : undefined} />}
-      {library && !lock && <BlockLibrary blocks={blocks} toolkits={state.toolkits} onClose={() => setLibrary(false)}
+      {toolkits && <Toolkits toolkits={state.toolkits} connected={state.connection === "open"} version={state.version} station={state.engine || undefined}
+        send={send} onClose={() => setToolkits(false)} />}
+      {library && !lock && <BlockLibrary blocks={blocks} toolkits={state.toolkits} onClose={() => setLibrary(false)} onToolkits={() => { setLibrary(false); setToolkits(true); }}
         used={nodes.filter(isBlock).reduce<Record<string, number>>((m, n) => ({ ...m, [n.data.def.type]: (m[n.data.def.type] ?? 0) + 1 }), {})}
         onAdd={(b) => {  // in the middle of the Flow in view, as quick add does at the cursor
           const r = flowBody.current?.getBoundingClientRect();

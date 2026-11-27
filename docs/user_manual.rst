@@ -60,6 +60,14 @@ Euler). Each row says what the station's default is; a change applies as made, a
 only what differs from its station in its file. **Reset to the station's** drops them all. The run
 dock's length and speed are the same settings.
 
+**Toolkits.** Run › Toolkits… (or **Toolkits…** in Settings › Simplicial, and on a toolkit the
+block library lists as not installed) opens the package manager: **toolkits**, the optional
+toolkits installed into the engine that serves the station, each with its version, Update when a
+newer release is out, and × to remove it (not one the station needs); **registry**, every toolkit
+``toolkits.toml`` lists, to search, read and add at a release (or ``dev``). Installing builds the
+toolkit against the engine; the Console shows what it prints. **Restart station** brings its blocks
+in.
+
 .. note:: Not written yet: run styles (Signal, Step, Once), the run dock, endless runs and Cancel,
    Board tiles, run records.
 
@@ -71,7 +79,7 @@ no Save.
 
 - **General**: the theme, Light, Dark or System (it follows your computer's). It applies to every
   Paperboat app and is the one they all start in next time.
-- **Simplicial**: **Station**, the one this window is on, with Choose a station…; **Runs**, the
+- **Simplicial**: **Station**, the one this window is on, with Choose a station… and Toolkits…; **Runs**, the
   station's run defaults, with Run settings… (what a flow changes is kept in its file); **Canvas**,
   the Flow's minimap in Navigator, on or off.
 - **Hub**, while Simplicial works in a hub: its name and folder, Switch hub… and Close hub. The hub's
