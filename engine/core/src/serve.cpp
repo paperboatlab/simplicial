@@ -13,6 +13,8 @@
 #include <mutex>
 #include <sstream>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -394,36 +396,63 @@ struct Server::State {
   ix::HttpServer server;  // also upgrades WebSocket connections, on the same port
   std::mutex mutex;
   std::map<std::string, std::unique_ptr<Session>> sessions;  // by connection id
-  // Live variables from a client that is not this flow (Julix), shared by every session: the connection
-  // that sent them (they go when it closes) and what it calls itself.
-  std::string remote_source;
+  // Live variables from clients that are not this flow (Julix), shared by every session. Each connection's
+  // list is kept apart (every Julix window on the computer connects, a Start page's or a fresh session's with
+  // nothing): the shared list is them all, a name in a later list over the same name in an earlier one, and a
+  // connection's go when it closes or sends an empty list. `remote_variables` is that merge, kept current.
+  struct Remote {
+    std::string label;
+    json variables;
+  };
+  std::vector<std::pair<std::string, Remote>> remotes;  // by connection id, the least recently sent first
   std::string remote_label = "julix";
   json remote_variables = json::array();
 
-  void publish_remote(const std::string& connection, const json& variables, const std::string& label) {
+  // With the lock held: the shared list again, from every connection's.
+  void merge_remote() {
+    json merged = json::array();
+    std::map<std::string, std::size_t> at;
+    for (const auto& [connection, remote] : remotes) {
+      remote_label = remote.label;
+      for (const auto& v : remote.variables) {
+        if (!v.is_object()) continue;
+        const std::string name = v.value("name", "");
+        if (auto it = at.find(name); it != at.end()) merged[it->second] = v;
+        else at[name] = merged.size(), merged.push_back(v);
+      }
+    }
+    remote_variables = std::move(merged);
+  }
+
+  void broadcast_remote() {
     std::vector<Session*> targets;
+    json message;
     {
       std::lock_guard lock(mutex);
-      remote_source = connection;
-      remote_label = label;
-      remote_variables = variables;
+      message = {{"type", "variables.remote"}, {"source", remote_label}, {"variables", remote_variables}};
       for (auto& [id, session] : sessions) targets.push_back(session.get());
     }
-    const json message = {{"type", "variables.remote"}, {"source", label}, {"variables", variables}};
     for (Session* session : targets) session->send_message(message);
   }
 
-  void clear_remote(const std::string& source) {
-    std::vector<Session*> targets;
+  void publish_remote(const std::string& connection, const json& variables, const std::string& label) {
     {
       std::lock_guard lock(mutex);
-      if (remote_source != source) return;
-      remote_source.clear();
-      remote_variables = json::array();
-      for (auto& [id, session] : sessions) targets.push_back(session.get());
+      std::erase_if(remotes, [&](const auto& r) { return r.first == connection; });
+      if (variables.is_array() && !variables.empty()) remotes.push_back({connection, {label, variables}});
+      else if (remotes.empty()) remote_label = label;
+      merge_remote();
     }
-    const json message = {{"type", "variables.remote"}, {"source", remote_label}, {"variables", json::array()}};
-    for (Session* session : targets) session->send_message(message);
+    broadcast_remote();
+  }
+
+  void clear_remote(const std::string& connection) {
+    {
+      std::lock_guard lock(mutex);
+      if (!std::erase_if(remotes, [&](const auto& r) { return r.first == connection; })) return;
+      merge_remote();
+    }
+    broadcast_remote();
   }
 };
 

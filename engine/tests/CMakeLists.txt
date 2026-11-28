@@ -54,9 +54,12 @@ add_executable(paperboat_tests
   workspace_test.cpp
   examples_test.cpp
   remote_test.cpp
+  server_test.cpp
 )
 target_link_libraries(paperboat_tests
   PRIVATE paperboat::toolkit paperboat::core nlohmann_json::nlohmann_json Catch2::Catch2WithMain paperboat_warnings)
+# server_test's sockets: ixwebsocket's headers only, its code is core's (linking it again doubled its globals)
+target_include_directories(paperboat_tests PRIVATE $<TARGET_PROPERTY:ixwebsocket,INTERFACE_INCLUDE_DIRECTORIES>)
 # The scratchpad is a standalone-engine target (engine/CMakeLists.txt); test it where it exists.
 if(TARGET paperboat_scratchpad)
   target_sources(paperboat_tests PRIVATE scratchpad_test.cpp)
