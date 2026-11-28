@@ -47,14 +47,21 @@ bool names_node(const json& graph, const json& station, const std::string& id) {
   return !id.empty() && (has(graph, "nodes") || has(station, "objects"));
 }
 
-// What the Variable block reads: a number, a boolean as 1 or 0, the rest as text.
+// What the Variable block reads: a number, a boolean as 1 or 0, a matrix as a matrix, the rest as text.
 toolkit::Values variable_values(const toolkit::Variables& vars) {
   toolkit::Values out;
   const json all = vars.values();
   for (const auto& [name, v] : all.items()) {
     if (v.is_number()) out[name] = v.get<double>();
     else if (v.is_boolean()) out[name] = v.get<bool>() ? 1.0 : 0.0;
-    else if (v.is_string()) out[name] = v.get<std::string>();
+    else if (v.is_string() && vars.type_of(name) == "matrix") {
+      // a matrix as a matrix ("1 2; 3 4", Julix's rows included), as a param bound to it takes it
+      try {
+        out[name] = toolkit::parse_matrix_rows(v.get<std::string>(), name);
+      } catch (const std::invalid_argument&) {
+        out[name] = v.get<std::string>();  // not rows: the Variable block passes the text, as before
+      }
+    } else if (v.is_string()) out[name] = v.get<std::string>();
   }
   return out;
 }

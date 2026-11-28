@@ -372,7 +372,7 @@ struct Context {
   const LogFn* log_fn = nullptr;      // set by the run; null in tests that don't collect logs
   const ProgressFn* progress_fn = nullptr;  // set by the run; null in tests
   // The run's variables (#36) by name, as the Variable block reads them: a number, a
-  // boolean as 1 / 0, text for the rest. Set by the run; null in tests. A tunable variable
+  // boolean as 1 / 0, a matrix as a Table, text for the rest. Set by the run; null in tests. A tunable variable
   // (#75) may change between steps.
   const Values* variables = nullptr;
   const SetVariableFn* set_variable_fn = nullptr;  // set by the run; null in tests

@@ -8,69 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-
-const ROOT = path.resolve(import.meta.dirname, "../..");
-const BUILD = process.env.SIMPLICIAL_BUILD ?? path.join(ROOT, "engine/build");  // another checkout's, say
-const ENGINE = path.join(BUILD, "tools/simplicial-engine");
-const STATION = path.join(BUILD, "scratchpad/paperboat-scratchpad");
-const PAGE = path.join(ROOT, "web/dist/index.html");
-const onPath = (b: string) => (process.env.PATH ?? "").split(path.delimiter).some((d) => fs.existsSync(path.join(d, b)));
-/** The browser's command, and whether it is the Flatpak (its sandbox sees only the folders it is given). */
-const browser = (): [string, string[]] | null => {
-  if (process.env.CHROME) return [process.env.CHROME, []];
-  for (const b of ["chromium", "chromium-browser", "google-chrome"]) if (onPath(b)) return [b, []];
-  if (onPath("flatpak") && spawnSync("flatpak", ["info", "org.chromium.Chromium"], { stdio: "ignore" }).status === 0) return ["flatpak", ["run", "org.chromium.Chromium"]];
-  return null;
-};
-const missing = !fs.existsSync(ENGINE) || !fs.existsSync(STATION) ? "no engine build (cmake --build engine/build)"
-  : !fs.existsSync(PAGE) ? "no page build (npm run build)" : !browser() ? "no Chromium" : false;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const port = () => 40000 + Math.floor(Math.random() * 20000);
-
-/** A page over CDP: evaluate, wait for, type, press. */
-async function connect(debug: number) {
-  let url = "";
-  for (let i = 0; i < 120 && !url; i++) {
-    await sleep(250);
-    try { url = ((await (await fetch(`http://127.0.0.1:${debug}/json`)).json()) as { type: string; webSocketDebuggerUrl: string }[]).find((t) => t.type === "page")?.webSocketDebuggerUrl ?? ""; } catch { /* not up yet */ }
-  }
-  assert.ok(url, "the browser didn't start");
-  const ws = new WebSocket(url);
-  await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
-  let n = 0;
-  const waiting = new Map<number, (m: { result?: { result?: { value?: unknown }; exceptionDetails?: unknown } }) => void>();
-  const errors: string[] = [];
-  ws.onmessage = (e) => {
-    const m = JSON.parse(String(e.data));
-    if (m.id && waiting.has(m.id)) { waiting.get(m.id)!(m); waiting.delete(m.id); }
-    else if (m.method === "Runtime.exceptionThrown") errors.push(m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text);
-  };
-  const cmd = (method: string, params: object = {}) => new Promise<{ result?: { result?: { value?: unknown }; exceptionDetails?: unknown } }>((r) => {
-    const id = ++n;
-    waiting.set(id, r);
-    ws.send(JSON.stringify({ id, method, params }));
-  });
-  const run = async <T,>(expr: string): Promise<T> => {
-    const r = await cmd("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true });
-    assert.equal(r.result?.exceptionDetails, undefined, `${expr}: ${JSON.stringify(r.result?.exceptionDetails)}`);
-    return r.result?.result?.value as T;
-  };
-  const until = async (what: string, expr: string, ms = 20000) => {
-    for (const end = Date.now() + ms; Date.now() < end; await sleep(150)) if (await run<boolean>(`!!(${expr})`)) return;
-    assert.fail(`waited for ${what}; the page says: ${await run<string>(`document.body.innerText.replace(/\\s+/g, " ").slice(0, 400)`)}`);
-  };
-  /** Click the first element matching `sel` whose text starts with `text`. */
-  const click = (sel: string, text = "") => run<boolean>(`(() => { const e = [...document.querySelectorAll(${JSON.stringify(sel)})].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); e?.click(); return !!e; })()`)
-    .then((ok) => assert.ok(ok, `no ${sel} ${text}`));
-  const key = async (key: string, code: string, vk: number, modifiers = 0) => {
-    for (const type of ["keyDown", "keyUp"]) await cmd("Input.dispatchKeyEvent", { type, key, code, windowsVirtualKeyCode: vk, modifiers });
-  };
-  await cmd("Runtime.enable");
-  await cmd("Page.enable");
-  await cmd("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
-  return { cmd, run, until, click, key, errors, close: () => ws.close() };
-}
+import { browser, connect, ENGINE, missing, port, ROOT, sleep, STATION } from "./harness.ts";
 
 test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example, its Copy", { skip: missing, timeout: 180_000 }, async () => {
   const tmp = fs.mkdtempSync(path.join(process.env.SIMPLICIAL_E2E_TMP ?? os.tmpdir(), "simplicial-e2e-"));

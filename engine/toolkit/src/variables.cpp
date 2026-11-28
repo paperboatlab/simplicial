@@ -225,6 +225,11 @@ json Variables::values() const {
   return out;
 }
 
+std::string Variables::type_of(std::string_view name) const {
+  const auto it = vars_.find(name);
+  return it == vars_.end() ? std::string{} : it->second.type;
+}
+
 json Variables::value_for(const json& given, const ParamDef& def, std::string_view where) const {
   if (!is_reference(given)) return given;
   const std::string at = std::string(where) + "." + def.id;

@@ -43,6 +43,8 @@ class Variables {
   bool empty() const { return vars_.empty(); }
   // name → resolved value (a number, true / false, or text).
   nlohmann::json values() const;
+  // The type of the variable called `name` (number, boolean, enum, text, file, matrix), or "" if none.
+  std::string type_of(std::string_view name) const;
 
   // A param's (or prop's) value with any reference resolved and checked against `def`: a
   // literal as it is, {"var"} its variable's value, {"expr"} the formula's value (number
@@ -52,7 +54,7 @@ class Variables {
 
  private:
   struct Var {
-    std::string type;          // number, boolean, enum, text, file
+    std::string type;          // number, boolean, enum, text, file, matrix
     nlohmann::json value;      // resolved
     std::vector<std::string> options;
     std::string unit;          // a number's; a param in another unit can't take it

@@ -731,7 +731,7 @@ export function App() {
   const boundable = useMemo(() => bindable(state.variables, state.remoteVariables), [state.variables, state.remoteVariables]);
   const vars = useMemo(() => ({
     list: boundable, values: state.varValues, show: () => toggle("r", true), hover: hoverVar,
-    hints: boundable.map((v) => ({ name: v.name, type: typeLine(v), value: valueText(v.expr ? state.varValues[v.name] : v.value ?? state.varValues[v.name], v.type) })),
+    hints: boundable.map((v) => ({ name: v.name, of: v.type, type: typeLine(v), value: valueText(v.expr ? state.varValues[v.name] : v.value ?? state.varValues[v.name], v.type) })),
   }), [boundable, state.varValues, hoverVar]); // eslint-disable-line react-hooks/exhaustive-deps
   /** The Console's block: picked on the canvas, on its level, in view. */
   const pick = (id: string) => {
