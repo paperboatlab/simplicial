@@ -20,7 +20,7 @@
     "e2e": "node --test web/e2e/*.test.ts"
   },
   "devDependencies": {
-    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#81fda32e35d2b305634eabc68ea6b8783d85c948",
+    "@paperboatlab/ui": "github:paperboatlab/paperboat-ui#5ce10212b8554876f2e59b97a4034201dbe211b9",
     "@types/node": "^22.19.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

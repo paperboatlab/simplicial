@@ -265,8 +265,9 @@ input.port-pill-name:focus { outline: 2px solid var(--focus); }
 /* the one file workflow: the Start page in the bay's card while no file is open; the Flow's head names the file (no
    document field in the bar's centre); the picker's preview of a flow or a station */
 .bay > .start-card { flex: 1; min-height: 0; display: flex; }
-/* an example's window (paperboat#75): the kit's banner across the bay's top, over the page sliding up behind it */
-.bay > .example-banner { margin: calc(-1 * var(--gutter)) calc(-1 * var(--gutter)) var(--gutter); position: relative; z-index: 1; }
+/* an example's window (paperboat#75): the kit's banner card at the bay's top, a gutter in like the page; its ring of
+   ground a gutter wide (concentric with the bay) hides the page above, sliding up behind it */
+.bay > .example-banner { margin-bottom: var(--gutter); position: relative; z-index: 1; box-shadow: 0 0 0 var(--gutter) var(--surface-ground); }
 .bay > .pcol[hidden] { display: none; }
 .panel-head .sum .fname { font-weight: 500; color: var(--text); }
 .panel-head .sum .dirty { display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }

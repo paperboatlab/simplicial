@@ -164,8 +164,8 @@ test("open a flow, edit it, save it, reopen it; Manage runtimes…; Open example
     // the example's window (the URL `example open` gives it): the banner, and its Copy asks the CLI for a copy, opened
     await cmd("Page.navigate", { url: "about:blank" });
     await cmd("Page.navigate", { url: `http://127.0.0.1:${web}/?station=ws://localhost:${station}&example=simplicial/09-modular-synth-cpp&name=09%20Modular%20Synth&to=${encodeURIComponent(mine)}` });
-    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("09 Modular Synth: an example.")`, 40000);
-    await click(".example-banner button", "copy it to ");  // the folder, as ~/… when it is in the home folder
+    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("09 Modular Synth This example is read-only.")`, 40000);
+    await click(".example-banner .key", "Copy to ");  // the folder, as ~/… when it is in the home folder
     for (let i = 0; i < 40 && !fs.existsSync(copied); i++) await sleep(150);
     assert.equal(fs.readFileSync(copied, "utf8").trim(), `example copy simplicial/09-modular-synth-cpp --to ${mine} --open --json`);
     await until("the done toast", `/Copied to \\S*my work\\/09-modular-synth-cpp/.test(document.body.innerText)`);
@@ -243,7 +243,7 @@ test("an example opened where it is is read-only: no save, no edit, a run writes
     // the page, as `paperboat example open` opens it: the banner, the flow on its station, nothing to edit or save
     await cmd("Page.navigate", { url: `${base}/?station=ws://localhost:${station}&open=:loop.psf&example=simplicial/00-loop&name=00%20Loop&to=${encodeURIComponent(mine)}` });
     await until("the example's flow", `(${flowHead}).startsWith("loop.psf") && (${flowHead}).includes("1 block")`, 40000);
-    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("00 Loop: an example.")`);
+    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("00 Loop This example is read-only.")`);
     await sleep(1500);  // the opened flow settles (projectSession.ts)
     assert.equal(await run<boolean>(`[...document.querySelectorAll(".pg-flow .key")].find((k) => k.textContent.includes("Add block"))?.disabled`), true);
     assert.equal(await run<boolean>(`[...document.querySelectorAll("button")].find((k) => k.textContent.trim() === "Variable")?.disabled`), true);
