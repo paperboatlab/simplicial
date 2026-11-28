@@ -226,8 +226,9 @@ test("an example opened where it is is read-only: no save, no edit, a run writes
     for (let i = 0; i < 80; i++) { try { await fetch(`${base}/`); break; } catch { await sleep(250); } }
 
     // the server: the workspace is an example; a write into it is refused; Recent and the hubs leave it out
-    const served = (await (await fetch(`${base}/__paperboat/workspace`)).json()) as { workspace: { example?: boolean } };
-    assert.equal(served.workspace.example, true);
+    // (a paperboat before 0.2.0-beta.9: no `root` in its list, so the checkout is known by its markers, without an id)
+    const served = (await (await fetch(`${base}/__paperboat/workspace`)).json()) as { workspace: { example?: { id: string; name: string } } };
+    assert.deepEqual(served.workspace.example, { id: "", name: "00-loop" });
     const write = (p: string) => fetch(`${base}/__paperboat/hub/file?${new URLSearchParams({ folder, path: p })}`,
       { method: "POST", headers: { "X-Paperboat-Page": "1" }, body: "{}" });
     for (const p of ["loop.psf", "new.psf", "flows/new.psf"]) {
@@ -268,6 +269,69 @@ test("an example opened where it is is read-only: no save, no edit, a run writes
     // Recent has none of it: not the folder, not the flow
     const recent = fs.existsSync(path.join(home, "recent.json")) ? JSON.parse(fs.readFileSync(path.join(home, "recent.json"), "utf8")).recent as { path: string }[] : [];
     assert.deepEqual(recent.filter((e) => e.path.includes("paperboat-examples")), []);
+    assert.deepEqual(page.errors, []);
+  } finally {
+    await Promise.race([page?.cmd("Browser.close"), sleep(2000)]);
+    page?.close();
+    for (const k of kids) k.kill();
+    spawnSync("pkill", ["-f", "--", `--user-data-dir=${profile}`]);
+    await sleep(500);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test("a window on a server `example open` started (PAPERBOAT_EXAMPLE) has the banner and Copy without ?example=", { skip: missing, timeout: 180_000 }, async () => {
+  const tmp = fs.mkdtempSync(path.join(process.env.SIMPLICIAL_E2E_TMP ?? os.tmpdir(), "simplicial-e2e-flag-"));
+  const profile = path.join(tmp, "profile"), home = path.join(tmp, "home"), mine = path.join(tmp, "mine");
+  // examples wherever the platform keeps them (no markers to guess from): its list's `root` says so (paperboat#85)
+  const root = path.join(tmp, "examples"), folder = path.join(root, "simplicial", "00-loop");
+  fs.mkdirSync(folder, { recursive: true });
+  fs.mkdirSync(mine);
+  fs.writeFileSync(path.join(folder, "loop.psf"), `${JSON.stringify({ paperboat: 1, station: { name: "scratchpad" },
+    flow: { nodes: [{ id: "c1", type: "constant", params: {}, pos: [0, 0] }], edges: [] }, run: { duration: 0.5 } }, null, 2)}\n`);
+  const before = snapshot(root);
+  const example = { id: "simplicial/00-loop", app: "simplicial", kind: "simplicial", name: "00 Loop", path: folder, root };
+  const cli = path.join(tmp, "paperboat"), copied = path.join(tmp, "copy-args");
+  fs.writeFileSync(cli, `#!/bin/sh\ncase "$1 $2" in\n  "hub list") echo '[]'; exit 0 ;;\n`
+    + `  "example list") echo '${JSON.stringify([example])}'; exit 0 ;;\n`
+    + `  "example copy") echo "$*" > ${copied}; echo '${JSON.stringify({ ...example, path: path.join(mine, "00-loop"), session: "s2" })}'; exit 0 ;;\nesac\nexit 1\n`, { mode: 0o755 });
+  const env: NodeJS.ProcessEnv = { ...process.env, PAPERBOAT_HOME: home, PAPERBOAT_ROOT: ROOT, PAPERBOAT_BIN: cli, PAPERBOAT_EXAMPLE: example.id };
+  delete env.PAPERBOAT_EXAMPLES_DIR;
+  const [station, web, debug] = [port(), port(), port()];
+  const kids: ChildProcess[] = [
+    spawn(STATION, ["--port", String(station)], { cwd: folder, env, stdio: "ignore" }),
+    spawn(ENGINE, ["web", "start", "--port", String(web), "--host", "127.0.0.1", "--folder", folder], { cwd: folder, env, stdio: "ignore" }),
+  ];
+  const [bin, pre] = browser()!;
+  const flatpak = bin === "flatpak" ? [`--filesystem=${tmp}`] : [];
+  kids.push(spawn(bin, [...pre.slice(0, 1), ...flatpak, ...pre.slice(1), "--headless=new", "--disable-gpu", ...(process.env.CI ? ["--no-sandbox"] : []), `--remote-debugging-port=${debug}`,
+    `--user-data-dir=${profile}`, "--no-first-run", "about:blank"], { stdio: "ignore" }));
+  let page: Awaited<ReturnType<typeof connect>> | undefined;
+  try {
+    page = await connect(debug);
+    const { cmd, run, until, click } = page;
+    const base = `http://127.0.0.1:${web}`;
+    for (let i = 0; i < 80; i++) { try { await fetch(`${base}/`); break; } catch { await sleep(250); } }
+
+    // the server: its folder is the example it was started as; a write there is refused
+    const served = (await (await fetch(`${base}/__paperboat/workspace`)).json()) as { workspace: { example?: { id: string; name: string } } };
+    assert.deepEqual(served.workspace.example, { id: "simplicial/00-loop", name: "00 Loop" });
+    const w = await fetch(`${base}/__paperboat/hub/file?${new URLSearchParams({ folder, path: "loop.psf" })}`, { method: "POST", headers: { "X-Paperboat-Page": "1" }, body: "{}" });
+    assert.equal(w.status, 403);
+
+    // the page, at an address without ?example= (reloaded, or typed): the banner and a Copy that asks where
+    await cmd("Page.navigate", { url: `${base}/?station=ws://localhost:${station}&open=:loop.psf` });
+    await until("the example banner", `document.querySelector(".example-banner")?.textContent.startsWith("00 Loop This example is read-only.")`, 40000);
+    assert.equal(await run<boolean>(`[...document.querySelectorAll("button")].find((k) => k.textContent.trim() === "Variable")?.disabled`), true);
+    await click(".example-banner .key", "Copy to a folder");
+    await until("where to copy it", `[...document.querySelectorAll(".dialog, [role=dialog]")].some((d) => d.textContent.includes("Copy the example to"))`);
+    await run(`document.querySelector(".ws-path input").focus()`);
+    await cmd("Input.insertText", { text: mine });
+    await click(".ws-ask .key", "Open");
+    for (let i = 0; i < 80 && !fs.existsSync(copied); i++) await sleep(100);
+    assert.equal(fs.readFileSync(copied, "utf8").trim(), `example copy simplicial/00-loop --to ${mine} --open --json`);
+    await until("the copy's note", `document.body.innerText.includes("Copied to")`);
+    assert.deepEqual(snapshot(root), before);
     assert.deepEqual(page.errors, []);
   } finally {
     await Promise.race([page?.cmd("Browser.close"), sleep(2000)]);

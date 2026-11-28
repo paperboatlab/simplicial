@@ -61,7 +61,7 @@ import type { BoardLayout, RunSettings, StationFlow, StationFlow0, StationRef } 
 
 /** What the address asks for (stationLink.ts): the station, a flow to open on it (`?open=`), or the flow without one. */
 const OPENING = fromSearch(location.search);
-/** The example this window opened where it is (`paperboat example open`, paperboat#75): its banner offers Copy. */
+/** The example this window opened where it is, as its address says (`paperboat example open`, paperboat#75). */
 const EXAMPLE = exampleFromUrl(location.search);
 const WITHOUT = !!OPENING.nostation;
 /** The station: ?station=ws://host:port, else the page's own host (the engine serves the page and the socket on one port). */
@@ -183,9 +183,11 @@ export function App() {
 
   const running = state.run?.status === "running";
   // the workspace (a folder or a hub, the page's server's: hubs.ts), below; an example's (its URL, or its folder as the
-  // server knows it: `example`) can't be edited or saved, only run (paperboat#75)
+  // server knows it: `example`) can't be edited or saved, only run (paperboat#75). Its banner offers Copy: the URL's
+  // example, else the server's (PAPERBOAT_EXAMPLE, paperboat#85), so a window opened without ?example= has it too.
   const [ws, setWs] = useState<Served["workspace"]>(null);
   const example = !!EXAMPLE || !!ws?.example;
+  const opened = EXAMPLE ?? (ws?.example?.id ? { id: ws.example.id, name: ws.example.name, to: undefined } : null);
   const lock = running ? LOCKED : WITHOUT ? "No station: open the flow on its station to edit and run it" : example ? READ_ONLY : "";
   // The Flow canvas: its blocks and wires (what a run sends), the level open on it, undo, and what its menus do.
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([]);
@@ -417,19 +419,19 @@ export function App() {
     if (p) workInFolder(p);
   };
   /** The example banner's Copy: into the folder it was opened from, else one picked as Open folder… picks it. */
-  const copyTo = (to: string) => void copyExample(EXAMPLE!.id, to).then(
+  const copyTo = (to: string) => void copyExample(opened!.id, to).then(
     (path) => notes.show({ title: `Copied to ${tilde(path, userHome)}`, detail: "it opens in a new window", state: "done" }),
-    (e) => failed(`Can't copy ${EXAMPLE!.name}`, e));
+    (e) => failed(`Can't copy ${opened!.name}`, e));
   const copyExampleTo = async () => {
-    if (EXAMPLE!.to) return copyTo(EXAMPLE!.to);
+    if (opened!.to) return copyTo(opened!.to);
     const sh = shell();
     if (!sh) return setAsk("copy-to");
     const p = await sh.pickFolder("Copy the example to");
     if (p) copyTo(p);
   };
   /** A save in an example's window: refused, its Copy offered (the server refuses one too). */
-  const refuse = () => notes.show({ title: `${EXAMPLE?.name ?? ws?.name ?? "This"} is an example`, detail: READ_ONLY, state: "warning",
-    ...(EXAMPLE ? { actions: [{ label: "Copy it", primary: true, run: () => void copyExampleTo() }] } : {}) });
+  const refuse = () => notes.show({ title: `${opened?.name ?? ws?.name ?? "This"} is an example`, detail: READ_ONLY, state: "warning",
+    ...(opened ? { actions: [{ label: "Copy it", primary: true, run: () => void copyExampleTo() }] } : {}) });
   const newHub = () => notes.show({ title: "New hubs are made in Malachite", detail: "or with paperboat hub new <name>" });
   const askConnect = async (thenOpen = false) => { setHubs(await listHubs()); setAsk(thenOpen ? "connect-open" : "connect"); };
   /** Open file…: in a hub, our picker over it; outside one, a local file or a hub (Malachite installed), else a local file. */
@@ -659,7 +661,7 @@ export function App() {
       undo: history.undo, redo: history.redo, cut: () => flow.current?.cut(), copy: () => flow.current?.copy(), paste: () => flow.current?.paste(),
       all: () => { go("flow"); flow.current?.selectAll(); }, arrange: () => void flow.current?.arrange(), arrangeBoard,
     },
-  ), ...exampleCommands(examples, (id) => void openExample(id, EXAMPLE ? EXAMPLE.to : ws?.root).catch((e) => failed("Can't open the example", e)))];
+  ), ...exampleCommands(examples, (id) => void openExample(id, example ? opened?.to : ws?.root).catch((e) => failed("Can't open the example", e)))];
   useShortcuts(booted ? commands : []);
 
   /** Quick add at a point: the cursor over the Flow, else a third down its middle; only where the Flow is in view. */
@@ -794,7 +796,7 @@ export function App() {
         ]} />
         <div className="main">
           <div className="pages bay">
-            {EXAMPLE && <ExampleBanner name={EXAMPLE.name} folder={EXAMPLE.to && tilde(EXAMPLE.to, userHome)} cache={EXAMPLE.cache} onCopy={() => void copyExampleTo()} />}
+            {opened && <ExampleBanner name={opened.name} folder={opened.to && tilde(opened.to, userHome)} onCopy={() => void copyExampleTo()} />}
             {showStart && (
               <div className="panel start-card">
                 <Start app="Simplicial" noun="flow" nouns="flows and stations" hubs={hubs.length > 0} recent={recent} home={userHome} opening={opener.opening}

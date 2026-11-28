@@ -24,6 +24,17 @@ jobs:
         run: cmake --build engine/build
       - name: Test
         run: ctest --test-dir engine/build --output-on-failure
+      # an example's read-only lease against a real paperboatd (paperboat#85): native only, so no image to pull
+      - name: Read-only example (paperboatd 0.2.0-beta.9)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get install -y --no-install-recommends rpm2cpio cpio
+          mkdir -p "$RUNNER_TEMP/pb" && cd "$RUNNER_TEMP/pb"
+          gh release download v0.2.0-beta.9 -R paperboatlab/paperboat -p 'paperboat-cli-*.rpm'
+          rpm2cpio paperboat-cli-*.rpm | cpio -idm
+          cd "$GITHUB_WORKSPACE"
+          PAPERBOATD="$RUNNER_TEMP/pb/usr/bin/paperboatd" engine/build/tests/paperboat_tests "an example's station can't write into the example*"
       # end to end: the engine just built, the page, and the runner's Chrome
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }

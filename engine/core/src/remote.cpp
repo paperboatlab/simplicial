@@ -24,6 +24,7 @@
 
 #include <toml++/toml.hpp>
 
+#include "paperboat/core/examples.hpp"
 #include "paperboat/core/server.hpp"
 #include "paperboat/core/station_manager.hpp"
 #include "paperboat/toolkit/descriptor.hpp"
@@ -453,10 +454,14 @@ struct RemoteRuntime::State {
     close_all();
     control = open_control();
     std::cerr << "starting the " << runtime << " runtime…" << std::endl;
-    lease = control_call("acquire", {{"runtime", runtime},
-                                     {"mode", "station"},
-                                     {"project", fs::absolute(project).string()},
-                                     {"owner", "simplicial:" + fs::absolute(project).string()}});
+    json args = {{"runtime", runtime},
+                 {"mode", "station"},
+                 {"project", fs::absolute(project).string()},
+                 {"owner", "simplicial:" + fs::absolute(project).string()}};
+    // an example's station: paperboatd keeps the runtime from writing into it, on every backend (paperboat#85;
+    // an older paperboatd ignores it, and only its containers mount the project read-only)
+    if (examples::inside(project)) args["readonly"] = true;
+    lease = control_call("acquire", args);
     const fs::path path = fs::path(lease.value("ipc", "")) / "runtime.sock";
     for (const auto until = Clock::now() + 5min; (sock = connect_unix(path)) < 0;) {  // the image may still be pulling
       if (Clock::now() > until) throw std::runtime_error(runtime + " did not start (" + path.string() + ")");
