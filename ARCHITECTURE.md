@@ -181,7 +181,8 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
 6. **Variables are resolved before construction.** `{"var"}`/`{"expr"}` references are resolved before
    any `Block` or `StationObject` exists; `Context::set_variable` is buffered and committed at the end of
    the pass. A live client's variables (`variables.set` with a `source`: Julix, plans/2026-11-27_00-15) are the
-   server's, not a session's flow: every resolve (the station's show, a run, a tuned list, an analysis) takes the
+   server's, not a session's flow (each connection's list kept apart and merged, since every Julix window
+   connects: julix#44): every resolve (the station's show, a run, a tuned list, an analysis) takes the
    flow's own first and `toolkit::with_live` adds the live ones under the names left, so they never reach a flow file.
 7. **Threads.** The session handles messages on the socket thread and runs each `Run` on a
    `std::jthread` with a `std::stop_token`; keys and live variables are latched between steps; `Handle`

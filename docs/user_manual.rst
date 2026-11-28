@@ -33,7 +33,8 @@ booleans, text, and arrays as a ``matrix`` by its rows (a vector is a column), u
 larger one says so, and has no value to use). A setting binds to one like to any variable, and a run
 takes the value Julix has then. A name the flow has itself is the flow's (its Julix row is greyed):
 Julix fills in only what the flow doesn't define, as MATLAB's workspace does under a Simulink model's.
-They are never saved in the flow file, and they go when Julix closes.
+They are never saved in the flow file, and they go when Julix closes. With more than one Julix window open, the
+card has the variables of each, a name in the latest run's over the same name in another's.
 
 **Add block**, in the Flow's head, opens the block library: every block the station offers, as a card
 with its name, its kind, what it does and its ports (inputs → outputs), its packages (Base, Signal,
