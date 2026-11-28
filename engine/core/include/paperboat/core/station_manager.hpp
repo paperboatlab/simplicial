@@ -24,6 +24,9 @@ struct RunningStation {
   std::string executable;
   std::string ws_url;
   int64_t started_at = 0;
+  // A page's server, not a station (serve_files): Julix finds it by its record to share its variables; no station
+  // list has it.
+  bool page = false;
 };
 
 // A station on its way up (pb#332), from `paperboat start/run` until it serves: what a wait screen

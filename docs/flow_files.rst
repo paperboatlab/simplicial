@@ -98,3 +98,10 @@ a path stays inside it, never through a dot entry, and only a ``.psf`` is writte
    Starts the ``.pst`` or station folder (``paperboat start``) on a free port from ``51301`` and
    answers ``{"port", "url"}``; the page waits on ``/__paperboat/status`` and reads what the start
    wrote from ``GET /__paperboat/station/log?port=``.
+
+``GET /__paperboat/variables.remote``
+   Julix's variables as this server has them: ``{"source", "variables"}``, as a station's
+   ``/variables.remote``. Julix finds the server by its record in ``<tmp>/paperboat-runtime``
+   (``station-<port>.json`` with ``"page": true``, which no station list shows) and sends it
+   ``variables.set`` with its ``source`` on a WebSocket, as it does a station. The page shows them with
+   no station, and hands them to the station it connects to.

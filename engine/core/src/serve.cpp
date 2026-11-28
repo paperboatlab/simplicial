@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -303,6 +304,48 @@ ix::HttpResponsePtr hub_route(const std::string& path, const ix::HttpRequestPtr&
   return respond(200, "application/json", "{}");
 }
 
+// Live variables from clients that are not a flow (Julix), shared with whoever listens. Each connection's list is
+// kept apart (every Julix window on the computer connects, a Start page's or a fresh session's with nothing): the
+// shared list is them all, a name in a later list over the same name in an earlier one, and a connection's go when
+// it closes or sends an empty list (#55, #76). The station keeps one, and so does the page's server (the page
+// sees Julix's variables with no station, and hands them to the one it starts). Guarded by its holder's lock.
+struct LiveLists {
+  std::vector<std::pair<std::string, std::pair<std::string, json>>> lists;  // by connection: (label, list), least recently sent first
+  std::string label = "julix";
+  json merged = json::array();
+
+  /** `connection`'s list is now `variables` (none: it goes), from `from` ("julix"). */
+  void set(const std::string& connection, const json& variables, const std::string& from) {
+    std::erase_if(lists, [&](const auto& l) { return l.first == connection; });
+    if (variables.is_array() && !variables.empty()) lists.push_back({connection, {from, variables}});
+    else if (lists.empty()) label = from;
+    merge();
+  }
+  /** `connection` closed: its list goes. Whether it had one. */
+  bool drop(const std::string& connection) {
+    if (!std::erase_if(lists, [&](const auto& l) { return l.first == connection; })) return false;
+    merge();
+    return true;
+  }
+  json message() const { return {{"type", "variables.remote"}, {"source", label}, {"variables", merged}}; }
+
+ private:
+  void merge() {
+    json out = json::array();
+    std::map<std::string, std::size_t> at;
+    for (const auto& [connection, list] : lists) {
+      label = list.first;
+      for (const auto& v : list.second) {
+        if (!v.is_object()) continue;
+        const std::string name = v.value("name", "");
+        if (auto it = at.find(name); it != at.end()) out[it->second] = v;
+        else at[name] = out.size(), out.push_back(v);
+      }
+    }
+    merged = std::move(out);
+  }
+};
+
 }  // namespace
 
 int serve_files(const fs::path& dir, int port, const std::string& host, const fs::path& folder) {
@@ -320,8 +363,28 @@ int serve_files(const fs::path& dir, int port, const std::string& host, const fs
   }
   const fs::path root = fs::weakly_canonical(dir, ec);
   ix::HttpServer server(port, host);
-  server.setOnConnectionCallback([&root](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>& conn) {
+  // Julix's variables (server/share.ts) without a station: Julix finds this server by its record, as it finds a
+  // station, and sends `variables.set` with its `source` on a WebSocket; the page reads them here
+  // (/__paperboat/variables.remote) and hands them to its station, a later one too.
+  std::mutex live_mutex;
+  LiveLists live;
+  server.setOnClientMessageCallback([&](std::shared_ptr<ix::ConnectionState> conn, ix::WebSocket&, const ix::WebSocketMessagePtr& msg) {
+    const std::string& id = conn->getId();
+    std::lock_guard lock(live_mutex);
+    if (msg->type == ix::WebSocketMessageType::Close) {
+      live.drop(id);
+    } else if (msg->type == ix::WebSocketMessageType::Message) {
+      const json m = json::parse(msg->str, nullptr, false);
+      if (m.is_object() && m.value("type", "") == "variables.set" && m.contains("source") && m["source"].is_string() && !m["source"].get<std::string>().empty())
+        live.set(id, m.value("variables", json::array()), m["source"].get<std::string>());
+    }
+  });
+  server.setOnConnectionCallback([&root, &live_mutex, &live](const ix::HttpRequestPtr& request, const std::shared_ptr<ix::ConnectionState>& conn) {
     std::string path = decode(request->uri.substr(0, request->uri.find('?')));
+    if (path == "/__paperboat/variables.remote") {
+      std::lock_guard lock(live_mutex);
+      return respond(200, "application/json", json{{"source", live.label}, {"variables", live.merged}}.dump());
+    }
     if (auto hub = hub_route(path, request, conn->getRemoteIp())) return hub;
     // The Station dialog lists what is running, like `paperboat list --json` does.
     if (path == "/__paperboat/stations") {
@@ -386,8 +449,21 @@ int serve_files(const fs::path& dir, int port, const std::string& host, const fs
     return 1;
   }
   server.start();
+  // the record Julix finds it by (a page's: no station lists it); a stale one goes with its process
+  RunningStation page;
+  page.port = port;
+  page.pid = platform::current_pid();
+  page.engine = "page";
+  page.page = true;
+  page.cwd = fs::current_path(ec);
+  page.ws_url = "ws://127.0.0.1:" + std::to_string(port);
+  StationManager::register_running_station(page);
+  static int page_port = 0;
+  page_port = port;
+  for (const int sig : {SIGINT, SIGTERM}) std::signal(sig, [](int) { StationManager::unregister_running_station(page_port); std::_Exit(0); });
   std::cout << "Paperboat web app on http://localhost:" << port << "/  (Ctrl+C stops it)" << std::endl;
   server.wait();
+  StationManager::unregister_running_station(port);
   return 0;
 }
 
@@ -398,40 +474,14 @@ struct Server::State {
   ix::HttpServer server;  // also upgrades WebSocket connections, on the same port
   std::mutex mutex;
   std::map<std::string, std::unique_ptr<Session>> sessions;  // by connection id
-  // Live variables from clients that are not this flow (Julix), shared by every session. Each connection's
-  // list is kept apart (every Julix window on the computer connects, a Start page's or a fresh session's with
-  // nothing): the shared list is them all, a name in a later list over the same name in an earlier one, and a
-  // connection's go when it closes or sends an empty list. `remote_variables` is that merge, kept current.
-  struct Remote {
-    std::string label;
-    json variables;
-  };
-  std::vector<std::pair<std::string, Remote>> remotes;  // by connection id, the least recently sent first
-  std::string remote_label = "julix";
-  json remote_variables = json::array();
-
-  // With the lock held: the shared list again, from every connection's.
-  void merge_remote() {
-    json merged = json::array();
-    std::map<std::string, std::size_t> at;
-    for (const auto& [connection, remote] : remotes) {
-      remote_label = remote.label;
-      for (const auto& v : remote.variables) {
-        if (!v.is_object()) continue;
-        const std::string name = v.value("name", "");
-        if (auto it = at.find(name); it != at.end()) merged[it->second] = v;
-        else at[name] = merged.size(), merged.push_back(v);
-      }
-    }
-    remote_variables = std::move(merged);
-  }
+  LiveLists live;  // Julix's variables, shared by every session
 
   void broadcast_remote() {
     std::vector<Session*> targets;
     json message;
     {
       std::lock_guard lock(mutex);
-      message = {{"type", "variables.remote"}, {"source", remote_label}, {"variables", remote_variables}};
+      message = live.message();
       for (auto& [id, session] : sessions) targets.push_back(session.get());
     }
     for (Session* session : targets) session->send_message(message);
@@ -440,10 +490,7 @@ struct Server::State {
   void publish_remote(const std::string& connection, const json& variables, const std::string& label) {
     {
       std::lock_guard lock(mutex);
-      std::erase_if(remotes, [&](const auto& r) { return r.first == connection; });
-      if (variables.is_array() && !variables.empty()) remotes.push_back({connection, {label, variables}});
-      else if (remotes.empty()) remote_label = label;
-      merge_remote();
+      live.set(connection, variables, label);
     }
     broadcast_remote();
   }
@@ -451,8 +498,7 @@ struct Server::State {
   void clear_remote(const std::string& connection) {
     {
       std::lock_guard lock(mutex);
-      if (!std::erase_if(remotes, [&](const auto& r) { return r.first == connection; })) return;
-      merge_remote();
+      if (!live.drop(connection)) return;
     }
     broadcast_remote();
   }
@@ -469,8 +515,8 @@ Server::Server(const Station& station, int port) : state_(std::make_unique<State
           std::string label;
           {
             std::lock_guard lock(s.mutex);
-            variables = s.remote_variables;
-            label = s.remote_label;
+            variables = s.live.merged;
+            label = s.live.label;
           }
           auto response = respond(200, "application/json", json{{"source", label}, {"variables", variables}}.dump());
           response->headers["Access-Control-Allow-Origin"] = "*";
@@ -488,7 +534,7 @@ Server::Server(const Station& station, int port) : state_(std::make_unique<State
               [&s, id](const json& variables, const std::string& label) { s.publish_remote(id, variables, label); },
               [&s] {
                 std::lock_guard lock(s.mutex);
-                return s.remote_variables;
+                return s.live.merged;
               });
           Session* created = nullptr;
           json remote_snapshot;
@@ -497,8 +543,8 @@ Server::Server(const Station& station, int port) : state_(std::make_unique<State
             std::lock_guard lock(s.mutex);
             created = session.get();
             s.sessions[id] = std::move(session);
-            remote_snapshot = s.remote_variables;
-            remote_label = s.remote_label;
+            remote_snapshot = s.live.merged;
+            remote_label = s.live.label;
           }
           // A client that opens after Julix sent its variables gets them too.
           if (created && !remote_snapshot.empty())

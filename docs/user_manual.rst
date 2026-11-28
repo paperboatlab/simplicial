@@ -33,7 +33,8 @@ name, and lists the matrix variables; a Variable block chooses its variable from
 **Julix's variables.** While Julix runs on this computer, its session's variables show in the
 **Variables** card under **From Julix**, read-only, as they were when its last run ended: numbers,
 booleans, text, and arrays as a ``matrix`` by its rows (a vector is a column), up to 4096 values (a
-larger one says so, and has no value to use). A setting binds to one like to any variable, and a run
+larger one says so, and has no value to use). They show with no station running too, and a station
+started later has them at once. A setting binds to one like to any variable, and a run
 takes the value Julix has then. A name the flow has itself is the flow's (its Julix row is greyed):
 Julix fills in only what the flow doesn't define, as MATLAB's workspace does under a Simulink model's.
 They are never saved in the flow file, and they go when Julix closes. With more than one Julix window open, the

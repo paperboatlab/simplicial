@@ -452,6 +452,7 @@ void StationManager::register_running_station(const RunningStation& station) {
       {"executable", station.executable},
       {"ws_url", station.ws_url.empty() ? ws_url(station.port) : station.ws_url},
       {"started_at", station.started_at > 0 ? station.started_at : current_timestamp()}};
+  if (station.page) doc["page"] = true;
 
   std::ofstream out(p);
   if (out) out << doc.dump(2) << '\n';
@@ -481,6 +482,13 @@ std::vector<RunningStation> StationManager::list_running_stations() {
         int port = doc.value("port", 0);
         int pid = doc.value("pid", 0);
 
+        if (doc.value("page", false)) {  // a page's server (serve_files): no station; its process prunes it
+          if (pid <= 0 || !ProcessRunner::is_alive(pid)) {
+            std::error_code rm_ec;
+            fs::remove(path, rm_ec);
+          }
+          continue;
+        }
         if (port <= 0 || pid <= 0 || !ProcessRunner::is_alive(pid) || !is_port_listening(port)) {
           // Prune stale file
           std::error_code rm_ec;

@@ -19,6 +19,13 @@ export function liveRows(own: Variables, live: Variables): { v: Variable; shadow
   return live.map((v) => ({ v, shadowed: mine.has(v.name) }));
 }
 
+/** Julix's variables as the station has them, then those only the page's server has (no station yet, or one Julix
+ *  hasn't found): the same list once the page has handed them to its station. */
+export function liveOf(station: Variables, page: Variables): Variables {
+  const have = new Set(station.map((v) => v.name));
+  return [...station, ...page.filter((v) => !have.has(v.name))];
+}
+
 /** What a param can be bound to: the flow's variables, then the live ones they don't hide and that carry a value. */
 export function bindable(own: Variables, live: Variables): Variables {
   return [...own, ...liveRows(own, live).filter(({ v, shadowed }) => !shadowed && v.value !== undefined).map(({ v }) => v)];

@@ -6,6 +6,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+// The page server's own scratchpad (51301) would outlive the test (#71): the tests start their own stations.
+process.env.PAPERBOAT_NO_SCRATCHPAD = "1";
+
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 export const BUILD = process.env.SIMPLICIAL_BUILD ?? path.join(ROOT, "engine/build");  // another checkout's, say
 export const ENGINE = path.join(BUILD, "tools/simplicial-engine");
