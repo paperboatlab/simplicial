@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { initial, reduce } from "../src/engine.ts";
-import { bindable, liveRows, sourceLabel } from "../src/variableEdits.ts";
+import { bindable, liveOf, liveRows, sourceLabel } from "../src/variableEdits.ts";
 
 test("a variables.remote message replaces the live variables", () => {
   const state = reduce(initial, {
@@ -42,4 +42,16 @@ test("live variables sit under the flow's own: a name the flow has is the flow's
   assert.deepEqual(liveRows(own, live).map((r) => [r.v.name, r.shadowed]), [["k", true], ["m", false], ["big", false]]);
   assert.deepEqual(bindable(own, live).map((v) => v.name), ["k", "m"]);  // big has no value: nothing to bind
   assert.equal(sourceLabel("julix"), "Julix");
+});
+
+test("Julix's variables from the page's server: kept across a new station, and under the station's own", () => {
+  const k = { name: "k", type: "number" as const, value: 2.5 };
+  const s = reduce(initial, { type: "variables.page", source: "julix", variables: [k] });
+  assert.deepEqual(s.pageVariables, [k]);
+  assert.equal(s.pageSource, "julix");
+  assert.deepEqual(reduce(s, { type: "reset" }).pageVariables, [k], "another station: the page's server still has them");
+  // the station's list first (what a run uses), then what only the page's server has
+  const q = { name: "q", type: "number" as const, value: 1 };
+  assert.deepEqual(liveOf([{ ...k, value: 3 }], [k, q]), [{ ...k, value: 3 }, q]);
+  assert.deepEqual(liveOf([], [k]), [k]);
 });

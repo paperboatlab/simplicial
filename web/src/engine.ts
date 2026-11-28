@@ -54,6 +54,10 @@ export type EngineState = {
   remoteVariables: Variables;
   /** Who sent them ("julix"). */
   remoteSource: string;
+  /** The same as the page's server has them (/__paperboat/variables.remote): Julix's, with no station or before it
+   *  hears of one. The page hands them to its station (useEngine). */
+  pageVariables: Variables;
+  pageSource: string;
   /** What the variables come to (variables.values), and why not when they don't hold. */
   varValues: Record<string, number | boolean | string>;
   varError: { text: string; at?: string } | null;
@@ -109,6 +113,8 @@ export const initial: EngineState = {
   starter: { graph: null, station: null, variables: [] },
   remoteVariables: [],
   remoteSource: "",
+  pageVariables: [],
+  pageSource: "",
   varValues: {},
   varError: null,
   run: null,
@@ -153,7 +159,9 @@ export type OpenAction = { type: "file.open"; opened: Opened };
 
 export type Action = ServerMsg | ReplayAction | OpenAction | { type: "signals"; list: SignalMsg[] } | { type: "reset" } | { type: "connection"; value: EngineState["connection"] }
   /** The page's own edit of what the station keeps without sending back. */
-  | { type: "edit"; station?: Station; variables?: Variables };
+  | { type: "edit"; station?: Station; variables?: Variables }
+  /** Julix's variables as the page's server has them. */
+  | { type: "variables.page"; source: string; variables: Variables };
 
 /** Max Console lines kept in memory. */
 export const MAX_LOGS = 200;
@@ -200,7 +208,7 @@ export function reduce(s: EngineState, m: Action): EngineState {
   switch (m.type) {
     case "reset":
       // A new URL may be a different station: drop everything the old one sent, keeping Console logs.
-      return { ...initial, logs: s.logs, traces: s.traces, traceVersion: s.traceVersion + 1 };
+      return { ...initial, logs: s.logs, traces: s.traces, traceVersion: s.traceVersion + 1, pageVariables: s.pageVariables, pageSource: s.pageSource };
     case "connection": {
       if (m.value !== "closed") return { ...s, connection: m.value };
       if (s.connection === "open") {
@@ -245,6 +253,8 @@ export function reduce(s: EngineState, m: Action): EngineState {
     case "variables.remote":
       // A message without a list (or a malformed one) means none, never `undefined`.
       return { ...s, remoteVariables: Array.isArray(m.variables) ? m.variables : [], remoteSource: typeof m.source === "string" ? m.source : "" };
+    case "variables.page":
+      return { ...s, pageVariables: m.variables, pageSource: m.source };
     case "psf.load":  // the flow file the station was started with (--psf, format 0): it holds its objects and variables too
       return m.psf.paperboat === 0
         ? { ...s, loaded: m.psf.flow, station: m.psf.station_objects ?? s.station, variables: m.psf.variables ?? s.variables }
@@ -480,6 +490,34 @@ export function useEngine(url: string) {
       }
     };
   }, [url, traces]);
+
+  // Julix's variables through the page's server, which Julix shares with as with a station: the page has them with no
+  // station, and its station gets them as soon as it connects (a station Julix hasn't found yet, or never will).
+  useEffect(() => {
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const response = await fetch("/__paperboat/variables.remote", { cache: "no-store" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { source?: string; variables?: Variables };
+        if (!stopped && Array.isArray(body.variables)) dispatch({ type: "variables.page", source: body.source ?? "", variables: body.variables });
+      } catch {
+        // not served by the engine (a test page), or between restarts: the next tick tries again
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 1000);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, []);
+  const handed = useRef("[]");  // the list this connection's station last had from the page
+  useEffect(() => {
+    if (state.connection !== "open") { handed.current = "[]"; return; }
+    const list = JSON.stringify(state.pageVariables);
+    if (list === handed.current) return;
+    handed.current = list;
+    // as Julix sends them: the station keeps this connection's list apart, and drops it when the page goes
+    socket.current?.send(JSON.stringify({ type: "variables.set", source: state.pageSource || "julix", variables: state.pageVariables }));
+  }, [state.connection, state.pageVariables, state.pageSource]);
 
   // Playback (#284): while a replay plays, advance its clock once per frame. The reducer stops it
   // at the end; a scrub or a speed change does not restart the loop.

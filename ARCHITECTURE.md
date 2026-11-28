@@ -111,7 +111,10 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
     `variableEdits.ts` (pure, tested) is what an edit does to the list. The page sends the list (`variables.set`) and
     keeps it as the state's (`engine.ts`), since the station doesn't send it back. Under it, Julix's live variables
     (`variables.remote`, kept apart as `remoteVariables`), read-only, never in the flow; `liveRows`/`bindable` say which
-    a name the flow has hides, and the binding hints list the rest.
+    a name the flow has hides, and the binding hints list the rest. The page's server has them too
+    (`/__paperboat/variables.remote`, as `pageVariables`, with no station or before Julix finds one): `liveOf` shows
+    the station's and then those, and `useEngine` hands the page's server's list to the station (`variables.set` with
+    the source), so a station started later runs with them at once.
   - `src/hubs.ts`: the workspace and its files, as the page's server gives them: the workspace, switched at runtime
     (`/__paperboat/workspace`: a folder, a hub, a file's folder or hub, nothing), the hubs (`/__paperboat/hubs`, which
     runs `paperboat hub list --json`: no Malachite, no hub), a workspace's tree and its `.psf` files
@@ -169,8 +172,9 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
     and their `*.test.ts` run with `npm test`; the page names no instrument kind.
   - `e2e/`: end to end (`npm run e2e`): the scratchpad station and the page server from `engine/build`, the built page in a
     headless Chromium over CDP (`harness.ts`): open a flow from a folder, edit it, save it, reopen it; bind params to a flow
-    variable and to Julix's from the variable list, and run with them (`variables.test.ts`). Skipped without an engine
-    build, a page build or a browser.
+    variable and to Julix's from the variable list, and run with them (`variables.test.ts`); Julix's variables with no
+    station, then on a station started later (`julix.test.ts`). `PAPERBOAT_NO_SCRATCHPAD` keeps the page server from
+    starting a scratchpad that outlives the test (#71). Skipped without an engine build, a page build or a browser.
 
 ## 3. Invariants
 
@@ -190,7 +194,9 @@ page ── paperboat/0 ── simplicial-engine host <station> ── paperboat
    any `Block` or `StationObject` exists; `Context::set_variable` is buffered and committed at the end of
    the pass. A live client's variables (`variables.set` with a `source`: Julix, plans/2026-11-27_00-15) are the
    server's, not a session's flow (each connection's list kept apart and merged, since every Julix window
-   connects: julix#44): every resolve (the station's show, a run, a tuned list, an analysis) takes the
+   connects: julix#44; `LiveLists` in `serve.cpp`). The page's server keeps the same merge: it writes a record
+   (`station-<port>.json` with `"page": true`, which no station list has) so Julix finds it as it finds a station, and
+   the page hands its list to its station (#80). Every resolve (the station's show, a run, a tuned list, an analysis) takes the
    flow's own first and `toolkit::with_live` adds the live ones under the names left, so they never reach a flow file.
 7. **Threads.** The session handles messages on the socket thread and runs each `Run` on a
    `std::jthread` with a `std::stop_token`; keys and live variables are latched between steps; `Handle`

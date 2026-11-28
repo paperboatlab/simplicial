@@ -2030,6 +2030,8 @@ void print_interactive_help() {
  * from the installed `paperboat-scratchpad` binary beside `paperboat` in a package / desktop app.
  */
 void start_scratchpad() {
+  // a test's page server: its stations are its own, and a scratchpad started here outlives it (#71)
+  if (const char* no = std::getenv("PAPERBOAT_NO_SCRATCHPAD"); no && *no && std::string_view(no) != "0") return;
   const fs::path root = tk::find_repo_root();
   if (core::StationManager::is_port_listening(51301)) return;
   const fs::path wb_dir = (!root.empty() && fs::is_directory(root / "engine" / "scratchpad"))
