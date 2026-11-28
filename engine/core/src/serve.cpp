@@ -313,6 +313,8 @@ int serve_files(const fs::path& dir, int port, const std::string& host, const fs
       std::cerr << "error: " << folder.string() << " is not a folder\n";
       return 1;
     }
+    // `paperboat example open` started this server: its folder is that example (paperboat/docs/apps.md)
+    if (const char* id = std::getenv("PAPERBOAT_EXAMPLE"); id && *id) examples::opened_at(fs::absolute(folder, ec));
     current_workspace = workspace::place_of(fs::absolute(folder, ec), hubs::known(paperboat_cli()));
     workspace::remember(current_workspace["kind"], current_workspace["root"].get<std::string>(), current_workspace.value("hub", ""));
   }

@@ -129,7 +129,9 @@ json place_of(const fs::path& dir, const json& hubs) {
       return {{"kind", "hub"}, {"root", root.string()}, {"name", h.value("name", root.filename().string())}, {"hub", h["id"]}};
   }
   json out = {{"kind", "folder"}, {"root", at.string()}, {"name", at.filename().string()}};
-  if (examples::inside(at)) out["example"] = true;
+  // an example's folder (read-only): its id and name for the page's banner and Copy, "" when only its place says so
+  if (const auto e = examples::of(at)) out["example"] = {{"id", e->id}, {"name", e->name}};
+  else if (examples::inside(at)) out["example"] = {{"id", ""}, {"name", at.filename().string()}};
   return out;
 }
 

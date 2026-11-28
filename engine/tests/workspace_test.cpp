@@ -1,6 +1,7 @@
 // The workspace and the store every app shares under $PAPERBOAT_HOME (workspace.hpp).
 #include <cstdlib>
 #include <filesystem>
+#include <string>
 #include <fstream>
 
 #include <catch2/catch_test_macros.hpp>
@@ -28,6 +29,10 @@ TEST_CASE("recent.json: newest first, one per kind and path, 40 at most, written
   const fs::path home = fs::temp_directory_path() / "pb_ws_recent";
   fs::remove_all(home);
   setenv("PAPERBOAT_HOME", home.c_str(), 1);
+  // no CLI: examples::inside would run `paperboat example list`, which keeps its own files in this home
+  const char* bin = std::getenv("PAPERBOAT_BIN");
+  const std::string had = bin ? bin : "";
+  setenv("PAPERBOAT_BIN", "/nonexistent/paperboat", 1);
   CHECK(ws::recent() == json{{"version", 1}, {"recent", json::array()}});  // no file yet
   ws::remember("folder", "/p/tank-level");
   ws::remember("file", "/hubs/lab/a.psf", "h1");
@@ -53,6 +58,8 @@ TEST_CASE("recent.json: newest first, one per kind and path, 40 at most, written
   ws::forget();
   CHECK(ws::recent()["recent"].empty());
   fs::remove_all(home);
+  if (bin) setenv("PAPERBOAT_BIN", had.c_str(), 1);
+  else unsetenv("PAPERBOAT_BIN");
 }
 
 TEST_CASE("settings.json: the theme and the scale, its other keys kept") {

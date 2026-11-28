@@ -19,13 +19,16 @@ Examples
 Press Ctrl K and type ``example``: **Open example: <name>** lists Paperboat's examples for Simplicial
 (``paperboat example list --app simplicial``). Picking one opens it where it is, in a new window, with a
 line at the top: run it as it is, or **copy it to <folder>** to change it. The folder is the one this
-window works in (with none, Simplicial asks for one); the copy opens in a new window of its own. An
-example downloaded from GitHub is replaced after a day, so the line says changes there aren't kept.
+window works in (with none, Simplicial asks for one); the copy opens in a new window of its own.
 Without Paperboat installed the list is empty.
 
 An example is read-only: its Flow, Station page and Variables don't change, Save and Save as are off,
 and nothing is written into its folder. A run works as usual; a C++ example builds in
-``$PAPERBOAT_HOME/cache/simplicial/examples``, not in its own ``build/``. An example isn't added to
+``$PAPERBOAT_HOME/cache/simplicial/examples``, not in its own ``build/``. A Julia or Python example's
+code can't write into the example either (Paperboat 0.2.0-beta.9 or later): a file it writes by a
+relative path lands in the runtime's own working folder, and a write into the example fails with
+"… is read-only: it is an example; copy it to change it". The line at the top is there however the
+window was opened. An example isn't added to
 Recent, and an example's hub isn't listed among the hubs. The copy is yours to change.
 
 Ports

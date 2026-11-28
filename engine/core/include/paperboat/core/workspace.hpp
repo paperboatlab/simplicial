@@ -36,7 +36,8 @@ nlohmann::json settings();
 bool save_settings(const nlohmann::json& change);
 
 // The workspace a folder is: the hub whose folder holds it (`hubs` as hubs::known gives them), else the folder
-// itself: {kind: "folder" | "hub", root, name, hub?, example?} (`example`: true in an example, which is read-only).
+// itself: {kind: "folder" | "hub", root, name, hub?, example?} (`example`: {id, name} in an example, which is
+// read-only; `id` "" when the platform names none: examples.hpp).
 nlohmann::json place_of(const std::filesystem::path& dir, const nlohmann::json& hubs);
 
 // A path as typed: ~ and ~/… are the home folder; empty when it isn't absolute.
