@@ -25,7 +25,9 @@ A number setting takes a number, a variable's name or a formula of them (``kp / 
 Typing a name lists the variables it may mean, each with its type and value, and ↓ with no name typed
 lists them all (the one taken replaces the value): ↑ ↓ to pick one, Tab, Enter or a click to take it,
 Esc to hide the list (twice: to undo the edit). Leaving the setting, by Enter or a click elsewhere,
-sets it. A setting bound to a variable shows its name in an outline. Point at a variable in the **Variables** card to see the blocks that use it
+sets it. A setting bound to a variable shows its name in an outline. A number setting lists the number
+and boolean variables; a matrix setting (a Matrix block's rows) takes its rows or a matrix variable's
+name, and lists the matrix variables; a Variable block chooses its variable from a list of them all. Point at a variable in the **Variables** card to see the blocks that use it
 (a subsystem is marked when a block inside it does); click anywhere outside an open variable to fold it.
 
 **Julix's variables.** While Julix runs on this computer, its session's variables show in the
