@@ -14,7 +14,8 @@ Values and keys
 
 ``constant`` (Number: a float, param ``value``), ``text`` (Text: a string) and ``boolean``
 (Boolean: a checkbox, 1 or 0 on the wire); all output ``y``. ``variable`` reads a project
-variable by its ``name`` (live while the run goes, if the variable is tunable). ``key`` is 1 while
+variable by its ``name``, chosen from the flow's and Julix's variables (live while the run goes, if the
+variable is tunable): a number, a boolean as 1 or 0, a matrix as a matrix, other types as text. ``key`` is 1 while
 its ``key`` param's key is held in the UI, and ``key_hold`` also says for how long.
 
 Conversions

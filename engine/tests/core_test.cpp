@@ -1074,6 +1074,43 @@ json tuned_list(double g, double h) {
 
 }  // namespace
 
+TEST_CASE("a matrix variable reaches the Variable block and a bound matrix param as a matrix, Julix's too") {
+  static const tk::Catalog catalog = tk::load_descriptor(R"(domain = "rows"
+import = ["base", "math", "board"]
+[[variables]]
+name = "M"
+type = "matrix"
+value = "5 6; 7 8"
+[graph]
+nodes = [
+  { id = "read", type = "variable", params = { name = "M" } },
+  { id = "bound", type = "matrix_constant", params = { values = { var = "M" } } },
+  { id = "julix", type = "variable", params = { name = "A" } },
+  { id = "det-read", type = "determinant" }, { id = "det-julix", type = "determinant" },
+  { id = "see-read", type = "display" }, { id = "see-bound", type = "display" }, { id = "see-julix", type = "display" },
+]
+edges = [
+  { from = ["read", "y"], to = ["det-read", "a"] }, { from = ["det-read", "det"], to = ["see-read", "in"] },
+  { from = ["bound", "y"], to = ["see-bound", "in"] },
+  { from = ["julix", "y"], to = ["det-julix", "a"] }, { from = ["det-julix", "det"], to = ["see-julix", "in"] },
+]
+)", rig::registry());
+  const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 0.05, .emit_every = 1, .real_time = false}};
+  // Julix's A, under the flow's own (as Session::with_live adds it): its rows as Julix sends them
+  const json vars = tk::with_live(json::parse(catalog.variables),
+                                  json::array({{{"name", "A"}, {"type", "matrix"}, {"value", "1.0 2.0; 3.0 4.0"}}}));
+  const json graph = tk::resolve_graph(json::parse(catalog.graph), catalog, tk::Variables(vars));
+  Collected out;
+  REQUIRE(core::run("r", graph, nullptr, station, out.emit(), nullptr, {}, nullptr, vars) == "done");
+  // the Variable block's matrix is a matrix to a matrix block (it was its text, which a Determinant refused)
+  CHECK_THAT(out.last_signal("see-read"), Catch::Matchers::WithinAbs(-2.0, 1e-9));
+  CHECK_THAT(out.last_signal("see-julix"), Catch::Matchers::WithinAbs(-2.0, 1e-9));
+  json bound;
+  for (const auto& m : out.messages)
+    if (m["type"] == "signal" && m["node"] == "see-bound") bound = m["v"];
+  CHECK(bound == "2 × 2 matrix: 5, 6; 7, 8");
+}
+
 TEST_CASE("a tunable variable reaches the Variable block and bound params during a run; the rest stay") {
   const auto& catalog = tune_catalog();
   const core::Station station{.engine = "test", .catalog = &catalog, .run = {.dt = 0.01, .duration = 1, .emit_every = 1, .real_time = false}};
